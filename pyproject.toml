@@ -51,7 +51,7 @@ packages = ["stapel_docs", "stapel_docs.migrations"]
 # the stapel-new-library template omits them (defect reported upstream to
 # stapel_tools/_library_templates.py); four libraries shipped catalogues
 # that never reached the wheel because of exactly this.
-stapel_docs = ["py.typed", "docs/capabilities.json", "docs/flows.json", "docs/errors.json", "docs/llms.txt", "CONFIG.MD", "migrations/*.py", "schemas/**/*.json", "translations/*.json", "templates/**/*"]
+stapel_docs = ["py.typed", "docs/capabilities.json", "docs/flows.json", "docs/errors.json", "docs/llms.txt", "CONFIG.MD", "migrations/*.py", "schemas/**/*.json", "translations/*.json", "templates/**/*", "assets/*"]
 
 [tool.ruff]
 target-version = "py311"
