@@ -5,14 +5,11 @@ Presenter-canonical from birth (§55): a view resolves its presenter through
 ``StapelResponse(Serializer(presenter.present(...)))`` — it never
 instantiates a ``dto.py`` dataclass itself (SWAP002) and never imports the
 concrete presenter class (SWAP001).
-"""
-from drf_spectacular.utils import extend_schema
-from rest_framework import permissions
-from rest_framework.views import APIView
-from stapel_core.django.api.errors import StapelResponse
 
-from .presenters import get_ping_presenter
-from .serializers import PingResponseSerializer
+Authorization: every view routes its decision through
+``stapel_docs.authz.authorize`` — the single choke point (sharing-axis §7).
+``deny`` -> 403, ``unavailable`` -> 503, never 403-on-outage.
+"""
 
 
 class SerializerSeamMixin:
@@ -32,18 +29,3 @@ class SerializerSeamMixin:
 
     def get_response_serializer_class(self):
         return self.response_serializer_class
-
-
-@extend_schema(tags=["Documents: storage, revisions and per-type editors"])
-class PingView(SerializerSeamMixin, APIView):
-    """Scaffold example — replace with real views, keep both seams
-    (serializer mixin + presenter indirection)."""
-
-    permission_classes = [permissions.AllowAny]
-    response_serializer_class = PingResponseSerializer
-
-    @extend_schema(responses={200: PingResponseSerializer})
-    def get(self, request):
-        response_cls = self.get_response_serializer_class()
-        dto = get_ping_presenter()().present()
-        return StapelResponse(response_cls(dto))
