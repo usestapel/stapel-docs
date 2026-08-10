@@ -75,7 +75,12 @@ def content_mime(document) -> str:
     types, the stored original's mime for ``file``/vanished types."""
     spec = effective_spec(document)
     if spec is not None and spec.slug != "file" and spec.mime_type:
-        return spec.mime_type
+        mime = spec.mime_type
+        # Editable text bodies are utf-8 by contract; without an explicit
+        # charset, HTTP clients default text/* to latin-1 and mis-render.
+        if mime.startswith("text/"):
+            mime += "; charset=utf-8"
+        return mime
     return document.mime_type or "application/octet-stream"
 
 

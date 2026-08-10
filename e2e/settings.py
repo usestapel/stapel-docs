@@ -67,6 +67,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_TZ = True
 
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "stapel_core.django.jwt.authentication.JWTCookieAuthentication",
+    ],
+    "EXCEPTION_HANDLER": "stapel_core.django.api.errors.stapel_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 SPECTACULAR_SETTINGS = {"TITLE": "stapel-docs E2E", "VERSION": "0.1.0"}

@@ -93,7 +93,7 @@ def run_flow():
     s.headers["Authorization"] = f"Bearer {access}"
 
     step("create workspace")
-    resp = s.post(f"{BASE}/workspaces/api/v1", json={"name": "E2E", "slug": "e2e"})
+    resp = s.post(f"{BASE}/workspaces/api/v1/", json={"name": "E2E", "slug": "e2e"})
     if resp.status_code not in (200, 201):
         print(f"FAIL workspace create: {resp.status_code}: {resp.text[:500]}")
         raise SystemExit(1)
