@@ -1,0 +1,238 @@
+# stapel-docs 0.1.0
+
+Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).
+
+Contract: axes 1 · surface 47 · extension points 7 · operations 27 · error codes 60.
+Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
+
+## Configuration axes — what a product switches on
+Settings keys; `default` is what you get by saying nothing. Turning an axis off unmounts the operations it gates.
+- SHARING [enum, default {"MODES": [], "RESOLVERS": {}, "LINK": {"ANONYMOUS": false, "MAX_LEVEL": "view", "TTL_DAYS": 30}}] — Document sharing beyond the workspace
+  Composite axis over STAPEL_DOCS['SHARING']: MODES (additional grant sources, subset of whitelist|link), LINK.ANONYMOUS (anonymous link redemption), LINK.MAX_LEVEL (ceiling for minted link level) and LINK.TTL_DAYS. v1 ships the whole config surface with closed defaults (MODES=[], no anonymous links, view ceiling) — opening any of it before the mechanism exists is a loud system-check error (stapel_docs.E010-E013), never a silent no-op.
+
+## Usage surface — call these before writing your own
+This is the answer to "does Stapel already have something for X?". `instead of` names the outside symbol this one displaces.
+### gate_function
+- append_updates — stapel_docs.services.append_updates
+  Append opaque commutative updates (crdt-discipline types only) at ++head_seq each, with client_id/client_seq retry dedup. Journal appends deliberately do NOT emit document.updated (bus economy).
+- authorize — stapel_docs.authz.authorize
+  instead of: stapel_core.comm.call, stapel_core.django.workspaces.require_capability
+  THE access decision for anything document-shaped — HTTP, presigned URLs, a future realtime stream. Returns allow|deny|unavailable (503, never 403-on-outage); fail-closed via workspaces.check_capability by comm name. Every new read or write path routes through this — a second membership check is how a share mode later ships half-enforced.
+- create_document — stapel_docs.services.create_document
+  instead of: stapel_docs.models.Document.objects.create
+  THE document mint — HTTP, the docs.create_document Function and the INGEST seam all land here. Refuses unknown types loudly, materializes folder_path idempotently, rides the initial body through the regular snapshot path and announces document.created in the same transaction.
+- create_folder — stapel_docs.services.create_folder
+  Mint a folder under the depth limit with live-sibling name uniqueness enforced in code (SQL cannot compare NULL parents). A bare Folder.objects.create skips both invariants.
+- empty_trash — stapel_docs.services.empty_trash
+  Purge the listed trashed items — or the whole workspace trash. A non-trashed or unknown id refuses the WHOLE request: partial purges are how a client deletes more than the user confirmed.
+- finalize_upload — stapel_docs.services.finalize_upload
+  Promote the uploaded object to the document's first version (HEAD-verified size, seq 1, first revision, pending marker cleared) and announce document.created + the byte delta. Emitting the events yourself skips every one of those steps.
+- move_document — stapel_docs.services.move_document
+  Move a document to a folder (or the workspace root), with the target folder resolved live and workspace-pinned.
+- move_folder — stapel_docs.services.move_folder
+  Re-parent a folder with cycle, depth (subtree height counted) and sibling-name checks — the three ways a hand-written parent assignment corrupts the tree.
+- purge_document — stapel_docs.services.purge_document
+  instead of: stapel_docs.models.Document.delete
+  Irreversible destruction of one document: every distinct storage key of its history + journal + rows, O(document), idempotent, with document.deleted and the negative byte delta announced inside the transaction. Deleting the row alone leaks every object its history points at.
+- purge_expired — stapel_docs.services.purge_expired
+  Retention expiry: purge everything soft-deleted longer than TRASH_RETENTION_DAYS ago — the body of the docs_purge_expired management command; call it from a host cron/beat instead of re-deriving the cutoff.
+- purge_folder — stapel_docs.services.purge_folder
+  Purge a trashed folder with its trashed contents; live documents still pointing into the subtree survive at the workspace root (FK SET_NULL), never destroyed by a folder purge.
+- rename_folder — stapel_docs.services.rename_folder
+  Rename with the sibling-name check — the same duplicate-name refusal creation applies.
+- restore_document — stapel_docs.services.restore_document
+  Untrash one document, re-announced via document.created.
+- restore_folder — stapel_docs.services.restore_folder
+  Untrash a subtree; restored documents are re-announced via document.created so downstream indexes come back consistent.
+- restore_revision — stapel_docs.services.restore_revision
+  Restore-as-new-head: the revision's bytes ride the same save path as a PUT (always minting a revision), so history is never rewritten. Copying bytes onto the row by hand loses the revision trail and the storage accounting.
+- save_content — stapel_docs.services.save_content
+  instead of: stapel_docs.storage.DocsStorage.put_bytes
+  The optimistic-lock snapshot save: expected_seq is checked under select_for_update, the snapshot is content-addressed, an auto revision is minted on the configured cadence, the orphaned previous snapshot dies, the journal compacts, and document.updated + document.storage_changed leave in the same transaction. There is exactly one save path — restore and create-with-body use it too.
+- trash_document — stapel_docs.services.trash_document
+  Soft-delete one document, emitting document.deleted inside the transaction — consumers learn it left the visible corpus.
+- trash_folder — stapel_docs.services.trash_folder
+  Soft-delete the whole live subtree, documents included, announcing each document.deleted in the same transaction. Setting deleted_at by hand strands live documents inside a trashed tree.
+- update_document — stapel_docs.services.update_document
+  Patch title/metadata — and strip the reserved upload-pending marker no caller outside the upload flow may set.
+### factory
+- blob_key — stapel_docs.storage.blob_key
+  A content-addressed key with an extension hint, for auxiliary blobs a custom flow stores next to a document under the same prefix discipline.
+- content_hash — stapel_docs.storage.content_hash
+  The sha256 content address of a body — the identity under which snapshots dedup. Any custom write path hashes through this or dedup silently stops.
+- content_mime — stapel_docs.services.content_mime
+  The Content-Type a body must be served with: the spec's mime (+charset for text) for editable types, the stored original's for file/vanished types. Hand-picking a mime per call site is how a utf-8 markdown body ships as latin-1.
+- create_named_revision — stapel_docs.services.create_named_revision
+  Name the CURRENT head snapshot; naming the same head twice renames the existing named revision instead of stacking rows.
+- create_upload — stapel_docs.services.create_upload
+  Open a presigned direct-to-storage upload (type=file): the Document row exists immediately but stays hidden from listings until finalize, and the ticket's key/TTL are what finalize later validates. A bare presigned_put_url gives you the URL and none of that.
+- document_prefix — stapel_docs.storage.document_prefix
+  The object-key prefix every object of a document lives under ({STORAGE_PREFIX}/{workspace}/{document}) — what makes purge O(document) and byte accounting per-workspace. Keys built outside it escape both.
+- download_url — stapel_docs.services.download_url
+  Presigned GET URL for a stored object key with the configured lifetime — opaque to clients; DjangoStorageBackend degrades it to a served URL, so never assume S3 URL shape.
+- effective_spec — stapel_docs.services.effective_spec
+  The document's DocTypeSpec, or None when the type vanished from the registry — the degrade-to-file signal. Read specs through this per document rather than get_doc_type(), which raises on the vanished-type case the API deliberately survives.
+- get_doc_type — stapel_docs.doc_types.get_doc_type
+  One slug's spec, or DocTypeNotRegistered — the loud lookup for flows that must refuse an unknown type (ingest does). For presentation of existing rows use effective_spec, which degrades instead of raising.
+- get_doc_types — stapel_docs.doc_types.get_doc_types
+  instead of: stapel_docs.doc_types.BUILTIN_DOC_TYPES
+  The effective {slug: DocTypeSpec} registry — builtins, then the DOC_TYPES overlay, then runtime registrations. Render type pickers and dispatch editors from this; BUILTIN_DOC_TYPES answers only "which types shipped".
+- get_exporter — stapel_docs.exporters.get_exporter
+  Instantiate the exporter registered for a format (builtins + EXPORTERS overlay) or raise ExportFormatUnknown — the dispatch any custom export endpoint or batch job goes through.
+- get_live_document — stapel_docs.services.get_live_document
+  Fetch a non-trashed document or raise the 404-mapped DocsError — the lookup every normal endpoint starts with (trashed rows are 404 outside the trash surface).
+- get_live_folder — stapel_docs.services.get_live_folder
+  Fetch a non-trashed folder or 404, optionally pinned to a workspace — the workspace pin is what stops a cross-workspace folder_id from being honored.
+- get_revision — stapel_docs.services.get_revision
+  Fetch one revision of a given document or 404 — scoped through document.revisions so a revision id can never be read across documents.
+- get_storage — stapel_docs.storage.get_storage
+  instead of: boto3.client, django.core.files.storage.default_storage
+  THE object-store handle for anything touching document bytes — the configured DocsStorage (Django default_storage, the bundled S3/MinIO backend, or the host's own), memoized. An export script or admin action goes through this rather than building its own boto3 client: the STORAGE seam makes the bucket, credentials and presign policy one decision instead of one per call site.
+- get_trashed_document — stapel_docs.services.get_trashed_document
+  Fetch a trashed document or 404 — only restore/purge flows see trashed rows.
+- get_trashed_folder — stapel_docs.services.get_trashed_folder
+  Fetch a trashed folder or 404 — the restore/purge counterpart of get_live_folder.
+- get_upload_session — stapel_docs.services.get_upload_session
+  Fetch an upload session by id or 404 — the finalize endpoint's lookup.
+- list_documents — stapel_docs.services.list_documents
+  Live documents of a workspace (folder/type/title-substring filters), with pending uploads excluded — the invariant a raw queryset forgets, leaking half-uploaded rows into listings.
+- list_folders — stapel_docs.services.list_folders
+  Live folders of a workspace — whole tree, workspace roots (parent_id=None) or one folder's children. The one listing that respects soft-deletion.
+- read_content — stapel_docs.services.read_content
+  (body, mime, head_seq) of the current head — the spec's empty body at seq 0 before any save. The only sanctioned body read; get_bytes on a guessed key bypasses the empty-body and vanished-type semantics.
+- read_updates — stapel_docs.services.read_updates
+  The replay feed since a sequence number, with honest resync semantics: a since that fell out of the compaction window returns ("resync", None) instead of a silently incomplete list.
+- register_doc_type — stapel_docs.doc_types.register_doc_type
+  instead of: stapel_docs.doc_types.BUILTIN_DOC_TYPES
+  Register (or replace) a document type at runtime — the programmatic equivalent of the DOC_TYPES settings overlay for apps that register from AppConfig.ready(). Mutating BUILTIN_DOC_TYPES reaches the same map from the wrong side and loses to the overlay.
+- reset_storage_cache — stapel_docs.storage.reset_storage_cache
+  Drop the memoized backend so the next get_storage() re-resolves the STORAGE setting — the supported way to make an override_settings block take effect. Overwhelmingly a test-harness concern.
+- revision_content — stapel_docs.services.revision_content
+  A revision's FULL bytes — every revision is a self-contained snapshot (I1), so one get_bytes suffices; no delta chain to walk.
+- snapshot_key — stapel_docs.storage.snapshot_key
+  The content-addressed snapshot key for a body hash — identical bodies collapse to one stored object for free.
+- trash_listing — stapel_docs.services.trash_listing
+  Everything soft-deleted in a workspace — (folders, documents) for the trash surface.
+- unregister_doc_type — stapel_docs.doc_types.unregister_doc_type
+  Remove one runtime registration — the teardown that stops one test's type from leaking into the next.
+
+## Extension points — what a product replaces, fork-free
+- DOC_TYPES [merge_registry]
+  Open document-type registry ({slug: dotted-path to a DocTypeSpec | None to remove}, merged over the txt/md/csv/file builtins) or register at runtime via register_doc_type(). A type carries its editor hint, write discipline (snapshot|crdt), mime, empty body and text extractor — sheet/slides/office are later registry entries, not schema changes.
+- EXPORTERS [merge_registry]
+  Export-format registry ({format: dotted-path | None}, merged over the built-in pdf). An exporter renders (document, body, spec) to (bytes, mime) — add docx/html/srt without touching the module.
+- INGEST [merge_registry]
+  Event-driven ingest ({action_name: dotted-path mapper}): docs subscribes to the named host actions and routes each payload through the mapper into create_document — the host never writes a bus subscriber, and docs never learns a foreign event schema.
+- PRESENTERS [swap_keys]
+  Every DTO is built by a presenter resolved through STAPEL_SWAP — swap keys DOCS_FOLDER_PRESENTER / DOCS_DOCUMENT_PRESENTER / DOCS_REVISION_PRESENTER reshape the folder/document/revision envelopes of every endpoint without forking a view.
+- SHARING_RESOLVERS [merge_registry]
+  SHARING['RESOLVERS'] ({ref_kind: dotted-path}) — the whitelist subject-reference resolver registry of the sharing axis. Real-but-empty in v1: entries are validated for importability at check time (E014), consulted by nothing until whitelist mode ships.
+- STORAGE [dotted_path]
+  Swap the object-storage backend (DocsStorage implementation, REPLACE): any Django storage by default, bundled S3/MinIO backend ([s3] extra), or your own. Every byte of document content I/O goes through it — there is no second I/O path.
+- serializer_seams [class_override]
+  Every view declares request/response serializer seams (SerializerSeamMixin) — subclass the view, override the attribute, remount the URL.
+
+## Fits with — fleet dependencies
+- stapel-auth (optional) — every endpoint requires an authenticated non-anonymous user (IsNotAnonymousUser); stapel-auth is the shelf's session issuer — any stapel-core-compatible JWT issuer satisfies the check
+- stapel-core (required) — comm bus (docs.create_document Function, document.* Actions, the workspaces.check_capability client), JWT authentication, unified error envelope, GDPR provider registry, AppSettings config layer
+- stapel-workspaces (optional) — every HTTP authorization asks the workspaces.check_capability comm Function (fail-closed, deny-by-default) — stapel-workspaces is the shelf's answerer; any provider of that Function satisfies the contract, and without one every HTTP request denies (comm ingest still works)
+
+## HTTP operations (27) — call by operationId, never by a typed path
+Paths are relative to `/docs/api/v1/`.
+### Docs / content
+- GET /documents/{document_id}/content — docs_api_v1_documents_content_retrieve
+- PUT /documents/{document_id}/content — docs_api_v1_documents_content_update
+- GET /documents/{document_id}/download — docs_api_v1_documents_download_retrieve
+- GET /documents/{document_id}/export — docs_api_v1_documents_export_retrieve
+### Docs / documents
+- POST /documents — docs_api_v1_documents_create
+- DELETE /documents/{document_id} — docs_api_v1_documents_destroy
+- GET /documents — docs_api_v1_documents_list
+- PATCH /documents/{document_id} — docs_api_v1_documents_partial_update
+- POST /documents/{document_id}/restore — docs_api_v1_documents_restore_create
+- GET /documents/{document_id} — docs_api_v1_documents_retrieve
+### Docs / folders
+- POST /folders — docs_api_v1_folders_create
+- DELETE /folders/{folder_id} — docs_api_v1_folders_destroy
+- GET /folders — docs_api_v1_folders_list
+- PATCH /folders/{folder_id} — docs_api_v1_folders_partial_update
+- POST /folders/{folder_id}/restore — docs_api_v1_folders_restore_create
+- GET /folders/{folder_id} — docs_api_v1_folders_retrieve
+### Docs / revisions
+- GET /documents/{document_id}/revisions/{revision_id}/content — docs_api_v1_documents_revisions_content_retrieve
+- POST /documents/{document_id}/revisions — docs_api_v1_documents_revisions_create
+- GET /documents/{document_id}/revisions/{revision_id}/download — docs_api_v1_documents_revisions_download_retrieve
+- GET /documents/{document_id}/revisions — docs_api_v1_documents_revisions_list
+- POST /documents/{document_id}/revisions/{revision_id}/restore — docs_api_v1_documents_revisions_restore_create
+### Docs / trash
+- POST /trash/empty — docs_api_v1_trash_empty_create
+- GET /trash — docs_api_v1_trash_retrieve
+### Docs / updates
+- POST /documents/{document_id}/updates — docs_api_v1_documents_updates_create
+- GET /documents/{document_id}/updates — docs_api_v1_documents_updates_retrieve
+### Docs / uploads
+- POST /uploads — docs_api_v1_uploads_create
+- POST /uploads/{upload_id}/finalize — docs_api_v1_uploads_finalize_create
+
+## Error codes (60) — the StapelError envelope
+Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
+- error.400.bad_request [400] fix_input
+- error.400.captcha_invalid [400] retry
+- error.400.captcha_required [400] retry
+- error.400.docs_bad_since [400] fix_input
+- error.400.docs_duplicate_name [400] fix_input
+- error.400.docs_export_format [400] fix_input
+- error.400.docs_folder_cycle [400] fix_input
+- error.400.docs_folder_depth [400] fix_input
+- error.400.docs_not_trashed [400] fix_input
+- error.400.docs_type_not_editable [400] fix_input
+- error.400.docs_unknown_type [400] fix_input
+- error.400.docs_updates_not_crdt [400] fix_input
+- error.400.docs_upload_state [400] fix_input
+- error.400.expected_list [400] fix_input
+- error.400.field.blank [400] fix_input {field}
+- error.400.field.does_not_exist [400] fix_input {field}
+- error.400.field.invalid [400] fix_input {field}
+- error.400.field.invalid_choice [400] fix_input {field}
+- error.400.field.max_length [400] fix_input {field,max_length}
+- error.400.field.max_value [400] fix_input {field,max_value}
+- error.400.field.min_length [400] fix_input {field,min_length}
+- error.400.field.min_value [400] fix_input {field,min_value}
+- error.400.field.null [400] fix_input {field}
+- error.400.field.required [400] fix_input {field}
+- error.400.field.unique [400] fix_input {field}
+- error.400.invalid_ad_id [400] fix_input
+- error.400.validation_error [400] fix_input
+- error.400.verification_failed [400] verify
+- error.400.verification_invalid_factor [400] verify
+- error.401.unauthorized [401] reauthenticate
+- error.402.payment_required [402] retry
+- error.403.docs_forbidden [403] retry
+- error.403.forbidden [403] retry
+- error.403.network_blocked [403] contact_support
+- error.403.verification_enrollment_required [403] verify
+- error.403.verification_required [403] verify
+- error.404.ad_not_found [404] retry
+- error.404.docs_document_not_found [404] retry
+- error.404.docs_folder_not_found [404] retry
+- error.404.docs_revision_not_found [404] retry
+- error.404.docs_upload_not_found [404] retry
+- error.404.not_found [404] retry
+- error.404.verification_challenge_not_found [404] verify
+- error.405.method_not_allowed [405] retry
+- error.406.not_acceptable [406] retry
+- error.408.request_timeout [408] retry
+- error.409.conflict [409] fix_input
+- error.409.docs_seq_conflict [409] fix_input
+- error.410.gone [410] retry
+- error.412.docs_missing_if_match [412] retry
+- error.413.payload_too_large [413] retry
+- error.415.unsupported_media_type [415] retry
+- error.422.unprocessable_entity [422] wait_and_retry
+- error.423.locked [423] wait_and_retry
+- error.423.verification_locked [423] wait_and_retry
+- error.429.rate_limit [429] wait_and_retry {retry_after_minutes}
+- error.429.too_many_requests [429] wait_and_retry
+- error.500.internal [500] contact_support
+- error.503.docs_exporter_unavailable [503] retry
+- error.503.docs_workspaces_unavailable [503] retry

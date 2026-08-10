@@ -1,0 +1,300 @@
+{
+  "_comment": "Hand-curated layer of docs/capabilities.json (capability-config.md §2 p.3). The emitter (stapel_docs/_capabilities.py) merges this over the derived axes; an axis present in conf.py DEFAULTS but missing here (or vice versa) is a loud emission error. Keep business_label/summary in business language — they surface in CTO conversations, not in code. The one axis is composite: the emitter expresses axes as top-level DEFAULTS keys only, so the nested SHARING behavior knobs (MODES / LINK.ANONYMOUS / LINK.MAX_LEVEL / LINK.TTL_DAYS) surface as ONE `SHARING` axis whose default is the closed dict, not as per-key axes — the per-key story lives in the summary and in checks.py (E010-E013). `surface_roots` + `surface` are the third section (stapel_tools.surface): the usage surface — the symbols a host or a sibling module is meant to CALL instead of writing its own. The roots are scopes, not lists, so every public module-level function in a rooted file MUST carry an intent line here or emission fails naming it. Deliberately NOT rooted: events.py (the service layer emits document.* inside its own mutating transactions — host code that emits them double-publishes a public event), functions.py/actions.py (comm surface, reached by name over the bus, never imported), checks.py (Django check callbacks, invoked by the check framework), presenters.py (the view layer's DTO discipline; hosts reach it through the PRESENTERS swap keys documented as an extension point, not by calling the builders).",
+  "provides": "Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).",
+  "requires": [
+    {
+      "module": "stapel-core",
+      "optional": false,
+      "reason": "comm bus (docs.create_document Function, document.* Actions, the workspaces.check_capability client), JWT authentication, unified error envelope, GDPR provider registry, AppSettings config layer"
+    },
+    {
+      "module": "stapel-workspaces",
+      "optional": true,
+      "reason": "every HTTP authorization asks the workspaces.check_capability comm Function (fail-closed, deny-by-default) — stapel-workspaces is the shelf's answerer; any provider of that Function satisfies the contract, and without one every HTTP request denies (comm ingest still works)"
+    },
+    {
+      "module": "stapel-auth",
+      "optional": true,
+      "reason": "every endpoint requires an authenticated non-anonymous user (IsNotAnonymousUser); stapel-auth is the shelf's session issuer — any stapel-core-compatible JWT issuer satisfies the check"
+    }
+  ],
+  "extension_points": [
+    {
+      "name": "STORAGE",
+      "kind": "dotted_path",
+      "summary": "Swap the object-storage backend (DocsStorage implementation, REPLACE): any Django storage by default, bundled S3/MinIO backend ([s3] extra), or your own. Every byte of document content I/O goes through it — there is no second I/O path."
+    },
+    {
+      "name": "DOC_TYPES",
+      "kind": "merge_registry",
+      "summary": "Open document-type registry ({slug: dotted-path to a DocTypeSpec | None to remove}, merged over the txt/md/csv/file builtins) or register at runtime via register_doc_type(). A type carries its editor hint, write discipline (snapshot|crdt), mime, empty body and text extractor — sheet/slides/office are later registry entries, not schema changes."
+    },
+    {
+      "name": "EXPORTERS",
+      "kind": "merge_registry",
+      "summary": "Export-format registry ({format: dotted-path | None}, merged over the built-in pdf). An exporter renders (document, body, spec) to (bytes, mime) — add docx/html/srt without touching the module."
+    },
+    {
+      "name": "INGEST",
+      "kind": "merge_registry",
+      "summary": "Event-driven ingest ({action_name: dotted-path mapper}): docs subscribes to the named host actions and routes each payload through the mapper into create_document — the host never writes a bus subscriber, and docs never learns a foreign event schema."
+    },
+    {
+      "name": "SHARING_RESOLVERS",
+      "kind": "merge_registry",
+      "summary": "SHARING['RESOLVERS'] ({ref_kind: dotted-path}) — the whitelist subject-reference resolver registry of the sharing axis. Real-but-empty in v1: entries are validated for importability at check time (E014), consulted by nothing until whitelist mode ships."
+    },
+    {
+      "name": "PRESENTERS",
+      "kind": "swap_keys",
+      "summary": "Every DTO is built by a presenter resolved through STAPEL_SWAP — swap keys DOCS_FOLDER_PRESENTER / DOCS_DOCUMENT_PRESENTER / DOCS_REVISION_PRESENTER reshape the folder/document/revision envelopes of every endpoint without forking a view."
+    },
+    {
+      "name": "serializer_seams",
+      "kind": "class_override",
+      "summary": "Every view declares request/response serializer seams (SerializerSeamMixin) — subclass the view, override the attribute, remount the URL."
+    }
+  ],
+  "axes": {
+    "SHARING": {
+      "business_label": "Document sharing beyond the workspace",
+      "summary": "Composite axis over STAPEL_DOCS['SHARING']: MODES (additional grant sources, subset of whitelist|link), LINK.ANONYMOUS (anonymous link redemption), LINK.MAX_LEVEL (ceiling for minted link level) and LINK.TTL_DAYS. v1 ships the whole config surface with closed defaults (MODES=[], no anonymous links, view ceiling) — opening any of it before the mechanism exists is a loud system-check error (stapel_docs.E010-E013), never a silent no-op.",
+      "behavior": "Grant sources are additive and monotonic over the immutable workspace baseline: enabling a mode can only ever grant, never revoke, and the baseline can never be configured away. 'manage' is never grantable by any share source (anti-escalation invariant)."
+    }
+  },
+  "surface_roots": [
+    {
+      "select": "functions",
+      "path": "services.py"
+    },
+    {
+      "select": "functions",
+      "path": "storage.py"
+    },
+    {
+      "select": "functions",
+      "path": "doc_types.py"
+    },
+    {
+      "select": "functions",
+      "path": "exporters.py"
+    },
+    {
+      "select": "functions",
+      "path": "authz.py"
+    }
+  ],
+  "surface": {
+    "authorize": {
+      "kind": "gate_function",
+      "intent": "THE access decision for anything document-shaped — HTTP, presigned URLs, a future realtime stream. Returns allow|deny|unavailable (503, never 403-on-outage); fail-closed via workspaces.check_capability by comm name. Every new read or write path routes through this — a second membership check is how a share mode later ships half-enforced.",
+      "instead_of": [
+        "stapel_core.django.workspaces.require_capability",
+        "stapel_core.comm.call"
+      ]
+    },
+    "effective_spec": {
+      "kind": "factory",
+      "intent": "The document's DocTypeSpec, or None when the type vanished from the registry — the degrade-to-file signal. Read specs through this per document rather than get_doc_type(), which raises on the vanished-type case the API deliberately survives."
+    },
+    "content_mime": {
+      "kind": "factory",
+      "intent": "The Content-Type a body must be served with: the spec's mime (+charset for text) for editable types, the stored original's for file/vanished types. Hand-picking a mime per call site is how a utf-8 markdown body ships as latin-1."
+    },
+    "get_live_document": {
+      "kind": "factory",
+      "intent": "Fetch a non-trashed document or raise the 404-mapped DocsError — the lookup every normal endpoint starts with (trashed rows are 404 outside the trash surface)."
+    },
+    "get_trashed_document": {
+      "kind": "factory",
+      "intent": "Fetch a trashed document or 404 — only restore/purge flows see trashed rows."
+    },
+    "get_live_folder": {
+      "kind": "factory",
+      "intent": "Fetch a non-trashed folder or 404, optionally pinned to a workspace — the workspace pin is what stops a cross-workspace folder_id from being honored."
+    },
+    "get_trashed_folder": {
+      "kind": "factory",
+      "intent": "Fetch a trashed folder or 404 — the restore/purge counterpart of get_live_folder."
+    },
+    "get_revision": {
+      "kind": "factory",
+      "intent": "Fetch one revision of a given document or 404 — scoped through document.revisions so a revision id can never be read across documents."
+    },
+    "get_upload_session": {
+      "kind": "factory",
+      "intent": "Fetch an upload session by id or 404 — the finalize endpoint's lookup."
+    },
+    "list_folders": {
+      "kind": "factory",
+      "intent": "Live folders of a workspace — whole tree, workspace roots (parent_id=None) or one folder's children. The one listing that respects soft-deletion."
+    },
+    "create_folder": {
+      "kind": "gate_function",
+      "intent": "Mint a folder under the depth limit with live-sibling name uniqueness enforced in code (SQL cannot compare NULL parents). A bare Folder.objects.create skips both invariants."
+    },
+    "rename_folder": {
+      "kind": "gate_function",
+      "intent": "Rename with the sibling-name check — the same duplicate-name refusal creation applies."
+    },
+    "move_folder": {
+      "kind": "gate_function",
+      "intent": "Re-parent a folder with cycle, depth (subtree height counted) and sibling-name checks — the three ways a hand-written parent assignment corrupts the tree."
+    },
+    "trash_folder": {
+      "kind": "gate_function",
+      "intent": "Soft-delete the whole live subtree, documents included, announcing each document.deleted in the same transaction. Setting deleted_at by hand strands live documents inside a trashed tree."
+    },
+    "restore_folder": {
+      "kind": "gate_function",
+      "intent": "Untrash a subtree; restored documents are re-announced via document.created so downstream indexes come back consistent."
+    },
+    "list_documents": {
+      "kind": "factory",
+      "intent": "Live documents of a workspace (folder/type/title-substring filters), with pending uploads excluded — the invariant a raw queryset forgets, leaking half-uploaded rows into listings."
+    },
+    "create_document": {
+      "kind": "gate_function",
+      "intent": "THE document mint — HTTP, the docs.create_document Function and the INGEST seam all land here. Refuses unknown types loudly, materializes folder_path idempotently, rides the initial body through the regular snapshot path and announces document.created in the same transaction.",
+      "instead_of": [
+        "stapel_docs.models.Document.objects.create"
+      ]
+    },
+    "update_document": {
+      "kind": "gate_function",
+      "intent": "Patch title/metadata — and strip the reserved upload-pending marker no caller outside the upload flow may set."
+    },
+    "move_document": {
+      "kind": "gate_function",
+      "intent": "Move a document to a folder (or the workspace root), with the target folder resolved live and workspace-pinned."
+    },
+    "trash_document": {
+      "kind": "gate_function",
+      "intent": "Soft-delete one document, emitting document.deleted inside the transaction — consumers learn it left the visible corpus."
+    },
+    "restore_document": {
+      "kind": "gate_function",
+      "intent": "Untrash one document, re-announced via document.created."
+    },
+    "read_content": {
+      "kind": "factory",
+      "intent": "(body, mime, head_seq) of the current head — the spec's empty body at seq 0 before any save. The only sanctioned body read; get_bytes on a guessed key bypasses the empty-body and vanished-type semantics."
+    },
+    "save_content": {
+      "kind": "gate_function",
+      "intent": "The optimistic-lock snapshot save: expected_seq is checked under select_for_update, the snapshot is content-addressed, an auto revision is minted on the configured cadence, the orphaned previous snapshot dies, the journal compacts, and document.updated + document.storage_changed leave in the same transaction. There is exactly one save path — restore and create-with-body use it too.",
+      "instead_of": [
+        "stapel_docs.storage.DocsStorage.put_bytes"
+      ]
+    },
+    "append_updates": {
+      "kind": "gate_function",
+      "intent": "Append opaque commutative updates (crdt-discipline types only) at ++head_seq each, with client_id/client_seq retry dedup. Journal appends deliberately do NOT emit document.updated (bus economy)."
+    },
+    "read_updates": {
+      "kind": "factory",
+      "intent": "The replay feed since a sequence number, with honest resync semantics: a since that fell out of the compaction window returns (\"resync\", None) instead of a silently incomplete list."
+    },
+    "create_named_revision": {
+      "kind": "factory",
+      "intent": "Name the CURRENT head snapshot; naming the same head twice renames the existing named revision instead of stacking rows."
+    },
+    "revision_content": {
+      "kind": "factory",
+      "intent": "A revision's FULL bytes — every revision is a self-contained snapshot (I1), so one get_bytes suffices; no delta chain to walk."
+    },
+    "restore_revision": {
+      "kind": "gate_function",
+      "intent": "Restore-as-new-head: the revision's bytes ride the same save path as a PUT (always minting a revision), so history is never rewritten. Copying bytes onto the row by hand loses the revision trail and the storage accounting."
+    },
+    "trash_listing": {
+      "kind": "factory",
+      "intent": "Everything soft-deleted in a workspace — (folders, documents) for the trash surface."
+    },
+    "purge_document": {
+      "kind": "gate_function",
+      "intent": "Irreversible destruction of one document: every distinct storage key of its history + journal + rows, O(document), idempotent, with document.deleted and the negative byte delta announced inside the transaction. Deleting the row alone leaks every object its history points at.",
+      "instead_of": [
+        "stapel_docs.models.Document.delete"
+      ]
+    },
+    "purge_folder": {
+      "kind": "gate_function",
+      "intent": "Purge a trashed folder with its trashed contents; live documents still pointing into the subtree survive at the workspace root (FK SET_NULL), never destroyed by a folder purge."
+    },
+    "empty_trash": {
+      "kind": "gate_function",
+      "intent": "Purge the listed trashed items — or the whole workspace trash. A non-trashed or unknown id refuses the WHOLE request: partial purges are how a client deletes more than the user confirmed."
+    },
+    "purge_expired": {
+      "kind": "gate_function",
+      "intent": "Retention expiry: purge everything soft-deleted longer than TRASH_RETENTION_DAYS ago — the body of the docs_purge_expired management command; call it from a host cron/beat instead of re-deriving the cutoff."
+    },
+    "create_upload": {
+      "kind": "factory",
+      "intent": "Open a presigned direct-to-storage upload (type=file): the Document row exists immediately but stays hidden from listings until finalize, and the ticket's key/TTL are what finalize later validates. A bare presigned_put_url gives you the URL and none of that."
+    },
+    "finalize_upload": {
+      "kind": "gate_function",
+      "intent": "Promote the uploaded object to the document's first version (HEAD-verified size, seq 1, first revision, pending marker cleared) and announce document.created + the byte delta. Emitting the events yourself skips every one of those steps."
+    },
+    "download_url": {
+      "kind": "factory",
+      "intent": "Presigned GET URL for a stored object key with the configured lifetime — opaque to clients; DjangoStorageBackend degrades it to a served URL, so never assume S3 URL shape."
+    },
+    "content_hash": {
+      "kind": "factory",
+      "intent": "The sha256 content address of a body — the identity under which snapshots dedup. Any custom write path hashes through this or dedup silently stops."
+    },
+    "document_prefix": {
+      "kind": "factory",
+      "intent": "The object-key prefix every object of a document lives under ({STORAGE_PREFIX}/{workspace}/{document}) — what makes purge O(document) and byte accounting per-workspace. Keys built outside it escape both."
+    },
+    "snapshot_key": {
+      "kind": "factory",
+      "intent": "The content-addressed snapshot key for a body hash — identical bodies collapse to one stored object for free."
+    },
+    "blob_key": {
+      "kind": "factory",
+      "intent": "A content-addressed key with an extension hint, for auxiliary blobs a custom flow stores next to a document under the same prefix discipline."
+    },
+    "get_storage": {
+      "kind": "factory",
+      "intent": "THE object-store handle for anything touching document bytes — the configured DocsStorage (Django default_storage, the bundled S3/MinIO backend, or the host's own), memoized. An export script or admin action goes through this rather than building its own boto3 client: the STORAGE seam makes the bucket, credentials and presign policy one decision instead of one per call site.",
+      "instead_of": [
+        "boto3.client",
+        "django.core.files.storage.default_storage"
+      ]
+    },
+    "reset_storage_cache": {
+      "kind": "factory",
+      "intent": "Drop the memoized backend so the next get_storage() re-resolves the STORAGE setting — the supported way to make an override_settings block take effect. Overwhelmingly a test-harness concern."
+    },
+    "register_doc_type": {
+      "kind": "factory",
+      "intent": "Register (or replace) a document type at runtime — the programmatic equivalent of the DOC_TYPES settings overlay for apps that register from AppConfig.ready(). Mutating BUILTIN_DOC_TYPES reaches the same map from the wrong side and loses to the overlay.",
+      "instead_of": [
+        "stapel_docs.doc_types.BUILTIN_DOC_TYPES"
+      ]
+    },
+    "unregister_doc_type": {
+      "kind": "factory",
+      "intent": "Remove one runtime registration — the teardown that stops one test's type from leaking into the next."
+    },
+    "get_doc_types": {
+      "kind": "factory",
+      "intent": "The effective {slug: DocTypeSpec} registry — builtins, then the DOC_TYPES overlay, then runtime registrations. Render type pickers and dispatch editors from this; BUILTIN_DOC_TYPES answers only \"which types shipped\".",
+      "instead_of": [
+        "stapel_docs.doc_types.BUILTIN_DOC_TYPES"
+      ]
+    },
+    "get_doc_type": {
+      "kind": "factory",
+      "intent": "One slug's spec, or DocTypeNotRegistered — the loud lookup for flows that must refuse an unknown type (ingest does). For presentation of existing rows use effective_spec, which degrades instead of raising."
+    },
+    "get_exporter": {
+      "kind": "factory",
+      "intent": "Instantiate the exporter registered for a format (builtins + EXPORTERS overlay) or raise ExportFormatUnknown — the dispatch any custom export endpoint or batch job goes through."
+    }
+  }
+}

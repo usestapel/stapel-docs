@@ -37,9 +37,10 @@ DEFAULT_SHARING = {
     },
 }
 
-docs_settings = AppSettings(
-    "STAPEL_DOCS",
-    defaults={
+#: AppSettings-shaped literal dict (capability-config.md §2): a top-level
+#: DEFAULTS lets the capabilities.json emitter introspect axis keys/kinds
+#: without re-parsing the AppSettings() call.
+DEFAULTS = {
         # ── Storage seam ─────────────────────────────────────────────
         # Single-strategy replace seam: every byte of document content
         # I/O goes through this backend (storage-verdict §9.2 — no
@@ -94,8 +95,12 @@ docs_settings = AppSettings(
 
         # ── Sharing axis (closed defaults, v1 guards) ────────────────
         "SHARING": DEFAULT_SHARING,
-    },
+}
+
+docs_settings = AppSettings(
+    "STAPEL_DOCS",
+    defaults=DEFAULTS,
     import_strings=("STORAGE",),
 )
 
-__all__ = ["docs_settings", "DEFAULT_SHARING"]
+__all__ = ["docs_settings", "DEFAULT_SHARING", "DEFAULTS"]

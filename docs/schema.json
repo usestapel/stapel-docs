@@ -1,0 +1,1840 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "",
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/docs/api/v1/documents": {
+      "get": {
+        "operationId": "docs_api_v1_documents_list",
+        "description": "List live documents of a workspace (pending uploads excluded), or\ncreate one (unknown type -> 400; absent body -> the type's empty body).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "folder_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive title substring."
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                        "folder_id": null,
+                        "type": "md",
+                        "title": "Notes",
+                        "head_seq": 3,
+                        "snapshot_seq": 3,
+                        "size_bytes": 42,
+                        "mime_type": "",
+                        "metadata": {},
+                        "editor_hint": "markdown",
+                        "collab": "snapshot",
+                        "diffable": true,
+                        "created_at": "2026-08-09T10:00:00+00:00",
+                        "updated_at": "2026-08-09T10:05:00+00:00",
+                        "deleted_at": null
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_create",
+        "description": "List live documents of a workspace (pending uploads excluded), or\ncreate one (unknown type -> 400; absent body -> the type's empty body).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "tags": [
+          "Docs / documents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}": {
+      "get": {
+        "operationId": "docs_api_v1_documents_retrieve",
+        "description": "Fetch the envelope, patch (title/metadata=edit, folder move=manage)\nor trash a document.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "patch": {
+        "operationId": "docs_api_v1_documents_partial_update",
+        "description": "Fetch the envelope, patch (title/metadata=edit, folder move=manage)\nor trash a document.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedDocumentPatch"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedDocumentPatch"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedDocumentPatch"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "delete": {
+        "operationId": "docs_api_v1_documents_destroy",
+        "description": "Fetch the envelope, patch (title/metadata=edit, folder move=manage)\nor trash a document.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/content": {
+      "get": {
+        "operationId": "docs_api_v1_documents_content_retrieve",
+        "description": "The versioning heart: GET raw body bytes / PUT a whole-state save\nunder optimistic lock (If-Match carries the client's head_seq).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      },
+      "put": {
+        "operationId": "docs_api_v1_documents_content_update",
+        "description": "The versioning heart: GET raw body bytes / PUT a whole-state save\nunder optimistic lock (If-Match carries the client's head_seq).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/download": {
+      "get": {
+        "operationId": "docs_api_v1_documents_download_retrieve",
+        "description": "Presigned GET URL for the current body — opaque, never assume shape.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadUrlDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/export": {
+      "get": {
+        "operationId": "docs_api_v1_documents_export_retrieve",
+        "description": "Render the body through the exporter registry (?format=pdf).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/restore": {
+      "post": {
+        "operationId": "docs_api_v1_documents_restore_create",
+        "description": "Untrash a document (re-announced via document.created).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/revisions": {
+      "get": {
+        "operationId": "docs_api_v1_documents_revisions_list",
+        "description": "List the version history / name the current head snapshot.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RevisionPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "RevisionPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "9aa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "seq": 3,
+                        "kind": "named",
+                        "name": "Before rewrite",
+                        "size_bytes": 42,
+                        "created_by": null,
+                        "created_at": "2026-08-09T10:05:00+00:00"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_revisions_create",
+        "description": "List the version history / name the current head snapshot.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedRevision"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedRevision"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedRevision"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionPresenterDTO"
+                },
+                "examples": {
+                  "RevisionPresenterDTO": {
+                    "value": {
+                      "id": "9aa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "seq": 3,
+                      "kind": "named",
+                      "name": "Before rewrite",
+                      "size_bytes": 42,
+                      "created_by": null,
+                      "created_at": "2026-08-09T10:05:00+00:00"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/revisions/{revision_id}/content": {
+      "get": {
+        "operationId": "docs_api_v1_documents_revisions_content_retrieve",
+        "description": "The revision's full bytes — a self-contained snapshot (I1).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "revision_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/revisions/{revision_id}/download": {
+      "get": {
+        "operationId": "docs_api_v1_documents_revisions_download_retrieve",
+        "description": "Presigned GET URL for a revision's snapshot.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "revision_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadUrlDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/revisions/{revision_id}/restore": {
+      "post": {
+        "operationId": "docs_api_v1_documents_revisions_restore_create",
+        "description": "Restore-as-new-head: history is never rewritten.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "revision_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/updates": {
+      "get": {
+        "operationId": "docs_api_v1_documents_updates_retrieve",
+        "description": "Append opaque commutative updates (crdt types only) / replay the\njournal from ``?since=`` with chat-pattern resync semantics.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Docs / updates"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatesFeedDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_updates_create",
+        "description": "Append opaque commutative updates (crdt types only) / replay the\njournal from ``?since=`` with chat-pattern resync semantics.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / updates"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatesAppend"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatesAppend"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatesAppend"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppendResultDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/folders": {
+      "get": {
+        "operationId": "docs_api_v1_folders_list",
+        "description": "List live folders of a workspace, or create one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "parent_id",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to children of this folder; pass empty for workspace roots. Absent = the whole tree."
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FolderPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                        "parent_id": null,
+                        "name": "Meetings",
+                        "created_at": "2026-08-09T10:00:00+00:00",
+                        "updated_at": "2026-08-09T10:00:00+00:00",
+                        "deleted_at": null
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_folders_create",
+        "description": "List live folders of a workspace, or create one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "tags": [
+          "Docs / folders"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPresenterDTO"
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "parent_id": null,
+                      "name": "Meetings",
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/folders/{folder_id}": {
+      "get": {
+        "operationId": "docs_api_v1_folders_retrieve",
+        "description": "Fetch, rename/move (rename=edit, move=manage) or trash a folder.\nTrashing soft-deletes the whole live subtree, documents included.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPresenterDTO"
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "parent_id": null,
+                      "name": "Meetings",
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "patch": {
+        "operationId": "docs_api_v1_folders_partial_update",
+        "description": "Fetch, rename/move (rename=edit, move=manage) or trash a folder.\nTrashing soft-deletes the whole live subtree, documents included.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedFolderPatch"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedFolderPatch"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedFolderPatch"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPresenterDTO"
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "parent_id": null,
+                      "name": "Meetings",
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "delete": {
+        "operationId": "docs_api_v1_folders_destroy",
+        "description": "Fetch, rename/move (rename=edit, move=manage) or trash a folder.\nTrashing soft-deletes the whole live subtree, documents included.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/docs/api/v1/folders/{folder_id}/restore": {
+      "post": {
+        "operationId": "docs_api_v1_folders_restore_create",
+        "description": "Untrash a folder subtree.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPresenterDTO"
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "parent_id": null,
+                      "name": "Meetings",
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/trash": {
+      "get": {
+        "operationId": "docs_api_v1_trash_retrieve",
+        "description": "Everything soft-deleted in the workspace.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / trash"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/docs/api/v1/trash/empty": {
+      "post": {
+        "operationId": "docs_api_v1_trash_empty_create",
+        "description": "Irreversibly purge listed trashed items — or the whole trash.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "tags": [
+          "Docs / trash"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashEmpty"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashEmpty"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashEmpty"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashPurgeResultDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/uploads": {
+      "post": {
+        "operationId": "docs_api_v1_uploads_create",
+        "description": "Open a presigned direct-to-storage upload (type=file). The document\nrow exists immediately but stays hidden from listings until finalize.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "tags": [
+          "Docs / uploads"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadTicketDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/uploads/{upload_id}/finalize": {
+      "post": {
+        "operationId": "docs_api_v1_uploads_finalize_create",
+        "description": "Promote the uploaded object to the document's first version.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / uploads"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AppendResultDTO": {
+        "type": "object",
+        "description": "Outcome of a journal append batch.",
+        "properties": {
+          "head_seq": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "head_seq"
+        ]
+      },
+      "DocumentCreate": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "folder_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "metadata": {},
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "type",
+          "workspace_id"
+        ]
+      },
+      "DocumentPresenterDTO": {
+        "type": "object",
+        "description": "Presents a Document row as the API envelope. The three registry-derived\nfields (editor_hint/collab/diffable) degrade to file-type presentation\nwhen the type is unknown — never an error (storage-verdict §7.3).",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "type"
+          },
+          "title": {
+            "type": "string",
+            "description": "title"
+          },
+          "head_seq": {
+            "type": "integer",
+            "description": "head seq"
+          },
+          "snapshot_seq": {
+            "type": "integer",
+            "description": "snapshot seq"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "description": "size bytes"
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "mime type"
+          },
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "editor_hint": {
+            "type": "string",
+            "description": "Frontend editor dispatch key (\"\" = download-only)."
+          },
+          "collab": {
+            "type": "string",
+            "description": "Write discipline of the type: \"crdt\" or \"snapshot\"."
+          },
+          "diffable": {
+            "type": "boolean",
+            "description": "Whether line-diff rendering is meaningful for this type."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Containing folder id; null for the workspace root."
+          },
+          "deleted_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set while the document sits in the trash."
+          }
+        },
+        "required": [
+          "collab",
+          "created_at",
+          "diffable",
+          "editor_hint",
+          "head_seq",
+          "id",
+          "metadata",
+          "mime_type",
+          "size_bytes",
+          "snapshot_seq",
+          "title",
+          "type",
+          "updated_at",
+          "workspace_id"
+        ]
+      },
+      "DownloadUrlDTO": {
+        "type": "object",
+        "description": "Opaque presigned GET URL — clients must never assume its shape.",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "FolderCreate": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "parent_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "workspace_id"
+        ]
+      },
+      "FolderPresenterDTO": {
+        "type": "object",
+        "description": "Presents a Folder row as the API tree node.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "name"
+          },
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Parent folder id; null for workspace roots."
+          },
+          "deleted_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set while the folder sits in the trash."
+          }
+        },
+        "required": [
+          "created_at",
+          "id",
+          "name",
+          "updated_at",
+          "workspace_id"
+        ]
+      },
+      "JournalUpdateDTO": {
+        "type": "object",
+        "description": "One journal row of the ``?since=`` replay feed.",
+        "properties": {
+          "seq": {
+            "type": "integer"
+          },
+          "payload": {
+            "type": "string"
+          },
+          "author_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "author_id",
+          "created_at",
+          "payload",
+          "seq"
+        ]
+      },
+      "NamedRevision": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "PatchedDocumentPatch": {
+        "type": "object",
+        "description": "title/metadata = edit; folder_id (null = to root) = manage.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "metadata": {},
+          "folder_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "PatchedFolderPatch": {
+        "type": "object",
+        "description": "rename (name) = edit; move (parent_id, null = to root) = manage.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "parent_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "RevisionPresenterDTO": {
+        "type": "object",
+        "description": "Presents a Revision pointer row (a self-contained full snapshot, I1).",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "description": "seq"
+          },
+          "kind": {
+            "type": "string",
+            "description": "kind"
+          },
+          "name": {
+            "type": "string",
+            "description": "name"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "description": "size bytes"
+          },
+          "id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "created_at",
+          "document_id",
+          "id",
+          "kind",
+          "name",
+          "seq",
+          "size_bytes"
+        ]
+      },
+      "SaveResultDTO": {
+        "type": "object",
+        "description": "Outcome of an accepted content save (PUT content / revision restore).",
+        "properties": {
+          "head_seq": {
+            "type": "integer"
+          },
+          "revision_id": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "head_seq"
+        ]
+      },
+      "TrashEmpty": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "workspace_id"
+        ]
+      },
+      "TrashPurgeResultDTO": {
+        "type": "object",
+        "description": "Counts of irreversibly purged trash items.",
+        "properties": {
+          "folders": {
+            "type": "integer"
+          },
+          "documents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "documents",
+          "folders"
+        ]
+      },
+      "UpdatesAppend": {
+        "type": "object",
+        "properties": {
+          "updates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "client_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "client_seq": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "updates"
+        ]
+      },
+      "UpdatesFeedDTO": {
+        "type": "object",
+        "description": "Replay feed answer for ``GET .../updates?since=``.",
+        "properties": {
+          "head_seq": {
+            "type": "integer"
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JournalUpdateDTO"
+            }
+          }
+        },
+        "required": [
+          "head_seq"
+        ]
+      },
+      "UploadCreate": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "folder_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "mime_type": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "title",
+          "workspace_id"
+        ]
+      },
+      "UploadTicketDTO": {
+        "type": "object",
+        "description": "Pending direct-to-storage upload: the document row exists already\n(hidden from listings) and ``put_url`` is the presigned PUT target.",
+        "properties": {
+          "upload_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "put_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "key",
+          "put_url",
+          "upload_id"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "JWTCookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "stapel_jwt",
+        "description": "JWT token stored in cookie. Login via /auth/admin/ to get the cookie."
+      }
+    }
+  }
+}
