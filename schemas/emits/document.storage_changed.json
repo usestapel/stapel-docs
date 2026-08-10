@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "document.storage_changed",
+  "description": "Byte-accounting delta for a workspace's document storage (positive or negative); whether the host mirrors it into workspace counters is the host's subscriber decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workspace_id", "delta_bytes"],
+  "properties": {
+    "workspace_id": {"type": "string"},
+    "delta_bytes": {"type": "integer"}
+  }
+}

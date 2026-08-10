@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "document.created",
+  "description": "A document entered the visible corpus (create, upload finalize, or trash restore re-announcing it).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document_id", "workspace_id", "type", "title", "folder_id", "owner_id"],
+  "properties": {
+    "document_id": {"type": "string"},
+    "workspace_id": {"type": "string"},
+    "type": {"type": "string"},
+    "title": {"type": "string"},
+    "folder_id": {"type": ["string", "null"]},
+    "owner_id": {"type": ["string", "null"]}
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "docs.create_document",
+  "description": "Create a document (the ingest seam — ironmemo dumps transcripts/summaries through it). `body` is a utf-8 string; `folder_path` like \"/Meetings/2026-08\" creates folders idempotently. Unknown `type` fails loudly. Returns {document_id: str}.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workspace_id", "type", "title"],
+  "properties": {
+    "workspace_id": {"type": "string", "format": "uuid"},
+    "type": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "folder_path": {"type": ["string", "null"]},
+    "body": {"type": ["string", "null"]},
+    "mime_type": {"type": ["string", "null"]},
+    "metadata": {"type": ["object", "null"]},
+    "owner_id": {"type": ["string", "null"]}
+  }
+}
