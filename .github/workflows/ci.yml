@@ -24,7 +24,11 @@ jobs:
         run: pip install git+https://github.com/usestapel/stapel-core.git
 
       - name: Install
-        run: pip install ".[all]" || pip install .
+        # Editable on purpose: tests/ imports resolve against the source
+        # tree (stapel_docs.tests), which a non-editable install does not
+        # ship — plain `pip install .` made every CI run red from day one
+        # while the local suite was green.
+        run: pip install -e ".[all]" || pip install -e .
 
       - name: Lint
         run: |
@@ -35,7 +39,9 @@ jobs:
         run: python -c "import stapel_docs; print('import OK')"
 
       - name: Install test dependencies
-        run: pip install pytest pytest-django pytest-cov
+        # stapel-tools: tests/test_contract.py drives the contract emitters
+        # (llms_txt, readme) and fails on ModuleNotFound without it.
+        run: pip install pytest pytest-django pytest-cov "stapel-tools>=0.26.0"
 
       - name: Tests with coverage
         run: |
