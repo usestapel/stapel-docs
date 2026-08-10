@@ -40,7 +40,7 @@ all = ["boto3>=1.26", "fpdf2>=2.8"]
 
 [tool.setuptools]
 package-dir = {"stapel_docs" = "."}
-packages = ["stapel_docs", "stapel_docs.migrations"]
+packages = ["stapel_docs", "stapel_docs.migrations", "stapel_docs.management", "stapel_docs.management.commands"]
 
 [tool.setuptools.package-data]
 # The contract documents ship IN THE WHEEL: that is what makes
