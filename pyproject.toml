@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-docs"
-version = "0.1.0"
+version = "0.1.1"
 description = "Documents: storage, revisions and per-type editors for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,7 +23,14 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "stapel-core>=0.3.0,<0.4",
+    # Measured floor, not a guess: the full suite (incl. contract emission and
+    # the e2e host lifecycle) runs green against 0.15.11, 0.16.0 and 0.18.0
+    # (probed 2026-08-10); older cores are unmeasured and unclaimed. 0.1.0
+    # shipped the scaffold placeholder (>=0.3,<0.4), which made the package
+    # UNINSTALLABLE next to any real host — every fleet service floors core
+    # at >=0.18, so pip either refused the resolve or silently downgraded
+    # core to 0.3.2 (observed live in the iron-recordings venv).
+    "stapel-core>=0.15.11,<1.0",
 ]
 
 [project.urls]
