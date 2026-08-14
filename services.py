@@ -242,14 +242,21 @@ def assert_quota(workspace_id, added_bytes: int) -> None:
 
 
 def _mime_allowed(mime: str) -> bool:
-    allowed = list(docs_settings.UPLOAD_ALLOWED_MIME_TYPES or [])
-    if not allowed:
+    """Is this declared content type on the upload allowlist?
+
+    An allowlist that is empty allows nothing. "Accept anything" is spelled
+    ``["*/*"]`` — a host saying so on purpose — because the alternative
+    reading, where the absence of a policy IS the policy, turns a config
+    key nobody filled in into an open door for 1 GiB of arbitrary bytes.
+    An upload that declares no type is unknown content, and unknown is not
+    on any allowlist."""
+    allowed = [str(entry).strip().lower() for entry in (docs_settings.UPLOAD_ALLOWED_MIME_TYPES or [])]
+    if "*/*" in allowed:
         return True
     mime = (mime or "").split(";")[0].strip().lower()
     if not mime:
         return False
     for entry in allowed:
-        entry = str(entry).strip().lower()
         if entry == mime:
             return True
         if entry.endswith("/*") and mime.startswith(entry[:-1]):

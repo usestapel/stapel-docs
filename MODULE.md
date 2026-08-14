@@ -195,7 +195,8 @@ registry with defaults in [CONFIG.MD](CONFIG.MD).
 | `FOLDER_MAX_DEPTH`, `TRASH_RETENTION_DAYS` | value | tree/trash tuning |
 | `MAX_BODY_BYTES`, `MAX_UPDATE_BYTES`, `MAX_UPDATES_PER_REQUEST`, `MAX_UPLOAD_BYTES`, `MAX_EXPORT_BYTES` | value (`0` = ceiling off) | hard resource ceilings on every accepted byte |
 | `WORKSPACE_QUOTA_BYTES` | value (`0` = no quota) | per-workspace stored-byte budget (507 when crossed) |
-| `UPLOAD_SESSION_TTL_SECONDS`, `MAX_PENDING_UPLOADS_PER_WORKSPACE`, `UPLOAD_ALLOWED_MIME_TYPES` | value | upload-ticket expiry, open-session ceiling, MIME allowlist |
+| `UPLOAD_SESSION_TTL_SECONDS`, `MAX_PENDING_UPLOADS_PER_WORKSPACE` | value | upload-ticket expiry, open-session ceiling |
+| `UPLOAD_ALLOWED_MIME_TYPES` | value (ships a real allowlist; `["*/*"]` = any) | which content types may be uploaded at all |
 | `INTERNAL_REQUIRE_CALLER`, `INTERNAL_TRUSTED_SERVICES` | value | authority carried by comm callers of `docs.create_document` |
 | `TRASH_PURGE_SCHEDULE` | value | cadence of `stapel_docs.tasks.purge_expired_trash` (beat) |
 | `SHARING` | axis (closed defaults; `RESOLVERS` **merge**) | sharing beyond the baseline |

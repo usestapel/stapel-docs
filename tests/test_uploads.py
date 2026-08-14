@@ -281,13 +281,87 @@ def test_mime_allowlist_is_enforced(actor, workspace_id):
         assert allowed.status_code == 201
 
 
+def test_the_shipped_allowlist_refuses_active_content(actor, workspace_id):
+    """No override: the DEFAULT config must already refuse the types a host
+    serving its media inline would execute."""
+    for mime in (
+        "text/html",
+        "image/svg+xml",
+        "application/javascript",
+        "application/x-msdownload",
+        "application/x-sh",
+    ):
+        resp = actor.post(
+            f"{API}/uploads",
+            {"workspace_id": str(workspace_id), "title": "payload", "mime_type": mime},
+            format="json",
+        )
+        assert resp.status_code == 400, f"{mime} was accepted by the default config"
+        assert resp.json()["localizable_error"] == "error.400.docs_upload_mime"
+
+
+def test_an_undeclared_content_type_is_not_a_blank_cheque(actor, workspace_id):
+    """Omitting mime_type must not be the way around the allowlist."""
+    resp = actor.post(
+        f"{API}/uploads",
+        {"workspace_id": str(workspace_id), "title": "mystery.bin"},
+        format="json",
+    )
+    assert resp.status_code == 400
+    assert resp.json()["localizable_error"] == "error.400.docs_upload_mime"
+
+
+def test_the_shipped_allowlist_accepts_documents(actor, workspace_id):
+    for mime in ("application/pdf", "text/plain", "image/png", "video/mp4"):
+        resp = actor.post(
+            f"{API}/uploads",
+            {"workspace_id": str(workspace_id), "title": "doc", "mime_type": mime},
+            format="json",
+        )
+        assert resp.status_code == 201, f"{mime} was refused by the default config"
+
+
+def test_accepting_anything_is_an_explicit_setting(actor, workspace_id):
+    """"No restriction" is spelled out, never inferred from an empty list."""
+    with override_settings(STAPEL_DOCS={"UPLOAD_ALLOWED_MIME_TYPES": ["*/*"]}):
+        resp = actor.post(
+            f"{API}/uploads",
+            {
+                "workspace_id": str(workspace_id),
+                "title": "payload.exe",
+                "mime_type": "application/x-msdownload",
+            },
+            format="json",
+        )
+        assert resp.status_code == 201
+
+
+def test_an_empty_allowlist_allows_nothing(actor, workspace_id):
+    with override_settings(STAPEL_DOCS={"UPLOAD_ALLOWED_MIME_TYPES": []}):
+        resp = actor.post(
+            f"{API}/uploads",
+            {
+                "workspace_id": str(workspace_id),
+                "title": "photo.png",
+                "mime_type": "image/png",
+            },
+            format="json",
+        )
+        assert resp.status_code == 400
+        assert resp.json()["localizable_error"] == "error.400.docs_upload_mime"
+
+
 def test_open_sessions_per_workspace_are_capped(actor, workspace_id):
     with override_settings(STAPEL_DOCS={"MAX_PENDING_UPLOADS_PER_WORKSPACE": 2}):
         _open_upload(actor, workspace_id)
         _open_upload(actor, workspace_id)
         resp = actor.post(
             f"{API}/uploads",
-            {"workspace_id": str(workspace_id), "title": "third.bin"},
+            {
+                "workspace_id": str(workspace_id),
+                "title": "third.pdf",
+                "mime_type": "application/pdf",
+            },
             format="json",
         )
     assert resp.status_code == 400
@@ -298,7 +372,12 @@ def test_upload_respects_the_workspace_quota(actor, workspace_id):
     with override_settings(STAPEL_DOCS={"WORKSPACE_QUOTA_BYTES": 100}):
         resp = actor.post(
             f"{API}/uploads",
-            {"workspace_id": str(workspace_id), "title": "big.bin", "size_bytes": 200},
+            {
+                "workspace_id": str(workspace_id),
+                "title": "big.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 200,
+            },
             format="json",
         )
     assert resp.status_code == 507

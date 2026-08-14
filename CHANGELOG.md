@@ -39,6 +39,22 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ### Changed
 
+- **UPGRADE NOTE — uploads ship with a real MIME allowlist** (audit
+  DOCS-03). `UPLOAD_ALLOWED_MIME_TYPES` no longer defaults to `[]`, and
+  `[]` no longer means "anything": an empty allowlist now allows nothing,
+  and the shipped default is `stapel_docs.conf.DEFAULT_UPLOAD_MIME_TYPES`
+  (text/data, PDF/RTF, Office + OpenDocument, enumerated image types, and
+  common audio/video). Deliberately absent: `text/html`,
+  `image/svg+xml`, `application/javascript` and executables — active
+  content a host serving `MEDIA_URL` inline would run in its own origin.
+  An upload that declares **no** `mime_type` is unknown content and is now
+  refused too (400 `error.400.docs_upload_mime`), so clients that omitted
+  the field must start sending it. **To restore the old
+  accept-anything behaviour** set
+  `STAPEL_DOCS["UPLOAD_ALLOWED_MIME_TYPES"] = ["*/*"]` — the open position
+  is now something a deployment states, not something it inherits from an
+  unfilled setting. Widening the list for your own types is the normal
+  path.
 - **UPGRADE NOTE — download URLs must be able to expire** (audit DOCS-03).
   `GET /documents/{id}/download` and `GET /documents/{id}/revisions/{id}/download`
   now refuse with **503 `error.503.docs_download_url_unavailable`** when the

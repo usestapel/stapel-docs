@@ -72,7 +72,7 @@ nested dict key; its sub-keys are listed as `SHARING.<KEY>` rows below.
 |-----|--------|---------|----------|---------|
 | UPLOAD_SESSION_TTL_SECONDS | env | ticket lifetime; a pending session past it can never be finalized (400 `error.400.docs_upload_expired`). 0 = no expiry. | no | 86400 |
 | MAX_PENDING_UPLOADS_PER_WORKSPACE | env | ceiling on simultaneously open (pending, unexpired) sessions per workspace → 400 `error.400.docs_too_many_uploads`. | no | 100 |
-| UPLOAD_ALLOWED_MIME_TYPES | env | accepted upload MIME types, exact (`image/png`) or type wildcard (`image/*`); `[]` = any. Refusal → 400 `error.400.docs_upload_mime`. | no | [] |
+| UPLOAD_ALLOWED_MIME_TYPES | env | accepted upload MIME types, exact (`image/png`) or type wildcard (`image/*`). Anything not matched — including an upload that declares no type — is refused with 400 `error.400.docs_upload_mime`; `["*/*"]` accepts anything (explicit), `[]` accepts nothing. | no | `stapel_docs.conf.DEFAULT_UPLOAD_MIME_TYPES` (documents, office, images, audio/video; no html/svg/executables) |
 
 ### Internal (comm) callers & retention schedule (source: env)
 

@@ -37,6 +37,55 @@ DEFAULT_SHARING = {
     },
 }
 
+#: Upload MIME allowlist shipped as the default (see UPLOAD_ALLOWED_MIME_TYPES).
+#: An allowlist, never a blocklist: content types nobody enumerated are the
+#: ones an attacker reaches for, so an unlisted type is refused rather than
+#: waved through. Active content (text/html, application/xhtml+xml,
+#: image/svg+xml, application/javascript) and executables are deliberately
+#: absent — a host that serves its media inline would run them in its own
+#: origin.
+DEFAULT_UPLOAD_MIME_TYPES = [
+    # Text and data
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "application/json",
+    "application/xml",
+    "text/xml",
+    # Portable documents
+    "application/pdf",
+    "application/rtf",
+    # Office (OOXML, legacy binary, OpenDocument)
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.oasis.opendocument.spreadsheet",
+    "application/vnd.oasis.opendocument.presentation",
+    # Images — enumerated, NOT "image/*": that wildcard would admit
+    # image/svg+xml, which is a script document wearing a picture's name.
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/avif",
+    "image/heic",
+    "image/bmp",
+    "image/tiff",
+    # Recordings and attachments a workspace document links to
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/ogg",
+    "audio/wav",
+    "audio/webm",
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+]
+
 #: AppSettings-shaped literal dict (capability-config.md §2): a top-level
 #: DEFAULTS lets the capabilities.json emitter introspect axis keys/kinds
 #: without re-parsing the AppSettings() call.
@@ -100,9 +149,17 @@ DEFAULTS = {
         # Ceiling on simultaneously open (pending, unexpired) sessions per
         # workspace — bounds staging objects nobody ever finalizes.
         "MAX_PENDING_UPLOADS_PER_WORKSPACE": 100,
-        # Accepted upload MIME types; [] = any. Entries are exact
-        # ("image/png") or a type wildcard ("image/*").
-        "UPLOAD_ALLOWED_MIME_TYPES": [],
+        # Accepted upload MIME types. Entries are exact ("image/png") or a
+        # type wildcard ("image/*"); an upload that declares no type at all
+        # is unknown content and is refused like any other type outside the
+        # list. The shipped list is the documents-and-attachments set a
+        # workspace actually stores; what it leaves out is what a host
+        # serving MEDIA_URL inline would execute in its own origin
+        # (text/html, image/svg+xml, application/javascript) or hand a user
+        # to run (installers, archives of them). Widen it deliberately —
+        # ["*/*"] accepts anything, an explicit host decision, and [] (or
+        # any list without a match) accepts nothing.
+        "UPLOAD_ALLOWED_MIME_TYPES": DEFAULT_UPLOAD_MIME_TYPES,
 
         # ── Internal (comm) callers ──────────────────────────────────
         # docs.create_document writes into a workspace on somebody's
@@ -162,4 +219,9 @@ docs_settings = AppSettings(
     import_strings=("STORAGE",),
 )
 
-__all__ = ["docs_settings", "DEFAULT_SHARING", "DEFAULTS"]
+__all__ = [
+    "docs_settings",
+    "DEFAULT_SHARING",
+    "DEFAULT_UPLOAD_MIME_TYPES",
+    "DEFAULTS",
+]
