@@ -142,6 +142,57 @@ def check_retention_is_scheduled(app_configs, **kwargs):
 
 
 @checks.register(checks.Tags.compatibility)
+def check_download_url_expiry(app_configs, **kwargs):
+    """W031/W032: can the download path honour DOWNLOAD_URL_EXPIRES_SECONDS?
+
+    A download URL is a bearer capability. When the configured backend
+    cannot sign one, the only thing it can return is a permanent public
+    link — readable by anyone who ever saw it, long after the membership
+    that minted it ended, without passing authorize() again. The service
+    refuses that by default (503 on the download endpoints; the authorized
+    content endpoint still serves the bytes), and this check tells the
+    operator at deploy time rather than at the first 503 — or, when the
+    host has opted in, states plainly what it opted into.
+    """
+    from .conf import docs_settings
+
+    try:
+        backend = docs_settings.STORAGE
+    except Exception:  # E001 already reports an unimportable backend
+        return []
+    expiring = bool(getattr(backend, "mints_expiring_urls", False))
+    opted_in = bool(docs_settings.ALLOW_UNEXPIRING_DOWNLOAD_URLS)
+    if expiring:
+        if opted_in:
+            return [checks.Warning(
+                f"STAPEL_DOCS['ALLOW_UNEXPIRING_DOWNLOAD_URLS'] is on while "
+                f"{backend.__name__} signs expiring URLs — the opt-out is not "
+                "needed here and only widens what a leaked URL is worth.",
+                id="stapel_docs.W032",
+            )]
+        return []
+    if opted_in:
+        return [checks.Warning(
+            f"{backend.__name__} cannot honour "
+            "STAPEL_DOCS['DOWNLOAD_URL_EXPIRES_SECONDS'] and "
+            "ALLOW_UNEXPIRING_DOWNLOAD_URLS is on: every download URL this "
+            "deployment mints is a permanent public link that outlives the "
+            "membership it was issued for.",
+            id="stapel_docs.W032",
+        )]
+    return [checks.Warning(
+        f"{backend.__name__} cannot honour "
+        "STAPEL_DOCS['DOWNLOAD_URL_EXPIRES_SECONDS'], so the document and "
+        "revision download-URL endpoints refuse with 503 "
+        "(error.503.docs_download_url_unavailable). Configure a signing "
+        "backend (stapel_docs.storage.S3Backend) for expiring links, or set "
+        "ALLOW_UNEXPIRING_DOWNLOAD_URLS=True to accept permanent public "
+        "media URLs. The authorized content endpoint is unaffected.",
+        id="stapel_docs.W031",
+    )]
+
+
+@checks.register(checks.Tags.compatibility)
 def check_exporters(app_configs, **kwargs):
     """E020: every EXPORTERS overlay entry must import."""
     from django.utils.module_loading import import_string

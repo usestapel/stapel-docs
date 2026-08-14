@@ -46,6 +46,7 @@ from .errors import (
     ERR_413_BODY_TOO_LARGE,
     ERR_413_UPDATE_TOO_LARGE,
     ERR_413_UPLOAD_TOO_LARGE,
+    ERR_503_DOWNLOAD_URL,
     ERR_507_WORKSPACE_QUOTA,
 )
 from .models import Document, DocumentUpdate, Folder, Revision, UploadSession
@@ -1089,8 +1090,23 @@ def finalize_upload(session) -> Document:
 
 
 def download_url(storage_key: str) -> str:
+    """Mint a time-limited read URL for a stored object.
+
+    A URL that never expires is a second read path: it survives the
+    membership that produced it and it never comes back through
+    ``authorize()``. So a backend that cannot honour
+    DOWNLOAD_URL_EXPIRES_SECONDS (``mints_expiring_urls`` False — the
+    default for anything that does not sign) gets no URL minted for it at
+    all, unless the deployment explicitly accepted permanent links. Callers
+    who need the bytes read them through the authorized content endpoint,
+    which is unaffected."""
     if not storage_key:
         raise DocsError(404, ERR_404_NOT_FOUND)
-    return get_storage().presigned_get_url(
+    backend = get_storage()
+    if not getattr(backend, "mints_expiring_urls", False) and not (
+        docs_settings.ALLOW_UNEXPIRING_DOWNLOAD_URLS
+    ):
+        raise DocsError(503, ERR_503_DOWNLOAD_URL)
+    return backend.presigned_get_url(
         storage_key, expires_seconds=int(docs_settings.DOWNLOAD_URL_EXPIRES_SECONDS)
     )

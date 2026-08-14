@@ -170,9 +170,56 @@ def test_download_url_is_opaque(actor, doc):
     # No body yet -> nothing to download.
     assert actor.get(f"{API}/documents/{doc['id']}/download").status_code == 404
     _put(actor, doc["id"], b"v1", 0)
-    resp = actor.get(f"{API}/documents/{doc['id']}/download")
+    # The default backend cannot sign a URL, so minting one takes the host's
+    # explicit acceptance of permanent media links (see the test below).
+    with override_settings(STAPEL_DOCS={"ALLOW_UNEXPIRING_DOWNLOAD_URLS": True}):
+        resp = actor.get(f"{API}/documents/{doc['id']}/download")
     assert resp.status_code == 200
     assert resp.json()["url"]  # opaque — never assume its shape
+
+
+# ── Download URLs cannot outlive the membership that minted them ─────
+
+
+def test_download_url_is_refused_when_the_backend_cannot_expire_it(actor, doc):
+    """A backend that cannot sign mints a permanent public link — a second
+    read path around authorize(). Closed by default; the bytes stay
+    reachable through the authorized content endpoint."""
+    _put(actor, doc["id"], b"v1", 0)
+
+    resp = actor.get(f"{API}/documents/{doc['id']}/download")
+    assert resp.status_code == 503
+    assert resp.json()["localizable_error"] == "error.503.docs_download_url_unavailable"
+
+    # Not a loss of access: the authorized stream serves the same bytes.
+    content = actor.get(f"{API}/documents/{doc['id']}/content")
+    assert content.status_code == 200
+    assert content.content == b"v1"
+
+
+def test_revision_download_url_is_refused_by_default(actor, doc):
+    _put(actor, doc["id"], b"v1", 0)
+    revision = actor.get(f"{API}/documents/{doc['id']}/revisions").json()[0]
+    resp = actor.get(
+        f"{API}/documents/{doc['id']}/revisions/{revision['id']}/download"
+    )
+    assert resp.status_code == 503
+    assert resp.json()["localizable_error"] == "error.503.docs_download_url_unavailable"
+
+
+def test_a_signing_backend_needs_no_opt_in(actor, doc, monkeypatch):
+    """The refusal is about the backend's capability, not about the
+    endpoint: a backend that declares expiring URLs mints them with the
+    shipped (closed) default in place."""
+    from stapel_docs import storage as storage_module
+
+    _put(actor, doc["id"], b"v1", 0)
+    backend = storage_module.get_storage()
+    monkeypatch.setattr(type(backend), "mints_expiring_urls", True)
+
+    resp = actor.get(f"{API}/documents/{doc['id']}/download")
+    assert resp.status_code == 200
+    assert resp.json()["url"]
 
 
 def test_viewer_cannot_put(api_client, user, grant_capabilities, workspace_id, actor, doc):

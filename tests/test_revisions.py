@@ -130,9 +130,12 @@ def test_revision_content_is_self_contained(actor, doc):
     assert resp.content == b"version one"
     assert resp["Content-Type"].startswith("text/plain")
 
-    download = actor.get(
-        f"{API}/documents/{doc['id']}/revisions/{oldest['id']}/download"
-    )
+    # Download URLs are refused unless the deployment accepts non-expiring
+    # links from the default backend (tests/test_content.py pins that rule).
+    with override_settings(STAPEL_DOCS={"ALLOW_UNEXPIRING_DOWNLOAD_URLS": True}):
+        download = actor.get(
+            f"{API}/documents/{doc['id']}/revisions/{oldest['id']}/download"
+        )
     assert download.status_code == 200
     assert download.json()["url"]
 

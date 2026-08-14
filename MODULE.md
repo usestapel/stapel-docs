@@ -187,6 +187,7 @@ registry with defaults in [CONFIG.MD](CONFIG.MD).
 |---|---|---|
 | `STORAGE` | **replace** (dotted path) | object-storage backend |
 | `STORAGE_PREFIX`, `S3_*`, `*_URL_EXPIRES_SECONDS` | value | storage tuning |
+| `ALLOW_UNEXPIRING_DOWNLOAD_URLS` | value (`False` = refuse) | accept permanent public download URLs from a backend that cannot sign |
 | `DOC_TYPES` | **merge** over builtins (`None` removes) | document-type registry |
 | `EXPORTERS` | **merge** over builtins (`None` removes) | export formats |
 | `INGEST` | **merge** (empty builtin set) | event-driven ingest mappers |

@@ -504,6 +504,13 @@
     "en": "Something went wrong"
   },
   {
+    "code": "error.503.docs_download_url_unavailable",
+    "status": 503,
+    "params": [],
+    "remediation": "retry",
+    "en": "Download links are not available with this storage configuration"
+  },
+  {
     "code": "error.503.docs_exporter_unavailable",
     "status": 503,
     "params": [],

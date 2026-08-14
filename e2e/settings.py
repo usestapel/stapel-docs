@@ -88,5 +88,14 @@ STAPEL_AUTH = {
     "AUTH_OAUTH_REGISTRATION": False,
 }
 
+STAPEL_DOCS = {
+    # This host serves MEDIA_URL off the local filesystem and has no signing
+    # backend, so it makes the explicit choice the library refuses to make
+    # for a deployment: download URLs here are permanent served links. A
+    # real deployment either points STORAGE at a signing backend or accepts
+    # this the same deliberate way.
+    "ALLOW_UNEXPIRING_DOWNLOAD_URLS": True,
+}
+
 STAPEL_SERVICES = [{"name": "stapel-docs E2E", "prefix": ""}]
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

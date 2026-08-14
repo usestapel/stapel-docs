@@ -13,9 +13,11 @@ export, GDPR or purge code — ``tests/test_storage_seam.py`` greps for it.
 Two backends ship:
 
 - :class:`DjangoStorageBackend` (default) — rides on Django's configured
-  ``default_storage``. Presigned URLs degrade to ``storage.url(key)``;
-  a synthetic multipart shim keeps the API total. Clients must treat
-  presigned URLs as opaque — never assume S3 URL shape.
+  ``default_storage``. It cannot sign a URL, so it declares
+  ``mints_expiring_urls = False`` and the download-URL endpoints refuse
+  (503) until the host opts into permanent media links; a synthetic
+  multipart shim keeps the API total. Clients must treat presigned URLs as
+  opaque — never assume S3 URL shape.
 - :class:`S3Backend` — boto3 presigned/multipart helpers; ``boto3`` is an
   optional dependency (``pip install stapel-docs[s3]``).
 
@@ -73,6 +75,15 @@ def blob_key(workspace_id, document_id, body_hash: str, extension: str = "") -> 
 class DocsStorage(ABC):
     """Interface every storage backend implements. Methods raise on hard
     failure so callers can classify transient vs fatal I/O."""
+
+    #: Does ``presigned_get_url`` mint a URL that actually STOPS working at
+    #: ``expires_seconds``? False is the fail-closed answer every backend
+    #: inherits: a link that never expires is a read path around
+    #: ``authorize()`` that outlives the membership which produced it, so
+    #: ``services.download_url`` refuses to mint one unless the deployment
+    #: opted in (``ALLOW_UNEXPIRING_DOWNLOAD_URLS``). A backend that really
+    #: signs its URLs says so by overriding this to True.
+    mints_expiring_urls: bool = False
 
     # ── URLs ─────────────────────────────────────────────────────────
     @abstractmethod
@@ -143,10 +154,13 @@ class DjangoStorageBackend(DocsStorage):
             return key
 
     def presigned_get_url(self, key, *, expires_seconds=3600):
-        try:
-            return self._storage().url(key)
-        except Exception:
-            return key
+        # ``storage.url`` is a permanent public link: this backend cannot
+        # honour ``expires_seconds``, which is what ``mints_expiring_urls =
+        # False`` above tells ``services.download_url``, and why reaching
+        # this line at all takes an explicit host opt-in. A storage failure
+        # is an error, not a URL — returning the raw object key would hand
+        # the client an internal address and let it pass for a link.
+        return self._storage().url(key)
 
     def head_object(self, key):
         storage = self._storage()
@@ -219,6 +233,9 @@ class S3Backend(DocsStorage):
         S3_ENDPOINT_URL, S3_PUBLIC_URL, S3_ACCESS_KEY, S3_SECRET_KEY,
         S3_REGION, S3_BUCKET.
     """
+
+    # Native presigning: the URL carries its own expiry and stops working.
+    mints_expiring_urls = True
 
     MULTIPART_PART_SIZE = 10 * 1024 * 1024
 

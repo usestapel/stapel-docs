@@ -62,6 +62,15 @@ DEFAULTS = {
         # degrades them to served URLs; never assume S3 URL shape).
         "UPLOAD_URL_EXPIRES_SECONDS": 900,
         "DOWNLOAD_URL_EXPIRES_SECONDS": 3600,
+        # A backend that cannot sign a URL can only offer a permanent public
+        # one (Django's ``storage.url``): a second read path that outlives
+        # the membership it was minted for and never re-enters authorize().
+        # Download URLs are therefore REFUSED (503) when the configured
+        # backend cannot honour DOWNLOAD_URL_EXPIRES_SECONDS, unless the
+        # host says in so many words that its media URLs may act as
+        # capabilities. The authorized /content stream serves the same bytes
+        # either way, so the closed default costs no functionality.
+        "ALLOW_UNEXPIRING_DOWNLOAD_URLS": False,
 
         # ── Resource limits (hard invariants) ────────────────────────
         # Every byte path has a ceiling the service refuses to cross, so a

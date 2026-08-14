@@ -39,6 +39,26 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ### Changed
 
+- **UPGRADE NOTE — download URLs must be able to expire** (audit DOCS-03).
+  `GET /documents/{id}/download` and `GET /documents/{id}/revisions/{id}/download`
+  now refuse with **503 `error.503.docs_download_url_unavailable`** when the
+  configured storage backend cannot honour `DOWNLOAD_URL_EXPIRES_SECONDS`.
+  The default `DjangoStorageBackend` cannot: it could only return
+  `storage.url(key)` — a permanent, public `MEDIA_URL` link that outlives
+  the membership it was minted for and never passes `authorize()` again,
+  which contradicted the module's own "there is no second read path".
+  Deployments on the default backend lose those two URL endpoints unless
+  they act; the authorized `GET …/content` stream serves the same bytes and
+  is unchanged, as are uploads, and `S3Backend` (which really signs) is
+  unaffected. **To restore the old behaviour** set
+  `STAPEL_DOCS["ALLOW_UNEXPIRING_DOWNLOAD_URLS"] = True` — that is now an
+  explicit, checked decision to hand out permanent public links (system
+  check `stapel_docs.W032`), while `stapel_docs.W031` warns any deployment
+  whose download path is refusing. A `DocsStorage` implementation advertises
+  its ability by setting `mints_expiring_urls = True`; the fail-closed
+  default is `False`, so a host backend that signs must say so.
+  `DjangoStorageBackend.presigned_get_url` also no longer swallows storage
+  errors into a bare object key returned as if it were a URL.
 - **Object-store writes follow the database outcome** (audit DOCS-02):
   snapshot writes are compensated when the surrounding transaction fails
   and object deletes are deferred to `on_commit`, so a rolled-back save

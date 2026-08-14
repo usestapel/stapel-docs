@@ -35,6 +35,7 @@ ERR_413_EXPORT_TOO_LARGE = "error.413.docs_export_too_large"
 ERR_507_WORKSPACE_QUOTA = "error.507.docs_workspace_quota"
 ERR_503_WORKSPACES = "error.503.docs_workspaces_unavailable"
 ERR_503_EXPORTER = "error.503.docs_exporter_unavailable"
+ERR_503_DOWNLOAD_URL = "error.503.docs_download_url_unavailable"
 
 STAPEL_DOCS_ERRORS = {
     ERR_400_UNKNOWN_TYPE: "Unknown document type",
@@ -67,6 +68,7 @@ STAPEL_DOCS_ERRORS = {
     ERR_507_WORKSPACE_QUOTA: "The workspace storage quota is exhausted",
     ERR_503_WORKSPACES: "Workspace membership service is unavailable",
     ERR_503_EXPORTER: "The export backend is not installed",
+    ERR_503_DOWNLOAD_URL: "Download links are not available with this storage configuration",
 }
 
 register_service_errors(STAPEL_DOCS_ERRORS)

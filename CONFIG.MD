@@ -22,6 +22,7 @@ nested dict key; its sub-keys are listed as `SHARING.<KEY>` rows below.
 | STORAGE_PREFIX | env | object-key prefix: `{STORAGE_PREFIX}/{workspace_id}/{document_id}/…`. | no | docs |
 | UPLOAD_URL_EXPIRES_SECONDS | env | presigned PUT URL lifetime (upload tickets). | no | 900 |
 | DOWNLOAD_URL_EXPIRES_SECONDS | env | presigned GET URL lifetime (downloads). | no | 3600 |
+| ALLOW_UNEXPIRING_DOWNLOAD_URLS | env | accept download URLs that never expire. Off: a backend that cannot sign (the default `DjangoStorageBackend`) makes the download endpoints refuse with 503 `error.503.docs_download_url_unavailable` — the authorized `/content` stream is unaffected. On: every minted URL is a permanent public media link that outlives the membership it was issued for (check `stapel_docs.W032`). | no | False |
 
 ### S3Backend (extra `[s3]`; read only when STORAGE points at it) (source: env)
 
