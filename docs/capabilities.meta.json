@@ -180,6 +180,14 @@
       "kind": "factory",
       "intent": "(body, mime, head_seq) of the current head — the spec's empty body at seq 0 before any save. The only sanctioned body read; get_bytes on a guessed key bypasses the empty-body and vanished-type semantics."
     },
+    "storage_transaction": {
+      "kind": "gate_function",
+      "intent": "Wrap a mutation whose object-store effects must follow the database outcome: writes are compensated when the block fails, deletes wait for the commit. Calling put_bytes/delete_object inside a transaction instead is how a rollback leaves an orphan object — or worse, deletes bytes a surviving row still points at.",
+      "instead_of": [
+        "stapel_docs.storage.DocsStorage.put_bytes",
+        "stapel_docs.storage.DocsStorage.delete_object"
+      ]
+    },
     "resource_limit": {
       "kind": "factory",
       "intent": "Read one integer ceiling out of the STAPEL_DOCS namespace (0 = that ceiling is off). Host code that hardcodes a byte limit ships a number the operator cannot tune and the audit cannot find."

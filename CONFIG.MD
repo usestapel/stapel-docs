@@ -73,6 +73,14 @@ nested dict key; its sub-keys are listed as `SHARING.<KEY>` rows below.
 | MAX_PENDING_UPLOADS_PER_WORKSPACE | env | ceiling on simultaneously open (pending, unexpired) sessions per workspace → 400 `error.400.docs_too_many_uploads`. | no | 100 |
 | UPLOAD_ALLOWED_MIME_TYPES | env | accepted upload MIME types, exact (`image/png`) or type wildcard (`image/*`); `[]` = any. Refusal → 400 `error.400.docs_upload_mime`. | no | [] |
 
+### Internal (comm) callers & retention schedule (source: env)
+
+| Key | Source | Purpose | Required | Default |
+|-----|--------|---------|----------|---------|
+| INTERNAL_REQUIRE_CALLER | env | `docs.create_document` must carry an authorized caller (`actor_id`, or a `caller_service` listed below); off is a deliberate trusted-bus choice. | no | True |
+| INTERNAL_TRUSTED_SERVICES | env | service names allowed to call `docs.create_document` without a user actor (narrow delegated capability). | no | [] |
+| TRASH_PURGE_SCHEDULE | env | crontab kwargs for `stapel_docs.tasks.purge_expired_trash`, exposed to a host beat schedule by `get_docs_beat_schedule()`. | no | {"hour": 4, "minute": 20} |
+
 ### Sharing axis (closed defaults; v1 system-check guards E010-E014) (source: env)
 
 | Key | Source | Purpose | Required | Default |

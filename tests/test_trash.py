@@ -59,7 +59,9 @@ def _put(actor, doc_id, body, seq):
     )
 
 
-def test_full_lifecycle_to_verified_destruction(actor, workspace_id):
+def test_full_lifecycle_to_verified_destruction(
+    actor, workspace_id, django_capture_on_commit_callbacks
+):
     """create -> save(If-Match) -> 409-on-stale -> revisions -> named ->
     restore -> trash -> restore -> empty-trash with object deletion
     verified against storage."""
@@ -108,11 +110,14 @@ def test_full_lifecycle_to_verified_destruction(actor, workspace_id):
     storage = get_storage()
     assert any(storage.head_object(k)[0] for k in keys)
 
-    emptied = actor.post(
-        f"{API}/trash/empty",
-        {"workspace_id": str(workspace_id), "ids": [doc["id"]]},
-        format="json",
-    )
+    # Objects die AFTER the commit — a purge that rolls back must leave the
+    # surviving rows readable — so the destruction is observed on commit.
+    with django_capture_on_commit_callbacks(execute=True):
+        emptied = actor.post(
+            f"{API}/trash/empty",
+            {"workspace_id": str(workspace_id), "ids": [doc["id"]]},
+            format="json",
+        )
     assert emptied.status_code == 200
     assert emptied.json() == {"folders": 0, "documents": 1}
 

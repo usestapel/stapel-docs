@@ -2,7 +2,7 @@
 
 Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).
 
-Contract: axes 1 · surface 53 · extension points 7 · operations 27 · error codes 71.
+Contract: axes 1 · surface 54 · extension points 7 · operations 27 · error codes 71.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -55,6 +55,9 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - save_content — stapel_docs.services.save_content
   instead of: stapel_docs.storage.DocsStorage.put_bytes
   The optimistic-lock snapshot save: expected_seq is checked under select_for_update, the snapshot is content-addressed, an auto revision is minted on the configured cadence, the orphaned previous snapshot dies, the journal compacts, and document.updated + document.storage_changed leave in the same transaction. There is exactly one save path — restore and create-with-body use it too.
+- storage_transaction — stapel_docs.services.storage_transaction
+  instead of: stapel_docs.storage.DocsStorage.delete_object, stapel_docs.storage.DocsStorage.put_bytes
+  Wrap a mutation whose object-store effects must follow the database outcome: writes are compensated when the block fails, deletes wait for the commit. Calling put_bytes/delete_object inside a transaction instead is how a rollback leaves an orphan object — or worse, deletes bytes a surviving row still points at.
 - trash_document — stapel_docs.services.trash_document
   Soft-delete one document, emitting document.deleted inside the transaction — consumers learn it left the visible corpus.
 - trash_folder — stapel_docs.services.trash_folder

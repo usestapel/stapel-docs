@@ -109,6 +109,39 @@ def check_sharing_axis(app_configs, **kwargs):
 
 
 @checks.register(checks.Tags.compatibility)
+def check_retention_is_scheduled(app_configs, **kwargs):
+    """W030: trash retention is configured but nothing runs it.
+
+    The purge is destructive and irreversible, so this is a warning, not an
+    error — but a retention policy no scheduler invokes keeps soft-deleted
+    documents forever while the config claims otherwise (audit DOCS-02).
+
+    Only hosts that drive a beat schedule are checked: a host with no
+    ``CELERY_BEAT_SCHEDULE`` runs the ``docs_purge_expired`` command from
+    its own cron, which this check cannot see and must not second-guess.
+    """
+    from django.conf import settings
+
+    from .tasks import PURGE_TASK_NAME
+
+    schedule = getattr(settings, "CELERY_BEAT_SCHEDULE", None)
+    if schedule is None:
+        return []
+    scheduled = any(
+        (entry or {}).get("task") == PURGE_TASK_NAME for entry in schedule.values()
+    )
+    if scheduled:
+        return []
+    return [checks.Warning(
+        "Docs trash retention (TRASH_RETENTION_DAYS) is not scheduled: no "
+        f"CELERY_BEAT_SCHEDULE entry runs {PURGE_TASK_NAME}. Add "
+        "stapel_docs.tasks.get_docs_beat_schedule() to the beat schedule, or "
+        "run the docs_purge_expired command from your own scheduler.",
+        id="stapel_docs.W030",
+    )]
+
+
+@checks.register(checks.Tags.compatibility)
 def check_exporters(app_configs, **kwargs):
     """E020: every EXPORTERS overlay entry must import."""
     from django.utils.module_loading import import_string

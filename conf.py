@@ -95,6 +95,24 @@ DEFAULTS = {
         # ("image/png") or a type wildcard ("image/*").
         "UPLOAD_ALLOWED_MIME_TYPES": [],
 
+        # ── Internal (comm) callers ──────────────────────────────────
+        # docs.create_document writes into a workspace on somebody's
+        # behalf, so the payload must name that somebody: `actor_id` is
+        # authorized exactly like an HTTP caller (docs.edit in the target
+        # workspace, through the same choke point). A service with no user
+        # actor is only ever accepted when the host lists it below — a
+        # narrow delegated capability, never an open door. Turning
+        # REQUIRE_CALLER off is a deliberate single-tenant/trusted-bus
+        # decision, and it is the host's to make, not the default.
+        "INTERNAL_REQUIRE_CALLER": True,
+        "INTERNAL_TRUSTED_SERVICES": [],
+
+        # ── Retention schedule ───────────────────────────────────────
+        # Trash retention only exists if something runs it: this is the
+        # cron for stapel_docs.tasks.purge_expired_trash, exposed to a host
+        # beat schedule by get_docs_beat_schedule().
+        "TRASH_PURGE_SCHEDULE": {"hour": 4, "minute": 20},
+
         # ── Document types (open merge registry) ─────────────────────
         # {slug: dotted-path to a DocTypeSpec | None to remove a builtin}.
         "DOC_TYPES": {},

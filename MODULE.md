@@ -195,6 +195,8 @@ registry with defaults in [CONFIG.MD](CONFIG.MD).
 | `MAX_BODY_BYTES`, `MAX_UPDATE_BYTES`, `MAX_UPDATES_PER_REQUEST`, `MAX_UPLOAD_BYTES`, `MAX_EXPORT_BYTES` | value (`0` = ceiling off) | hard resource ceilings on every accepted byte |
 | `WORKSPACE_QUOTA_BYTES` | value (`0` = no quota) | per-workspace stored-byte budget (507 when crossed) |
 | `UPLOAD_SESSION_TTL_SECONDS`, `MAX_PENDING_UPLOADS_PER_WORKSPACE`, `UPLOAD_ALLOWED_MIME_TYPES` | value | upload-ticket expiry, open-session ceiling, MIME allowlist |
+| `INTERNAL_REQUIRE_CALLER`, `INTERNAL_TRUSTED_SERVICES` | value | authority carried by comm callers of `docs.create_document` |
+| `TRASH_PURGE_SCHEDULE` | value | cadence of `stapel_docs.tasks.purge_expired_trash` (beat) |
 | `SHARING` | axis (closed defaults; `RESOLVERS` **merge**) | sharing beyond the baseline |
 
 ### Comm surface
@@ -205,7 +207,7 @@ validated in tests (`VALIDATE_SCHEMAS`).
 
 | Kind | Name | Role | Payload / schema |
 |---|---|---|---|
-| Function (**provides**) | `docs.create_document` | the ingest seam — returns `{"document_id"}` | `schemas/functions/docs.create_document.json` |
+| Function (**provides**) | `docs.create_document` | the ingest seam — returns `{"document_id"}`; the payload carries its authority (`actor_id` authorized for `docs.edit`, or a trusted `caller_service`) | `schemas/functions/docs.create_document.json` |
 | Action (emit) | `document.created` | create, restore (re-announce), upload finalize | `schemas/emits/document.created.json` |
 | Action (emit) | `document.updated` | per accepted save / restored revision (journal appends deliberately do NOT emit — bus economy) | `schemas/emits/document.updated.json` |
 | Action (emit) | `document.deleted` | "left the visible corpus" — fires on trash AND purge | `schemas/emits/document.deleted.json` |

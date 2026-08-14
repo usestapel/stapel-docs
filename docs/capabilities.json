@@ -337,6 +337,16 @@
       ]
     },
     {
+      "name": "storage_transaction",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.storage_transaction",
+      "intent": "Wrap a mutation whose object-store effects must follow the database outcome: writes are compensated when the block fails, deletes wait for the commit. Calling put_bytes/delete_object inside a transaction instead is how a rollback leaves an orphan object — or worse, deletes bytes a surviving row still points at.",
+      "instead_of": [
+        "stapel_docs.storage.DocsStorage.put_bytes",
+        "stapel_docs.storage.DocsStorage.delete_object"
+      ]
+    },
+    {
       "name": "trash_document",
       "kind": "gate_function",
       "path": "stapel_docs.services.trash_document",

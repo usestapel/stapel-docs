@@ -1,12 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "docs.create_document",
-  "description": "Create a document (the ingest seam — ironmemo dumps transcripts/summaries through it). `body` is a utf-8 string; `folder_path` like \"/Meetings/2026-08\" creates folders idempotently. Unknown `type` fails loudly. Returns {document_id: str}.",
+  "description": "Create a document (the ingest seam — ironmemo dumps transcripts/summaries through it). `body` is a utf-8 string; `folder_path` like \"/Meetings/2026-08\" creates folders idempotently. Unknown `type` fails loudly. Returns {document_id: str}. Authority travels in the payload: `actor_id` is authorized like an HTTP caller (docs.edit in the workspace), or `caller_service` must be listed in STAPEL_DOCS['INTERNAL_TRUSTED_SERVICES']; `owner_id` other than the actor must itself be a workspace member.",
   "type": "object",
   "additionalProperties": false,
   "required": ["workspace_id", "type", "title"],
   "properties": {
     "workspace_id": {"type": "string", "format": "uuid"},
+    "actor_id": {"type": ["string", "null"], "description": "User the call acts for; authorized for docs.edit in this workspace."},
+    "caller_service": {"type": ["string", "null"], "description": "Name of a service acting without a user actor; accepted only when the host trusts it explicitly."},
     "type": {"type": "string", "minLength": 1},
     "title": {"type": "string", "minLength": 1},
     "folder_path": {"type": ["string", "null"]},

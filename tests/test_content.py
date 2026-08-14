@@ -120,17 +120,24 @@ def test_save_roundtrip_and_stale_conflict(actor, user, workspace_id, doc):
     assert actor.get(f"{API}/documents/{doc['id']}/content").content == b"v2"
 
 
-def test_auto_revision_interval_and_orphan_cleanup(actor, workspace_id, doc):
+def test_auto_revision_interval_and_orphan_cleanup(
+    actor, workspace_id, doc, django_capture_on_commit_callbacks
+):
     # Default interval (300 s): the first save mints, an immediate second
     # save does not; its predecessor snapshot is revision-referenced and
     # survives, while the unreferenced one is orphan-collected.
+    #
+    # Object DELETES are deferred to on_commit (a rolled-back save must
+    # never destroy an object the surviving row points at), so the
+    # collection is observed after the commit — which is when it happens.
     k1 = snapshot_key(workspace_id, doc["id"], content_hash(b"v1"))
     k2 = snapshot_key(workspace_id, doc["id"], content_hash(b"v2"))
     k3 = snapshot_key(workspace_id, doc["id"], content_hash(b"v3"))
 
-    assert _put(actor, doc["id"], b"v1", 0).json()["revision_id"]
-    assert _put(actor, doc["id"], b"v2", 1).json()["revision_id"] is None
-    assert _put(actor, doc["id"], b"v3", 2).status_code == 200
+    with django_capture_on_commit_callbacks(execute=True):
+        assert _put(actor, doc["id"], b"v1", 0).json()["revision_id"]
+        assert _put(actor, doc["id"], b"v2", 1).json()["revision_id"] is None
+        assert _put(actor, doc["id"], b"v3", 2).status_code == 200
 
     storage = get_storage()
     assert storage.head_object(k1)[0]  # revision keeps it (I1)

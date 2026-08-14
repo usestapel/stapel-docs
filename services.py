@@ -10,7 +10,9 @@ transaction (outbox canon).
 """
 from __future__ import annotations
 
+import logging
 import uuid as uuid_module
+from contextlib import contextmanager
 from datetime import timedelta
 
 from django.db import transaction
@@ -35,6 +37,7 @@ from .errors import (
     ERR_400_UPLOAD_MIME,
     ERR_400_UPLOAD_MISMATCH,
     ERR_400_UPLOAD_STATE,
+    ERR_403_FORBIDDEN,
     ERR_404_DOCUMENT,
     ERR_404_FOLDER,
     ERR_404_REVISION,
@@ -47,6 +50,8 @@ from .errors import (
 )
 from .models import Document, DocumentUpdate, Folder, Revision, UploadSession
 from .storage import content_hash, document_prefix, get_storage, snapshot_key
+
+logger = logging.getLogger(__name__)
 
 #: Metadata key marking a document whose upload has not finalized yet —
 #: such documents are excluded from listings (removed on finalize).
@@ -61,6 +66,17 @@ class DocsError(Exception):
         self.status = status
         self.error_key = error_key
         self.params = params or {}
+
+
+class CallerNotAuthorized(DocsError):
+    """A comm caller could not be bound to a workspace-authorized actor.
+
+    The comm surface has no session, so authority has to be carried in the
+    payload and checked here; without this an internal caller could create
+    documents in any workspace, owned by any user."""
+
+    def __init__(self, params: dict | None = None):
+        super().__init__(403, ERR_403_FORBIDDEN, params)
 
 
 class SeqConflict(DocsError):
@@ -92,6 +108,76 @@ def content_mime(document) -> str:
             mime += "; charset=utf-8"
         return mime
     return document.mime_type or "application/octet-stream"
+
+
+# ── Object-store transactions ────────────────────────────────────────
+#
+# Object storage cannot roll back with the database, so the two stores are
+# reconciled by ORDERING, not by hope:
+#
+#   writes  happen immediately and are COMPENSATED (deleted) when the
+#           surrounding block fails — a rolled-back save leaves no orphan;
+#   deletes are DEFERRED to ``transaction.on_commit`` — a rollback can then
+#           never destroy an object a surviving row still points at.
+#
+# The asymmetry is deliberate: a leaked object costs storage and is swept
+# later, a deleted object a live row points at is unrecoverable data loss.
+
+
+class StorageTransaction:
+    """Object-store side of a database transaction (see the note above)."""
+
+    def __init__(self):
+        # Keys this block created (candidates for compensation) and keys it
+        # wants gone once the database side is durable.
+        self._created: list[str] = []
+        self._deferred_deletes: list[str] = []
+
+    def put(self, key: str, data: bytes, *, content_type: str) -> bool:
+        """Write an object now. Returns whether it already existed."""
+        storage = get_storage()
+        existed, _ = storage.head_object(key)
+        storage.put_bytes(key, data, content_type=content_type)
+        if not existed:
+            # Only an object THIS block created may be compensated away:
+            # keys are content-addressed, so a pre-existing object is
+            # someone else's history, not our orphan.
+            self._created.append(key)
+        return existed
+
+    def delete(self, key: str) -> None:
+        """Schedule an object deletion for after the commit."""
+        self._deferred_deletes.append(key)
+
+    def flush_deletes(self) -> None:
+        storage = get_storage()
+        for key in self._deferred_deletes:
+            try:
+                storage.delete_object(key)
+            except Exception:  # pragma: no cover — best effort after commit
+                logger.exception("docs: deferred delete failed for key %s", key)
+
+    def compensate(self) -> None:
+        storage = get_storage()
+        for key in reversed(self._created):
+            try:
+                storage.delete_object(key)
+            except Exception:  # pragma: no cover — compensation is best effort
+                logger.exception("docs: compensation failed for key %s", key)
+
+
+@contextmanager
+def storage_transaction():
+    """Run a block whose object-store effects follow the database outcome."""
+    tx = StorageTransaction()
+    try:
+        yield tx
+    except Exception:
+        tx.compensate()
+        raise
+    # Outside an atomic block on_commit runs immediately, which is the same
+    # guarantee: the database side is already durable.
+    transaction.on_commit(tx.flush_deletes)
 
 
 # ── Resource invariants (limits and quota) ───────────────────────────
@@ -416,7 +502,7 @@ def create_document(
     metadata = dict(metadata or {})
     # Only the upload flow may mark a document pending.
     metadata.pop(UPLOAD_PENDING_KEY, None)
-    with transaction.atomic():
+    with storage_transaction() as stx, transaction.atomic():
         document = Document.objects.create(
             workspace_id=workspace_id,
             folder=folder,
@@ -429,7 +515,7 @@ def create_document(
         if body is not None:
             # Initial body rides the regular save path (snapshot + auto
             # revision); document.created announces it, no separate updated.
-            _save_snapshot(document, body, user=acting, emit_updated=False)
+            _save_snapshot(document, body, storage_tx=stx, user=acting, emit_updated=False)
         events.emit_document_created(document)
     return document
 
@@ -506,18 +592,25 @@ def _compact_journal(document) -> None:
     ).delete()
 
 
-def _save_snapshot(document, body: bytes, *, user=None, force_revision=False, emit_updated=True):
+def _save_snapshot(
+    document,
+    body: bytes,
+    *,
+    storage_tx: StorageTransaction,
+    user=None,
+    force_revision=False,
+    emit_updated=True,
+):
     """The single snapshot-save path (PUT content, create-with-body, revision
-    restore, all types). Caller holds the row lock (or just created the row).
+    restore, all types). Caller holds the row lock (or just created the row)
+    and owns the surrounding storage transaction.
     Returns the minted auto Revision or None."""
-    storage = get_storage()
     new_seq = document.head_seq + 1
     key = snapshot_key(document.workspace_id, document.id, content_hash(body))
     prev_key, prev_size = document.snapshot_key, document.size_bytes
 
     # Content-addressed: an existing object means zero new stored bytes.
-    already_stored, _ = storage.head_object(key)
-    storage.put_bytes(key, body, content_type=content_mime(document))
+    already_stored = storage_tx.put(key, body, content_type=content_mime(document))
     added = 0 if already_stored else len(body)
 
     document.head_seq = new_seq
@@ -547,7 +640,7 @@ def _save_snapshot(document, body: bytes, *, user=None, force_revision=False, em
         and prev_key != key
         and not Revision.objects.filter(document=document, storage_key=prev_key).exists()
     ):
-        storage.delete_object(prev_key)
+        storage_tx.delete(prev_key)
         freed = prev_size
 
     _compact_journal(document)
@@ -588,7 +681,7 @@ def save_content(
     policy when they were first accepted.
     """
     assert_body_size(body)
-    with transaction.atomic():
+    with storage_transaction() as stx, transaction.atomic():
         document = (
             Document.objects.select_for_update()
             .filter(pk=document_id, deleted_at__isnull=True)
@@ -605,7 +698,7 @@ def save_content(
                 head_seq=document.head_seq, saved_by=saved_by, saved_at=saved_at
             )
         revision = _save_snapshot(
-            document, body, user=user, force_revision=force_revision
+            document, body, storage_tx=stx, user=user, force_revision=force_revision
         )
     return document, revision
 
@@ -741,8 +834,10 @@ def trash_listing(workspace_id) -> tuple:
 def purge_document(document) -> None:
     """Irreversible destruction, O(document), idempotent (verdict §3):
     every distinct storage key of its history + journal + rows, with the
-    deletion announced and the byte delta accounted inside the transaction."""
-    with transaction.atomic():
+    deletion announced and the byte delta accounted inside the transaction.
+    The objects themselves die only after the commit — a purge that rolls
+    back must leave the surviving rows readable."""
+    with storage_transaction() as stx, transaction.atomic():
         key_sizes: dict[str, int] = {}
         for storage_key, size in document.revisions.values_list("storage_key", "size_bytes"):
             key_sizes.setdefault(storage_key, size)
@@ -751,9 +846,8 @@ def purge_document(document) -> None:
 
         events.emit_document_deleted(document)
 
-        storage = get_storage()
         for storage_key in key_sizes:
-            storage.delete_object(storage_key)
+            stx.delete(storage_key)
 
         DocumentUpdate.objects.filter(document=document).delete()
         document.revisions.all().delete()
