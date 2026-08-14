@@ -1796,6 +1796,18 @@
           "size_bytes": {
             "type": "integer",
             "minimum": 0
+          },
+          "checksum": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           }
         },
         "required": [
@@ -1805,7 +1817,7 @@
       },
       "UploadTicketDTO": {
         "type": "object",
-        "description": "Pending direct-to-storage upload: the document row exists already\n(hidden from listings) and ``put_url`` is the presigned PUT target.",
+        "description": "Pending direct-to-storage upload: the document row exists already\n(hidden from listings) and ``put_url`` is the presigned PUT target.\n\n``expires_at`` is the instant the ticket stops being spendable (null\nonly when the host disabled the TTL) — a client that cannot see the\ndeadline cannot honour it.",
         "properties": {
           "upload_id": {
             "type": "string"
@@ -1818,6 +1830,10 @@
           },
           "put_url": {
             "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [

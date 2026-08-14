@@ -1,6 +1,7 @@
 """Uploads: presigned upload sessions for type=file — pending documents
 hidden from listings, finalize promotes the blob to seq 1."""
 import uuid
+from datetime import timedelta
 
 import pytest
 from django.test import override_settings
@@ -52,8 +53,10 @@ def _open_upload(actor, workspace_id, **overrides):
 
 def test_open_upload_creates_hidden_pending_document(actor, workspace_id):
     ticket = _open_upload(actor, workspace_id)
-    assert set(ticket) == {"upload_id", "document_id", "key", "put_url"}
+    assert set(ticket) == {"upload_id", "document_id", "key", "put_url", "expires_at"}
     assert ticket["key"].endswith(f"upload-{ticket['upload_id']}")
+    # The ticket advertises its own deadline (UPLOAD_SESSION_TTL_SECONDS).
+    assert ticket["expires_at"]
 
     row = Document.objects.get(pk=ticket["document_id"])
     assert row.type == "file"
@@ -133,3 +136,170 @@ def test_unknown_upload_is_404(actor):
     resp = actor.post(f"{API}/uploads/{uuid.uuid4()}/finalize")
     assert resp.status_code == 404
     assert resp.json()["localizable_error"] == "error.404.docs_upload_not_found"
+
+
+# ── Upload invariants (audit DOCS-01) ────────────────────────────────
+#
+# A ticket is a capability, not a slot: it declares the object, it expires,
+# it belongs to the user who opened it, and it is spendable exactly once.
+
+
+def test_declared_size_must_match_the_stored_object(actor, workspace_id):
+    ticket = _open_upload(actor, workspace_id, size_bytes=100)
+    get_storage().put_bytes(ticket["key"], b"only nine")
+
+    resp = actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize")
+    assert resp.status_code == 400
+    assert resp.json()["localizable_error"] == "error.400.docs_upload_mismatch"
+    # Nothing was promoted: the pending document keeps head_seq 0.
+    assert Document.objects.get(pk=ticket["document_id"]).head_seq == 0
+
+
+def test_declared_checksum_binds_the_bytes(actor, workspace_id):
+    import hashlib
+
+    blob = b"raw video bytes"
+    digest = hashlib.sha256(blob).hexdigest()
+    ticket = _open_upload(actor, workspace_id, checksum=digest)
+    get_storage().put_bytes(ticket["key"], b"different bytes!")
+
+    resp = actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize")
+    assert resp.status_code == 400
+    assert resp.json()["localizable_error"] == "error.400.docs_upload_mismatch"
+
+    # The declared object finalizes.
+    get_storage().put_bytes(ticket["key"], blob)
+    assert actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize").status_code == 200
+
+
+def test_expired_session_cannot_be_finalized(actor, workspace_id):
+    from django.utils import timezone
+
+    ticket = _open_upload(actor, workspace_id)
+    session = UploadSession.objects.get(pk=ticket["upload_id"])
+    session.expires_at = timezone.now() - timedelta(seconds=1)
+    session.save(update_fields=["expires_at"])
+    get_storage().put_bytes(ticket["key"], b"late")
+
+    resp = actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize")
+    assert resp.status_code == 400
+    assert resp.json()["localizable_error"] == "error.400.docs_upload_expired"
+
+
+def test_ticket_ttl_comes_from_settings(actor, workspace_id):
+    with override_settings(STAPEL_DOCS={"UPLOAD_SESSION_TTL_SECONDS": 60}):
+        ticket = _open_upload(actor, workspace_id)
+    session = UploadSession.objects.get(pk=ticket["upload_id"])
+    assert session.expires_at is not None
+    assert (session.expires_at - session.created_at).total_seconds() <= 61
+
+
+def test_another_member_cannot_spend_someone_elses_ticket(
+    api_client, actor, workspace_id, grant_capabilities
+):
+    """A leaked upload_id must not let a second member plant a document."""
+    from django.contrib.auth import get_user_model
+
+    ticket = _open_upload(actor, workspace_id)
+    get_storage().put_bytes(ticket["key"], b"blob")
+
+    other = get_user_model().objects.create(username=f"o-{uuid.uuid4().hex[:8]}")
+    grant_capabilities(workspace_id, other.pk, "docs.view", "docs.edit")
+    api_client.force_authenticate(user=other)
+    resp = api_client.post(f"{API}/uploads/{ticket['upload_id']}/finalize")
+    assert resp.status_code == 403
+    assert resp.json()["localizable_error"] == "error.403.docs_upload_owner"
+
+    # A workspace manager may (recovery path for an absent uploader).
+    from django.core.cache import cache
+
+    grant_capabilities(workspace_id, other.pk, "docs.view", "docs.edit", "docs.manage")
+    cache.clear()  # capability verdicts are cached 30 s; re-ask with the new grant
+    assert api_client.post(f"{API}/uploads/{ticket['upload_id']}/finalize").status_code == 200
+
+
+def test_finalize_consumes_the_session_atomically(actor, workspace_id):
+    """The state transition is a conditional UPDATE, so a caller holding a
+    stale `pending` row cannot promote the blob a second time."""
+    ticket = _open_upload(actor, workspace_id)
+    get_storage().put_bytes(ticket["key"], b"blob")
+    stale = UploadSession.objects.get(pk=ticket["upload_id"])  # captured pending
+
+    assert actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize").status_code == 200
+
+    from stapel_docs.services import DocsError, finalize_upload
+
+    with pytest.raises(DocsError) as exc:
+        finalize_upload(stale)
+    assert exc.value.error_key == "error.400.docs_upload_state"
+    assert Revision.objects.filter(document_id=ticket["document_id"]).count() == 1
+
+
+def test_declared_size_over_the_ceiling_is_refused(actor, workspace_id):
+    with override_settings(STAPEL_DOCS={"MAX_UPLOAD_BYTES": 1024}):
+        resp = actor.post(
+            f"{API}/uploads",
+            {"workspace_id": str(workspace_id), "title": "big.bin", "size_bytes": 2048},
+            format="json",
+        )
+    assert resp.status_code == 413
+    assert resp.json()["localizable_error"] == "error.413.docs_upload_too_large"
+
+
+def test_stored_object_over_the_ceiling_is_refused(actor, workspace_id):
+    """The declaration is not trusted: the STORED object is measured."""
+    ticket = _open_upload(actor, workspace_id)
+    get_storage().put_bytes(ticket["key"], b"x" * 64)
+    with override_settings(STAPEL_DOCS={"MAX_UPLOAD_BYTES": 8}):
+        resp = actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize")
+    assert resp.status_code == 413
+    assert resp.json()["localizable_error"] == "error.413.docs_upload_too_large"
+
+
+def test_mime_allowlist_is_enforced(actor, workspace_id):
+    with override_settings(STAPEL_DOCS={"UPLOAD_ALLOWED_MIME_TYPES": ["image/*"]}):
+        resp = actor.post(
+            f"{API}/uploads",
+            {
+                "workspace_id": str(workspace_id),
+                "title": "payload.exe",
+                "mime_type": "application/x-msdownload",
+            },
+            format="json",
+        )
+        assert resp.status_code == 400
+        assert resp.json()["localizable_error"] == "error.400.docs_upload_mime"
+        allowed = actor.post(
+            f"{API}/uploads",
+            {
+                "workspace_id": str(workspace_id),
+                "title": "photo.png",
+                "mime_type": "image/png",
+            },
+            format="json",
+        )
+        assert allowed.status_code == 201
+
+
+def test_open_sessions_per_workspace_are_capped(actor, workspace_id):
+    with override_settings(STAPEL_DOCS={"MAX_PENDING_UPLOADS_PER_WORKSPACE": 2}):
+        _open_upload(actor, workspace_id)
+        _open_upload(actor, workspace_id)
+        resp = actor.post(
+            f"{API}/uploads",
+            {"workspace_id": str(workspace_id), "title": "third.bin"},
+            format="json",
+        )
+    assert resp.status_code == 400
+    assert resp.json()["localizable_error"] == "error.400.docs_too_many_uploads"
+
+
+def test_upload_respects_the_workspace_quota(actor, workspace_id):
+    with override_settings(STAPEL_DOCS={"WORKSPACE_QUOTA_BYTES": 100}):
+        resp = actor.post(
+            f"{API}/uploads",
+            {"workspace_id": str(workspace_id), "title": "big.bin", "size_bytes": 200},
+            format="json",
+        )
+    assert resp.status_code == 507
+    assert resp.json()["localizable_error"] == "error.507.docs_workspace_quota"

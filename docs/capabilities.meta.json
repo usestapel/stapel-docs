@@ -180,6 +180,30 @@
       "kind": "factory",
       "intent": "(body, mime, head_seq) of the current head — the spec's empty body at seq 0 before any save. The only sanctioned body read; get_bytes on a guessed key bypasses the empty-body and vanished-type semantics."
     },
+    "resource_limit": {
+      "kind": "factory",
+      "intent": "Read one integer ceiling out of the STAPEL_DOCS namespace (0 = that ceiling is off). Host code that hardcodes a byte limit ships a number the operator cannot tune and the audit cannot find."
+    },
+    "assert_body_size": {
+      "kind": "gate_function",
+      "intent": "Refuse a snapshot body above MAX_BODY_BYTES (413). Every path that accepts client bytes calls it before touching storage — a body checked after the write has already cost the store."
+    },
+    "assert_body_mutable": {
+      "kind": "gate_function",
+      "intent": "Refuse a generic body write to a type that owns its own write path: file bodies come from an upload session (where size/MIME/quota policy lives) and a vanished type is read-only. Skipping it re-opens the content PUT as a second, unpoliced door into blob bodies."
+    },
+    "workspace_usage_bytes": {
+      "kind": "factory",
+      "intent": "Stored bytes charged to a workspace (heads + revision snapshots) — the figure the quota compares against and the one to show in a usage UI."
+    },
+    "assert_quota": {
+      "kind": "gate_function",
+      "intent": "Refuse a write that would push the workspace past WORKSPACE_QUOTA_BYTES (507). Call it before accepting bytes, not after storing them."
+    },
+    "pending_uploads": {
+      "kind": "factory",
+      "intent": "Open (pending, unexpired) upload sessions of a workspace — the set the per-workspace ceiling counts and the one a cleanup job should sweep."
+    },
     "save_content": {
       "kind": "gate_function",
       "intent": "The optimistic-lock snapshot save: expected_seq is checked under select_for_update, the snapshot is content-addressed, an auto revision is minted on the configured cadence, the orphaned previous snapshot dies, the journal compacts, and document.updated + document.storage_changed leave in the same transaction. There is exactly one save path — restore and create-with-body use it too.",

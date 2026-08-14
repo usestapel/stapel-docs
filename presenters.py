@@ -241,6 +241,7 @@ def present_upload_ticket(session, put_url: str) -> UploadTicketDTO:
         document_id=str(session.document_id),
         key=session.key,
         put_url=put_url,
+        expires_at=session.expires_at.isoformat() if session.expires_at else None,
     )
 
 

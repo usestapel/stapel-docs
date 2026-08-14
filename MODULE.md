@@ -192,6 +192,9 @@ registry with defaults in [CONFIG.MD](CONFIG.MD).
 | `INGEST` | **merge** (empty builtin set) | event-driven ingest mappers |
 | `REPLAY_WINDOW`, `AUTO_REVISION_INTERVAL_SECONDS` | value | journal/revision cadence |
 | `FOLDER_MAX_DEPTH`, `TRASH_RETENTION_DAYS` | value | tree/trash tuning |
+| `MAX_BODY_BYTES`, `MAX_UPDATE_BYTES`, `MAX_UPDATES_PER_REQUEST`, `MAX_UPLOAD_BYTES`, `MAX_EXPORT_BYTES` | value (`0` = ceiling off) | hard resource ceilings on every accepted byte |
+| `WORKSPACE_QUOTA_BYTES` | value (`0` = no quota) | per-workspace stored-byte budget (507 when crossed) |
+| `UPLOAD_SESSION_TTL_SECONDS`, `MAX_PENDING_UPLOADS_PER_WORKSPACE`, `UPLOAD_ALLOWED_MIME_TYPES` | value | upload-ticket expiry, open-session ceiling, MIME allowlist |
 | `SHARING` | axis (closed defaults; `RESOLVERS` **merge**) | sharing beyond the baseline |
 
 ### Comm surface

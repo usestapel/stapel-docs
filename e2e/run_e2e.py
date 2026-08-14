@@ -5,13 +5,14 @@ drives the full document lifecycle with plain HTTP requests:
 
     register/login -> workspace -> folder -> create md document -> edit
     (If-Match, incl. stale 409) -> revisions -> named revision -> restore
-    -> export pdf -> file upload via content PUT -> download -> trash ->
+    -> export pdf -> file upload via an upload session -> download -> trash ->
     restore -> trash -> empty trash (object destruction verified on disk)
 
 Run:  /Users/apple/Projects/stapel/.venv/bin/python e2e/run_e2e.py
 Exit code 0 + "E2E PASS" is the gate; any assertion failure is a real
 defect somewhere on the path.
 """
+import hashlib
 import os
 import shutil
 import subprocess
@@ -162,16 +163,31 @@ def run_flow():
     assert resp.content.startswith(b"%PDF"), resp.content[:20]
     Path("/tmp/stapel-docs-e2e-export.pdf").write_bytes(resp.content)
 
-    step("file document via content PUT (photo)")
+    step("file document via the upload session (photo)")
+    # `file` bodies have exactly one door: the upload session, where size,
+    # MIME, checksum and quota policy are applied. A content PUT at a file
+    # document is refused — asserted here so the second door stays shut.
     png = bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489")
-    resp = expect(s.post(f"{api}/documents", json={
-        "workspace_id": ws, "type": "file", "title": "photo.png",
-    }), 201, "file doc")
-    file_id = resp.json()["id"]
+    resp = expect(s.post(f"{api}/uploads", json={
+        "workspace_id": ws, "title": "photo.png", "mime_type": "image/png",
+        "size_bytes": len(png), "checksum": hashlib.sha256(png).hexdigest(),
+    }), 201, "open upload")
+    ticket = resp.json()
+    file_id = ticket["document_id"]
+    assert ticket["expires_at"], ticket
+    # Filesystem storage: the presigned PUT degrades to a served (read-only)
+    # URL, so the client-side upload is simulated by writing the object at
+    # the ticket's key — exactly what the S3 profile's presigned PUT does.
+    staged = STATE / "media" / ticket["key"]
+    staged.parent.mkdir(parents=True, exist_ok=True)
+    staged.write_bytes(png)
+    expect(s.post(f"{api}/uploads/{ticket['upload_id']}/finalize", json={}), 200, "finalize upload")
+
     resp = expect(s.put(
         f"{api}/documents/{file_id}/content", data=png,
-        headers={"If-Match": "0", "Content-Type": "image/png"},
-    ), 200, "file put")
+        headers={"If-Match": "1", "Content-Type": "image/png"},
+    ), 400, "content PUT refused for a file document")
+    assert resp.json()["localizable_error"] == "error.400.docs_type_not_editable", resp.text[:200]
 
     step("download url resolves")
     resp = expect(s.get(f"{api}/documents/{file_id}/download"), 200, "download")

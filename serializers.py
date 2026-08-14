@@ -171,3 +171,8 @@ class UploadCreateSerializer(serializers.Serializer):
     folder_id = serializers.UUIDField(required=False, allow_null=True)
     mime_type = serializers.CharField(max_length=255, required=False, allow_blank=True)
     size_bytes = serializers.IntegerField(required=False, min_value=0)
+    # Declared sha256 (hex) of the blob: finalize refuses an object that
+    # hashes to anything else, so the ticket binds bytes, not just a slot.
+    checksum = serializers.RegexField(
+        r"^[0-9a-fA-F]{64}$", required=False, allow_blank=True
+    )

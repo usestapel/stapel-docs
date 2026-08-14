@@ -32,7 +32,9 @@ from .errors import (
     ERR_400_EXPORT_FORMAT,
     ERR_400_TYPE_NOT_EDITABLE,
     ERR_403_FORBIDDEN,
+    ERR_403_UPLOAD_OWNER,
     ERR_412_MISSING_IF_MATCH,
+    ERR_413_EXPORT_TOO_LARGE,
     ERR_503_EXPORTER,
     ERR_503_WORKSPACES,
 )
@@ -552,6 +554,13 @@ class DocumentExportView(SerializerSeamMixin, APIView):
         except ExportFormatUnknown:
             return StapelErrorResponse(400, ERR_400_EXPORT_FORMAT)
         body, _, _ = services.read_content(document)
+        # Exporters parse the body in-process (fpdf2 for pdf): an unbounded
+        # input is unbounded CPU and memory on a request thread.
+        export_limit = services.resource_limit("MAX_EXPORT_BYTES")
+        if export_limit and len(body) > export_limit:
+            return StapelErrorResponse(
+                413, ERR_413_EXPORT_TOO_LARGE, {"limit_bytes": export_limit}
+            )
         spec = services.effective_spec(document)
         try:
             rendered, mime = exporter.export(document, body, spec)
@@ -824,6 +833,7 @@ class UploadCreateView(SerializerSeamMixin, APIView):
             folder_id=data.get("folder_id"),
             mime_type=data.get("mime_type", ""),
             size_bytes=data.get("size_bytes", 0),
+            checksum=data.get("checksum", ""),
             user=_acting_user(request),
         )
         return StapelResponse(
@@ -848,6 +858,20 @@ class UploadFinalizeView(SerializerSeamMixin, APIView):
         denied = _access_error(request, session.workspace_id, "edit")
         if denied:
             return denied
+        # Owner binding: a ticket is spendable by the user who opened it.
+        # Anyone else needs workspace `manage` — a leaked upload_id must not
+        # be enough for another member to plant a document in the tree.
+        user = _acting_user(request)
+        if session.created_by_id and (user is None or user.pk != session.created_by_id):
+            verdict = authorize(
+                workspace_id=session.workspace_id,
+                principal=Principal.from_request(request),
+                action="manage",
+            )
+            if verdict == UNAVAILABLE:
+                return StapelErrorResponse(503, ERR_503_WORKSPACES)
+            if verdict == DENY:
+                return StapelErrorResponse(403, ERR_403_UPLOAD_OWNER)
         document = services.finalize_upload(session)
         presenter = get_document_presenter()
         return StapelResponse(

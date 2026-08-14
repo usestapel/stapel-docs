@@ -63,12 +63,17 @@ class DownloadUrlDTO:
 @dataclass
 class UploadTicketDTO:
     """Pending direct-to-storage upload: the document row exists already
-    (hidden from listings) and ``put_url`` is the presigned PUT target."""
+    (hidden from listings) and ``put_url`` is the presigned PUT target.
+
+    ``expires_at`` is the instant the ticket stops being spendable (null
+    only when the host disabled the TTL) — a client that cannot see the
+    deadline cannot honour it."""
 
     upload_id: str
     document_id: str
     key: str
     put_url: str
+    expires_at: Optional[str] = None
 
 
 @dataclass

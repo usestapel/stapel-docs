@@ -14,7 +14,7 @@ import uuid as uuid_module
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Min
+from django.db.models import Min, Sum
 from django.utils import timezone
 from stapel_core.django.api.errors import ERR_400_BAD_REQUEST, ERR_404_NOT_FOUND
 
@@ -26,14 +26,24 @@ from .errors import (
     ERR_400_FOLDER_CYCLE,
     ERR_400_FOLDER_DEPTH,
     ERR_400_NOT_TRASHED,
+    ERR_400_TOO_MANY_UPDATES,
+    ERR_400_TOO_MANY_UPLOADS,
+    ERR_400_TYPE_NOT_EDITABLE,
     ERR_400_UNKNOWN_TYPE,
     ERR_400_UPDATES_NOT_CRDT,
+    ERR_400_UPLOAD_EXPIRED,
+    ERR_400_UPLOAD_MIME,
+    ERR_400_UPLOAD_MISMATCH,
     ERR_400_UPLOAD_STATE,
     ERR_404_DOCUMENT,
     ERR_404_FOLDER,
     ERR_404_REVISION,
     ERR_404_UPLOAD,
     ERR_409_SEQ_CONFLICT,
+    ERR_413_BODY_TOO_LARGE,
+    ERR_413_UPDATE_TOO_LARGE,
+    ERR_413_UPLOAD_TOO_LARGE,
+    ERR_507_WORKSPACE_QUOTA,
 )
 from .models import Document, DocumentUpdate, Folder, Revision, UploadSession
 from .storage import content_hash, document_prefix, get_storage, snapshot_key
@@ -82,6 +92,82 @@ def content_mime(document) -> str:
             mime += "; charset=utf-8"
         return mime
     return document.mime_type or "application/octet-stream"
+
+
+# ── Resource invariants (limits and quota) ───────────────────────────
+#
+# Every accepted byte is bounded twice: by a per-object ceiling (a body, an
+# update, a blob) and by the workspace's own budget. Limits are settings,
+# never literals, and a limit of 0 disables that single ceiling — an
+# explicit host decision, not the shipped default.
+
+
+def resource_limit(name: str) -> int:
+    """An integer limit from the STAPEL_DOCS namespace (0 = disabled)."""
+    return int(getattr(docs_settings, name))
+
+
+def assert_body_size(body: bytes) -> None:
+    """Ceiling for a snapshot body (content PUT, create-with-body)."""
+    limit = resource_limit("MAX_BODY_BYTES")
+    if limit and len(body) > limit:
+        raise DocsError(413, ERR_413_BODY_TOO_LARGE, {"limit_bytes": limit, "size_bytes": len(body)})
+
+
+def assert_body_mutable(document) -> None:
+    """Refuse a generic body write to a type that owns its own write path.
+
+    ``type=file`` bodies arrive through an upload session (where size, MIME
+    and quota policy live), and a type whose spec vanished from the
+    registry is read-only by contract (storage-verdict §7.3) — without this
+    the content PUT is a second door around both rules.
+    """
+    spec = effective_spec(document)
+    if spec is None or not spec.body_mutable:
+        raise DocsError(400, ERR_400_TYPE_NOT_EDITABLE)
+
+
+def workspace_usage_bytes(workspace_id) -> int:
+    """Stored bytes charged to a workspace: every document head plus every
+    revision snapshot (dedup by content hash is not modelled — the quota
+    counts the pessimistic figure, which is the one an operator budgets)."""
+    heads = Document.objects.filter(workspace_id=workspace_id).aggregate(
+        total=Sum("size_bytes")
+    )["total"] or 0
+    revisions = Revision.objects.filter(
+        document__workspace_id=workspace_id
+    ).aggregate(total=Sum("size_bytes"))["total"] or 0
+    return int(heads) + int(revisions)
+
+
+def assert_quota(workspace_id, added_bytes: int) -> None:
+    """Refuse a write that would push the workspace past its byte budget."""
+    quota = resource_limit("WORKSPACE_QUOTA_BYTES")
+    if quota <= 0 or added_bytes <= 0:
+        return
+    used = workspace_usage_bytes(workspace_id)
+    if used + added_bytes > quota:
+        raise DocsError(
+            507,
+            ERR_507_WORKSPACE_QUOTA,
+            {"quota_bytes": quota, "used_bytes": used},
+        )
+
+
+def _mime_allowed(mime: str) -> bool:
+    allowed = list(docs_settings.UPLOAD_ALLOWED_MIME_TYPES or [])
+    if not allowed:
+        return True
+    mime = (mime or "").split(";")[0].strip().lower()
+    if not mime:
+        return False
+    for entry in allowed:
+        entry = str(entry).strip().lower()
+        if entry == mime:
+            return True
+        if entry.endswith("/*") and mime.startswith(entry[:-1]):
+            return True
+    return False
 
 
 # ── Scoped lookups ───────────────────────────────────────────────────
@@ -322,6 +408,11 @@ def create_document(
         folder = _ensure_folder_path(workspace_id, folder_path, user=acting)
     if isinstance(body, str):
         body = body.encode("utf-8")
+    if body is not None:
+        if not spec.body_mutable:
+            raise DocsError(400, ERR_400_TYPE_NOT_EDITABLE)
+        assert_body_size(body)
+        assert_quota(workspace_id, len(body))
     metadata = dict(metadata or {})
     # Only the upload flow may mark a document pending.
     metadata.pop(UPLOAD_PENDING_KEY, None)
@@ -479,10 +570,24 @@ def _winning_save(document) -> tuple:
     return None, document.updated_at.isoformat()
 
 
-def save_content(document_id, body: bytes, *, expected_seq=None, user=None, force_revision=False):
+def save_content(
+    document_id,
+    body: bytes,
+    *,
+    expected_seq=None,
+    user=None,
+    force_revision=False,
+    require_mutable_type=True,
+):
     """Optimistic-lock snapshot save. ``expected_seq=None`` skips the check
     (revision restore — it serializes on the same lock). Returns
-    (document, revision-or-None)."""
+    (document, revision-or-None).
+
+    ``require_mutable_type=False`` is for replaying bytes this service
+    already stored (revision restore): those passed the type's own write
+    policy when they were first accepted.
+    """
+    assert_body_size(body)
     with transaction.atomic():
         document = (
             Document.objects.select_for_update()
@@ -491,6 +596,9 @@ def save_content(document_id, body: bytes, *, expected_seq=None, user=None, forc
         )
         if document is None:
             raise DocsError(404, ERR_404_DOCUMENT)
+        if require_mutable_type:
+            assert_body_mutable(document)
+        assert_quota(document.workspace_id, len(body) - document.size_bytes)
         if expected_seq is not None and expected_seq != document.head_seq:
             saved_by, saved_at = _winning_save(document)
             raise SeqConflict(
@@ -509,6 +617,14 @@ def append_updates(document_id, updates: list[bytes], *, client_id="", client_se
     """Append a batch of opaque commutative updates at ++head_seq each.
     Journal appends do NOT emit document.updated (bus economy, design §6).
     Returns the new head_seq."""
+    batch_limit = resource_limit("MAX_UPDATES_PER_REQUEST")
+    if batch_limit and len(updates) > batch_limit:
+        raise DocsError(400, ERR_400_TOO_MANY_UPDATES, {"limit": batch_limit})
+    update_limit = resource_limit("MAX_UPDATE_BYTES")
+    if update_limit:
+        for payload in updates:
+            if len(payload) > update_limit:
+                raise DocsError(413, ERR_413_UPDATE_TOO_LARGE, {"limit_bytes": update_limit})
     with transaction.atomic():
         document = (
             Document.objects.select_for_update()
@@ -599,7 +715,14 @@ def restore_revision(document, revision, *, user=None):
     PUT content (no If-Match — restore serializes on the row lock; always
     mints an auto revision). History is NEVER rewritten."""
     body = get_storage().get_bytes(revision.storage_key)
-    return save_content(document.pk, body, expected_seq=None, user=user, force_revision=True)
+    return save_content(
+        document.pk,
+        body,
+        expected_seq=None,
+        user=user,
+        force_revision=True,
+        require_mutable_type=False,
+    )
 
 
 # ── Trash ────────────────────────────────────────────────────────────
@@ -715,14 +838,44 @@ def purge_expired() -> tuple[int, int]:
 # ── Uploads (type=file via presigned PUT; recordings pattern) ────────
 
 
+def pending_uploads(workspace_id):
+    """Open (pending, unexpired) sessions of a workspace."""
+    return UploadSession.objects.filter(
+        workspace_id=workspace_id, state=UploadSession.STATE_PENDING
+    ).exclude(expires_at__lt=timezone.now())
+
+
 def create_upload(
-    *, workspace_id, title, folder_id=None, mime_type="", size_bytes=0, user=None
+    *,
+    workspace_id,
+    title,
+    folder_id=None,
+    mime_type="",
+    size_bytes=0,
+    checksum="",
+    user=None,
 ) -> tuple[UploadSession, str]:
     """Create the Document row immediately (hidden from listings while
-    pending) plus its UploadSession. Returns (session, put_url)."""
+    pending) plus its UploadSession. Returns (session, put_url).
+
+    The ticket carries its invariants: a declared size and optional sha256
+    the stored object is checked against at finalize, an expiry, and the
+    user it belongs to."""
+    size_bytes = int(size_bytes or 0)
+    upload_limit = resource_limit("MAX_UPLOAD_BYTES")
+    if upload_limit and size_bytes > upload_limit:
+        raise DocsError(413, ERR_413_UPLOAD_TOO_LARGE, {"limit_bytes": upload_limit})
+    if not _mime_allowed(mime_type):
+        raise DocsError(400, ERR_400_UPLOAD_MIME, {"mime_type": mime_type or ""})
+    assert_quota(workspace_id, size_bytes)
+    open_limit = resource_limit("MAX_PENDING_UPLOADS_PER_WORKSPACE")
+    if open_limit and pending_uploads(workspace_id).count() >= open_limit:
+        raise DocsError(400, ERR_400_TOO_MANY_UPLOADS, {"limit": open_limit})
     folder = None
     if folder_id is not None:
         folder = get_live_folder(folder_id, workspace_id=workspace_id)
+    ttl = resource_limit("UPLOAD_SESSION_TTL_SECONDS")
+    expires_at = timezone.now() + timedelta(seconds=ttl) if ttl else None
     with transaction.atomic():
         document = Document.objects.create(
             workspace_id=workspace_id,
@@ -744,7 +897,9 @@ def create_upload(
             mime_type=mime_type or "",
             key=key,
             created_by=user,
-            size_bytes=size_bytes or 0,
+            size_bytes=size_bytes,
+            checksum=(checksum or "").lower(),
+            expires_at=expires_at,
         )
     put_url = get_storage().presigned_put_url(
         key,
@@ -757,15 +912,47 @@ def create_upload(
 def finalize_upload(session) -> Document:
     """Promote the uploaded object to the document's head (seq 1) and
     announce the document. The stored blob is the byte-preserved original —
-    never rewritten (verdict §9.4)."""
+    never rewritten (verdict §9.4).
+
+    Finalize is where the declaration meets reality: the object must exist,
+    fit the ceilings, match the declared size (and sha256 when one was
+    declared) and fit the workspace budget. The session is then CONSUMED by
+    a conditional state transition, so two concurrent finalizes cannot both
+    promote the blob."""
     if session.state != UploadSession.STATE_PENDING or session.document_id is None:
         raise DocsError(400, ERR_400_UPLOAD_STATE)
+    if session.expires_at is not None and session.expires_at <= timezone.now():
+        raise DocsError(400, ERR_400_UPLOAD_EXPIRED)
     storage = get_storage()
     exists, size = storage.head_object(session.key)
     if not exists:
         raise DocsError(400, ERR_400_UPLOAD_STATE)
-    size = size or session.size_bytes or 0
+    size = size if size is not None else (session.size_bytes or 0)
+    upload_limit = resource_limit("MAX_UPLOAD_BYTES")
+    if upload_limit and size > upload_limit:
+        raise DocsError(
+            413, ERR_413_UPLOAD_TOO_LARGE, {"limit_bytes": upload_limit, "size_bytes": size}
+        )
+    # A declared size is a promise about the object, not a hint: an object
+    # of a different length is a different object than the one authorized.
+    if session.size_bytes and size != session.size_bytes:
+        raise DocsError(
+            400,
+            ERR_400_UPLOAD_MISMATCH,
+            {"declared_bytes": session.size_bytes, "size_bytes": size},
+        )
+    if session.checksum:
+        if content_hash(storage.get_bytes(session.key)) != session.checksum:
+            raise DocsError(400, ERR_400_UPLOAD_MISMATCH, {"checksum": session.checksum})
+    assert_quota(session.workspace_id, size)
     with transaction.atomic():
+        # Atomic consume: exactly one caller wins the pending -> finalized
+        # transition; the loser sees the same 400 a replayed ticket sees.
+        consumed = UploadSession.objects.filter(
+            pk=session.pk, state=UploadSession.STATE_PENDING
+        ).update(state=UploadSession.STATE_FINALIZED, size_bytes=size, updated_at=timezone.now())
+        if not consumed:
+            raise DocsError(400, ERR_400_UPLOAD_STATE)
         document = (
             Document.objects.select_for_update()
             .filter(pk=session.document_id, deleted_at__isnull=True)
@@ -801,9 +988,7 @@ def finalize_upload(session) -> Document:
             created_by=session.created_by,
             size_bytes=size,
         )
-        session.state = UploadSession.STATE_FINALIZED
-        session.size_bytes = size
-        session.save(update_fields=["state", "size_bytes", "updated_at"])
+        session.refresh_from_db(fields=["state", "size_bytes", "updated_at"])
         events.emit_document_created(document)
         events.emit_storage_changed(document.workspace_id, size)
     return document

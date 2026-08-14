@@ -63,6 +63,38 @@ DEFAULTS = {
         "UPLOAD_URL_EXPIRES_SECONDS": 900,
         "DOWNLOAD_URL_EXPIRES_SECONDS": 3600,
 
+        # ── Resource limits (hard invariants) ────────────────────────
+        # Every byte path has a ceiling the service refuses to cross, so a
+        # single caller can neither exhaust the object store nor park an
+        # unbounded body in worker memory. 0 disables an individual limit
+        # (an explicit host decision, never the shipped default).
+        # Largest accepted snapshot body (content PUT, create-with-body).
+        "MAX_BODY_BYTES": 10 * 1024 * 1024,
+        # Largest accepted single journal update payload, and the batch cap
+        # per append request — the crdt feed is otherwise unbounded.
+        "MAX_UPDATE_BYTES": 256 * 1024,
+        "MAX_UPDATES_PER_REQUEST": 200,
+        # Largest accepted upload blob (declared at open, re-checked
+        # against the STORED object at finalize).
+        "MAX_UPLOAD_BYTES": 1024 * 1024 * 1024,
+        # Bodies above this are refused by the export renderer: exporters
+        # parse content in-process, so their input needs its own ceiling.
+        "MAX_EXPORT_BYTES": 5 * 1024 * 1024,
+        # Per-workspace stored-byte budget; 0 = no quota (host opt-in).
+        "WORKSPACE_QUOTA_BYTES": 0,
+
+        # ── Upload session invariants ────────────────────────────────
+        # A ticket is a capability: it expires, it belongs to the user who
+        # opened it, and only that user (or a workspace manager) may spend
+        # it exactly once.
+        "UPLOAD_SESSION_TTL_SECONDS": 24 * 3600,
+        # Ceiling on simultaneously open (pending, unexpired) sessions per
+        # workspace — bounds staging objects nobody ever finalizes.
+        "MAX_PENDING_UPLOADS_PER_WORKSPACE": 100,
+        # Accepted upload MIME types; [] = any. Entries are exact
+        # ("image/png") or a type wildcard ("image/*").
+        "UPLOAD_ALLOWED_MIME_TYPES": [],
+
         # ── Document types (open merge registry) ─────────────────────
         # {slug: dotted-path to a DocTypeSpec | None to remove a builtin}.
         "DOC_TYPES": {},
