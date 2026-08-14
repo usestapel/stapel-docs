@@ -860,9 +860,13 @@ class UploadFinalizeView(SerializerSeamMixin, APIView):
             return denied
         # Owner binding: a ticket is spendable by the user who opened it.
         # Anyone else needs workspace `manage` — a leaked upload_id must not
-        # be enough for another member to plant a document in the tree.
+        # be enough for another member to plant a document in the tree. A
+        # ticket with no owner left (GDPR anonymize nulls created_by) has
+        # nobody who satisfies the binding, so it takes the same escalation
+        # as somebody else's ticket rather than falling open to every
+        # editor.
         user = _acting_user(request)
-        if session.created_by_id and (user is None or user.pk != session.created_by_id):
+        if user is None or user.pk != session.created_by_id:
             verdict = authorize(
                 workspace_id=session.workspace_id,
                 principal=Principal.from_request(request),

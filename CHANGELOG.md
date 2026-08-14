@@ -39,6 +39,15 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ### Changed
 
+- **UPGRADE NOTE — an ownerless upload ticket needs `manage`** (audit
+  DOCS-03). The owner binding on upload finalize was skipped entirely when
+  `created_by_id` was falsy, which is exactly what GDPR anonymize leaves
+  behind, so any workspace editor could spend such a ticket. A ticket with
+  no owner now takes the same `docs.manage` escalation as somebody else's
+  ticket (403 `error.403.docs_upload_owner` otherwise) — including for the
+  user who originally opened it, since the row no longer says they did.
+  Hosts that anonymize users mid-upload should expect those pending
+  tickets to be finalized by a manager or abandoned to expiry.
 - **An upload whose object cannot be measured is refused** (audit
   DOCS-03), with the new 400 `error.400.docs_upload_unmeasurable`. Finalize
   used to fall back to the size the CLIENT declared when the store could

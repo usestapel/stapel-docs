@@ -218,6 +218,43 @@ def test_another_member_cannot_spend_someone_elses_ticket(
     assert api_client.post(f"{API}/uploads/{ticket['upload_id']}/finalize").status_code == 200
 
 
+def test_an_ownerless_ticket_is_not_spendable_by_default(
+    api_client, actor, user, workspace_id, grant_capabilities
+):
+    """GDPR anonymize nulls created_by. A ticket nobody owns satisfies
+    nobody's owner binding — it needs the same `manage` escalation as
+    somebody else's ticket, instead of becoming every editor's to spend."""
+    from django.core.cache import cache
+
+    ticket = _open_upload(actor, workspace_id)
+    get_storage().put_bytes(ticket["key"], b"blob")
+    UploadSession.objects.filter(pk=ticket["upload_id"]).update(created_by=None)
+
+    # Not even the user who opened it: the binding is gone, not satisfied,
+    # so an editor without `manage` no longer gets through on it.
+    grant_capabilities(workspace_id, user.pk, "docs.view", "docs.edit")
+    cache.clear()
+    resp = actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize")
+    assert resp.status_code == 403
+    assert resp.json()["localizable_error"] == "error.403.docs_upload_owner"
+
+    from django.contrib.auth import get_user_model
+
+    other = get_user_model().objects.create(username=f"o-{uuid.uuid4().hex[:8]}")
+    grant_capabilities(workspace_id, other.pk, "docs.view", "docs.edit")
+    api_client.force_authenticate(user=other)
+    assert api_client.post(
+        f"{API}/uploads/{ticket['upload_id']}/finalize"
+    ).status_code == 403
+
+    # A workspace manager still has the recovery path.
+    grant_capabilities(workspace_id, other.pk, "docs.view", "docs.edit", "docs.manage")
+    cache.clear()  # capability verdicts are cached 30 s; re-ask with the new grant
+    assert api_client.post(
+        f"{API}/uploads/{ticket['upload_id']}/finalize"
+    ).status_code == 200
+
+
 def test_finalize_consumes_the_session_atomically(actor, workspace_id):
     """The state transition is a conditional UPDATE, so a caller holding a
     stale `pending` row cannot promote the blob a second time."""
