@@ -37,6 +37,55 @@ DEFAULT_SHARING = {
     },
 }
 
+#: Upload MIME allowlist shipped as the default (see UPLOAD_ALLOWED_MIME_TYPES).
+#: An allowlist, never a blocklist: content types nobody enumerated are the
+#: ones an attacker reaches for, so an unlisted type is refused rather than
+#: waved through. Active content (text/html, application/xhtml+xml,
+#: image/svg+xml, application/javascript) and executables are deliberately
+#: absent — a host that serves its media inline would run them in its own
+#: origin.
+DEFAULT_UPLOAD_MIME_TYPES = [
+    # Text and data
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "application/json",
+    "application/xml",
+    "text/xml",
+    # Portable documents
+    "application/pdf",
+    "application/rtf",
+    # Office (OOXML, legacy binary, OpenDocument)
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.oasis.opendocument.spreadsheet",
+    "application/vnd.oasis.opendocument.presentation",
+    # Images — enumerated, NOT "image/*": that wildcard would admit
+    # image/svg+xml, which is a script document wearing a picture's name.
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/avif",
+    "image/heic",
+    "image/bmp",
+    "image/tiff",
+    # Recordings and attachments a workspace document links to
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/ogg",
+    "audio/wav",
+    "audio/webm",
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+]
+
 #: AppSettings-shaped literal dict (capability-config.md §2): a top-level
 #: DEFAULTS lets the capabilities.json emitter introspect axis keys/kinds
 #: without re-parsing the AppSettings() call.
@@ -62,6 +111,79 @@ DEFAULTS = {
         # degrades them to served URLs; never assume S3 URL shape).
         "UPLOAD_URL_EXPIRES_SECONDS": 900,
         "DOWNLOAD_URL_EXPIRES_SECONDS": 3600,
+        # A backend that cannot sign a URL can only offer a permanent public
+        # one (Django's ``storage.url``): a second read path that outlives
+        # the membership it was minted for and never re-enters authorize().
+        # Download URLs are therefore REFUSED (503) when the configured
+        # backend cannot honour DOWNLOAD_URL_EXPIRES_SECONDS, unless the
+        # host says in so many words that its media URLs may act as
+        # capabilities. The authorized /content stream serves the same bytes
+        # either way, so the closed default costs no functionality.
+        "ALLOW_UNEXPIRING_DOWNLOAD_URLS": False,
+
+        # ── Resource limits (hard invariants) ────────────────────────
+        # Every byte path has a ceiling the service refuses to cross, so a
+        # single caller can neither exhaust the object store nor park an
+        # unbounded body in worker memory. 0 disables an individual limit
+        # (an explicit host decision, never the shipped default).
+        # Largest accepted snapshot body (content PUT, create-with-body).
+        "MAX_BODY_BYTES": 10 * 1024 * 1024,
+        # Largest accepted single journal update payload, and the batch cap
+        # per append request — the crdt feed is otherwise unbounded.
+        "MAX_UPDATE_BYTES": 256 * 1024,
+        "MAX_UPDATES_PER_REQUEST": 200,
+        # Largest accepted upload blob (declared at open, re-checked
+        # against the STORED object at finalize).
+        "MAX_UPLOAD_BYTES": 1024 * 1024 * 1024,
+        # Bodies above this are refused by the export renderer: exporters
+        # parse content in-process, so their input needs its own ceiling.
+        "MAX_EXPORT_BYTES": 5 * 1024 * 1024,
+        # Per-workspace stored-byte budget (document heads + revisions).
+        # The only limit in this block that used to ship off, which made a
+        # single workspace's growth bounded by the object store's invoice
+        # instead of by anything the service enforces. 10 GiB is a ceiling
+        # a real workspace does not reach by accident and an operator
+        # raises on purpose; 0 disables the quota entirely — an explicit
+        # opt-out, never the shipped default.
+        "WORKSPACE_QUOTA_BYTES": 10 * 1024 * 1024 * 1024,
+
+        # ── Upload session invariants ────────────────────────────────
+        # A ticket is a capability: it expires, it belongs to the user who
+        # opened it, and only that user (or a workspace manager) may spend
+        # it exactly once.
+        "UPLOAD_SESSION_TTL_SECONDS": 24 * 3600,
+        # Ceiling on simultaneously open (pending, unexpired) sessions per
+        # workspace — bounds staging objects nobody ever finalizes.
+        "MAX_PENDING_UPLOADS_PER_WORKSPACE": 100,
+        # Accepted upload MIME types. Entries are exact ("image/png") or a
+        # type wildcard ("image/*"); an upload that declares no type at all
+        # is unknown content and is refused like any other type outside the
+        # list. The shipped list is the documents-and-attachments set a
+        # workspace actually stores; what it leaves out is what a host
+        # serving MEDIA_URL inline would execute in its own origin
+        # (text/html, image/svg+xml, application/javascript) or hand a user
+        # to run (installers, archives of them). Widen it deliberately —
+        # ["*/*"] accepts anything, an explicit host decision, and [] (or
+        # any list without a match) accepts nothing.
+        "UPLOAD_ALLOWED_MIME_TYPES": DEFAULT_UPLOAD_MIME_TYPES,
+
+        # ── Internal (comm) callers ──────────────────────────────────
+        # docs.create_document writes into a workspace on somebody's
+        # behalf, so the payload must name that somebody: `actor_id` is
+        # authorized exactly like an HTTP caller (docs.edit in the target
+        # workspace, through the same choke point). A service with no user
+        # actor is only ever accepted when the host lists it below — a
+        # narrow delegated capability, never an open door. Turning
+        # REQUIRE_CALLER off is a deliberate single-tenant/trusted-bus
+        # decision, and it is the host's to make, not the default.
+        "INTERNAL_REQUIRE_CALLER": True,
+        "INTERNAL_TRUSTED_SERVICES": [],
+
+        # ── Retention schedule ───────────────────────────────────────
+        # Trash retention only exists if something runs it: this is the
+        # cron for stapel_docs.tasks.purge_expired_trash, exposed to a host
+        # beat schedule by get_docs_beat_schedule().
+        "TRASH_PURGE_SCHEDULE": {"hour": 4, "minute": 20},
 
         # ── Document types (open merge registry) ─────────────────────
         # {slug: dotted-path to a DocTypeSpec | None to remove a builtin}.
@@ -103,4 +225,9 @@ docs_settings = AppSettings(
     import_strings=("STORAGE",),
 )
 
-__all__ = ["docs_settings", "DEFAULT_SHARING", "DEFAULTS"]
+__all__ = [
+    "docs_settings",
+    "DEFAULT_SHARING",
+    "DEFAULT_UPLOAD_MIME_TYPES",
+    "DEFAULTS",
+]

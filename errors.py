@@ -15,15 +15,28 @@ ERR_400_EXPORT_FORMAT = "error.400.docs_export_format"
 ERR_400_BAD_SINCE = "error.400.docs_bad_since"
 ERR_400_NOT_TRASHED = "error.400.docs_not_trashed"
 ERR_400_UPLOAD_STATE = "error.400.docs_upload_state"
+ERR_400_UPLOAD_MISMATCH = "error.400.docs_upload_mismatch"
+ERR_400_UPLOAD_MIME = "error.400.docs_upload_mime"
+ERR_400_UPLOAD_EXPIRED = "error.400.docs_upload_expired"
+ERR_400_UPLOAD_UNMEASURABLE = "error.400.docs_upload_unmeasurable"
+ERR_400_TOO_MANY_UPDATES = "error.400.docs_too_many_updates"
+ERR_400_TOO_MANY_UPLOADS = "error.400.docs_too_many_uploads"
 ERR_403_FORBIDDEN = "error.403.docs_forbidden"
+ERR_403_UPLOAD_OWNER = "error.403.docs_upload_owner"
 ERR_404_DOCUMENT = "error.404.docs_document_not_found"
 ERR_404_FOLDER = "error.404.docs_folder_not_found"
 ERR_404_REVISION = "error.404.docs_revision_not_found"
 ERR_404_UPLOAD = "error.404.docs_upload_not_found"
 ERR_409_SEQ_CONFLICT = "error.409.docs_seq_conflict"
 ERR_412_MISSING_IF_MATCH = "error.412.docs_missing_if_match"
+ERR_413_BODY_TOO_LARGE = "error.413.docs_body_too_large"
+ERR_413_UPDATE_TOO_LARGE = "error.413.docs_update_too_large"
+ERR_413_UPLOAD_TOO_LARGE = "error.413.docs_upload_too_large"
+ERR_413_EXPORT_TOO_LARGE = "error.413.docs_export_too_large"
+ERR_507_WORKSPACE_QUOTA = "error.507.docs_workspace_quota"
 ERR_503_WORKSPACES = "error.503.docs_workspaces_unavailable"
 ERR_503_EXPORTER = "error.503.docs_exporter_unavailable"
+ERR_503_DOWNLOAD_URL = "error.503.docs_download_url_unavailable"
 
 STAPEL_DOCS_ERRORS = {
     ERR_400_UNKNOWN_TYPE: "Unknown document type",
@@ -36,15 +49,28 @@ STAPEL_DOCS_ERRORS = {
     ERR_400_BAD_SINCE: "Invalid ?since= sequence number",
     ERR_400_NOT_TRASHED: "The item is not in the trash",
     ERR_400_UPLOAD_STATE: "Upload session is not in an operable state",
+    ERR_400_UPLOAD_MISMATCH: "The uploaded object does not match what the upload session declared",
+    ERR_400_UPLOAD_MIME: "This content type may not be uploaded",
+    ERR_400_UPLOAD_EXPIRED: "The upload session has expired",
+    ERR_400_UPLOAD_UNMEASURABLE: "The size of the uploaded object could not be determined",
+    ERR_400_TOO_MANY_UPDATES: "Too many updates in one request",
+    ERR_400_TOO_MANY_UPLOADS: "Too many upload sessions are already open in this workspace",
     ERR_403_FORBIDDEN: "You do not have access to this document",
+    ERR_403_UPLOAD_OWNER: "Only the user who opened this upload may finalize it",
     ERR_404_DOCUMENT: "Document not found",
     ERR_404_FOLDER: "Folder not found",
     ERR_404_REVISION: "Revision not found",
     ERR_404_UPLOAD: "Upload session not found",
     ERR_409_SEQ_CONFLICT: "A newer version was saved by someone else",
     ERR_412_MISSING_IF_MATCH: "Snapshot saves require an If-Match sequence",
+    ERR_413_BODY_TOO_LARGE: "The document body exceeds the size limit",
+    ERR_413_UPDATE_TOO_LARGE: "The update payload exceeds the size limit",
+    ERR_413_UPLOAD_TOO_LARGE: "The upload exceeds the size limit",
+    ERR_413_EXPORT_TOO_LARGE: "The document is too large to export",
+    ERR_507_WORKSPACE_QUOTA: "The workspace storage quota is exhausted",
     ERR_503_WORKSPACES: "Workspace membership service is unavailable",
     ERR_503_EXPORTER: "The export backend is not installed",
+    ERR_503_DOWNLOAD_URL: "Download links are not available with this storage configuration",
 }
 
 register_service_errors(STAPEL_DOCS_ERRORS)

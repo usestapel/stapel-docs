@@ -42,12 +42,19 @@ class DocTypeSpec:
     ``diffable`` tells a UI whether line-diff rendering is meaningful;
     ``text_extractor`` (bytes -> str) feeds knowledge-chunk extraction and
     may be None (nothing to index, e.g. opaque files).
+
+    ``body_mutable`` names the write API a type accepts: True = the content
+    PUT / save path owns the body; False = the body may only be produced by
+    the type's own flow (``file`` bodies come from an upload session, which
+    is where size, MIME and quota policy is applied). Without this the
+    generic content PUT would be a second, unpoliced door into blob bodies.
     """
 
     slug: str
     label: str
     collab: str = COLLAB_SNAPSHOT
     diffable: bool = False
+    body_mutable: bool = True
     editor_hint: str = ""
     mime_type: str = "application/octet-stream"
     extension: str = ""
@@ -87,6 +94,7 @@ BUILTIN_DOC_TYPES = {
     ),
     "file": DocTypeSpec(
         slug="file", label="File", collab=COLLAB_SNAPSHOT, diffable=False,
+        body_mutable=False,
         editor_hint="", mime_type="application/octet-stream", extension="",
         text_extractor=None,
     ),

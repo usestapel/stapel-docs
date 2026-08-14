@@ -22,6 +22,7 @@ nested dict key; its sub-keys are listed as `SHARING.<KEY>` rows below.
 | STORAGE_PREFIX | env | object-key prefix: `{STORAGE_PREFIX}/{workspace_id}/{document_id}/…`. | no | docs |
 | UPLOAD_URL_EXPIRES_SECONDS | env | presigned PUT URL lifetime (upload tickets). | no | 900 |
 | DOWNLOAD_URL_EXPIRES_SECONDS | env | presigned GET URL lifetime (downloads). | no | 3600 |
+| ALLOW_UNEXPIRING_DOWNLOAD_URLS | env | accept download URLs that never expire. Off: a backend that cannot sign (the default `DjangoStorageBackend`) makes the download endpoints refuse with 503 `error.503.docs_download_url_unavailable` — the authorized `/content` stream is unaffected. On: every minted URL is a permanent public media link that outlives the membership it was issued for (check `stapel_docs.W032`). | no | False |
 
 ### S3Backend (extra `[s3]`; read only when STORAGE points at it) (source: env)
 
@@ -53,6 +54,33 @@ nested dict key; its sub-keys are listed as `SHARING.<KEY>` rows below.
 | AUTO_REVISION_INTERVAL_SECONDS | env | a snapshot save mints an `auto` Revision when the newest revision is older than this (0 = revision on every save). | no | 300 |
 | FOLDER_MAX_DEPTH | env | folder tree depth ceiling (create/move/ingest-path all enforce it). | no | 10 |
 | TRASH_RETENTION_DAYS | env | soft-deleted items become purgeable by `docs_purge_expired` after this many days; purge is irreversible. | no | 30 |
+
+### Resource limits & quota (hard invariants; 0 disables one ceiling) (source: env)
+
+| Key | Source | Purpose | Required | Default |
+|-----|--------|---------|----------|---------|
+| MAX_BODY_BYTES | env | largest accepted snapshot body (content PUT, create-with-body); over it → 413 `error.413.docs_body_too_large`. | no | 10485760 |
+| MAX_UPDATE_BYTES | env | largest accepted single journal update payload → 413 `error.413.docs_update_too_large`. | no | 262144 |
+| MAX_UPDATES_PER_REQUEST | env | batch ceiling for one append request → 400 `error.400.docs_too_many_updates`. | no | 200 |
+| MAX_UPLOAD_BYTES | env | largest accepted upload blob, checked against the DECLARED size at open and the STORED object at finalize → 413 `error.413.docs_upload_too_large`. | no | 1073741824 |
+| MAX_EXPORT_BYTES | env | largest body an exporter is allowed to parse in-process → 413 `error.413.docs_export_too_large`. | no | 5242880 |
+| WORKSPACE_QUOTA_BYTES | env | per-workspace stored-byte budget (heads + revisions); over it → 507 `error.507.docs_workspace_quota`. `0` disables the quota — an explicit opt-out. | no | 10737418240 |
+
+### Upload session invariants (source: env)
+
+| Key | Source | Purpose | Required | Default |
+|-----|--------|---------|----------|---------|
+| UPLOAD_SESSION_TTL_SECONDS | env | ticket lifetime; a pending session past it can never be finalized (400 `error.400.docs_upload_expired`). 0 = no expiry. | no | 86400 |
+| MAX_PENDING_UPLOADS_PER_WORKSPACE | env | ceiling on simultaneously open (pending, unexpired) sessions per workspace → 400 `error.400.docs_too_many_uploads`. | no | 100 |
+| UPLOAD_ALLOWED_MIME_TYPES | env | accepted upload MIME types, exact (`image/png`) or type wildcard (`image/*`). Anything not matched — including an upload that declares no type — is refused with 400 `error.400.docs_upload_mime`; `["*/*"]` accepts anything (explicit), `[]` accepts nothing. | no | `stapel_docs.conf.DEFAULT_UPLOAD_MIME_TYPES` (documents, office, images, audio/video; no html/svg/executables) |
+
+### Internal (comm) callers & retention schedule (source: env)
+
+| Key | Source | Purpose | Required | Default |
+|-----|--------|---------|----------|---------|
+| INTERNAL_REQUIRE_CALLER | env | `docs.create_document` must carry an authorized caller (`actor_id`, or a `caller_service` listed below); off is a deliberate trusted-bus choice. | no | True |
+| INTERNAL_TRUSTED_SERVICES | env | service names allowed to call `docs.create_document` without a user actor (narrow delegated capability). | no | [] |
+| TRASH_PURGE_SCHEDULE | env | crontab kwargs for `stapel_docs.tasks.purge_expired_trash`, exposed to a host beat schedule by `get_docs_beat_schedule()`. | no | {"hour": 4, "minute": 20} |
 
 ### Sharing axis (closed defaults; v1 system-check guards E010-E014) (source: env)
 

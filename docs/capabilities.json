@@ -118,6 +118,24 @@
       "intent": "Append opaque commutative updates (crdt-discipline types only) at ++head_seq each, with client_id/client_seq retry dedup. Journal appends deliberately do NOT emit document.updated (bus economy)."
     },
     {
+      "name": "assert_body_mutable",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.assert_body_mutable",
+      "intent": "Refuse a generic body write to a type that owns its own write path: file bodies come from an upload session (where size/MIME/quota policy lives) and a vanished type is read-only. Skipping it re-opens the content PUT as a second, unpoliced door into blob bodies."
+    },
+    {
+      "name": "assert_body_size",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.assert_body_size",
+      "intent": "Refuse a snapshot body above MAX_BODY_BYTES (413). Every path that accepts client bytes calls it before touching storage — a body checked after the write has already cost the store."
+    },
+    {
+      "name": "assert_quota",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.assert_quota",
+      "intent": "Refuse a write that would push the workspace past WORKSPACE_QUOTA_BYTES (507). Call it before accepting bytes, not after storing them."
+    },
+    {
       "name": "content_mime",
       "kind": "factory",
       "path": "stapel_docs.services.content_mime",
@@ -235,6 +253,12 @@
       "intent": "Re-parent a folder with cycle, depth (subtree height counted) and sibling-name checks — the three ways a hand-written parent assignment corrupts the tree."
     },
     {
+      "name": "pending_uploads",
+      "kind": "factory",
+      "path": "stapel_docs.services.pending_uploads",
+      "intent": "Open (pending, unexpired) upload sessions of a workspace — the set the per-workspace ceiling counts and the one a cleanup job should sweep."
+    },
+    {
       "name": "purge_document",
       "kind": "gate_function",
       "path": "stapel_docs.services.purge_document",
@@ -274,6 +298,12 @@
       "intent": "Rename with the sibling-name check — the same duplicate-name refusal creation applies."
     },
     {
+      "name": "resource_limit",
+      "kind": "factory",
+      "path": "stapel_docs.services.resource_limit",
+      "intent": "Read one integer ceiling out of the STAPEL_DOCS namespace (0 = that ceiling is off). Host code that hardcodes a byte limit ships a number the operator cannot tune and the audit cannot find."
+    },
+    {
       "name": "restore_document",
       "kind": "gate_function",
       "path": "stapel_docs.services.restore_document",
@@ -307,6 +337,16 @@
       ]
     },
     {
+      "name": "storage_transaction",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.storage_transaction",
+      "intent": "Wrap a mutation whose object-store effects must follow the database outcome: writes are compensated when the block fails, deletes wait for the commit. Calling put_bytes/delete_object inside a transaction instead is how a rollback leaves an orphan object — or worse, deletes bytes a surviving row still points at.",
+      "instead_of": [
+        "stapel_docs.storage.DocsStorage.put_bytes",
+        "stapel_docs.storage.DocsStorage.delete_object"
+      ]
+    },
+    {
       "name": "trash_document",
       "kind": "gate_function",
       "path": "stapel_docs.services.trash_document",
@@ -329,6 +369,12 @@
       "kind": "gate_function",
       "path": "stapel_docs.services.update_document",
       "intent": "Patch title/metadata — and strip the reserved upload-pending marker no caller outside the upload flow may set."
+    },
+    {
+      "name": "workspace_usage_bytes",
+      "kind": "factory",
+      "path": "stapel_docs.services.workspace_usage_bytes",
+      "intent": "Stored bytes charged to a workspace (heads + revision snapshots) — the figure the quota compares against and the one to show in a usage UI."
     },
     {
       "name": "blob_key",

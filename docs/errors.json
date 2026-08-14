@@ -63,6 +63,20 @@
     "en": "The item is not in the trash"
   },
   {
+    "code": "error.400.docs_too_many_updates",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Too many updates in one request"
+  },
+  {
+    "code": "error.400.docs_too_many_uploads",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Too many upload sessions are already open in this workspace"
+  },
+  {
     "code": "error.400.docs_type_not_editable",
     "status": 400,
     "params": [],
@@ -84,11 +98,39 @@
     "en": "Update journal writes are only legal for crdt-discipline types"
   },
   {
+    "code": "error.400.docs_upload_expired",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "The upload session has expired"
+  },
+  {
+    "code": "error.400.docs_upload_mime",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This content type may not be uploaded"
+  },
+  {
+    "code": "error.400.docs_upload_mismatch",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "The uploaded object does not match what the upload session declared"
+  },
+  {
     "code": "error.400.docs_upload_state",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
     "en": "Upload session is not in an operable state"
+  },
+  {
+    "code": "error.400.docs_upload_unmeasurable",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "The size of the uploaded object could not be determined"
   },
   {
     "code": "error.400.expected_list",
@@ -250,6 +292,13 @@
     "en": "You do not have access to this document"
   },
   {
+    "code": "error.403.docs_upload_owner",
+    "status": 403,
+    "params": [],
+    "remediation": "retry",
+    "en": "Only the user who opened this upload may finalize it"
+  },
+  {
     "code": "error.403.forbidden",
     "status": 403,
     "params": [],
@@ -376,6 +425,34 @@
     "en": "Snapshot saves require an If-Match sequence"
   },
   {
+    "code": "error.413.docs_body_too_large",
+    "status": 413,
+    "params": [],
+    "remediation": "retry",
+    "en": "The document body exceeds the size limit"
+  },
+  {
+    "code": "error.413.docs_export_too_large",
+    "status": 413,
+    "params": [],
+    "remediation": "retry",
+    "en": "The document is too large to export"
+  },
+  {
+    "code": "error.413.docs_update_too_large",
+    "status": 413,
+    "params": [],
+    "remediation": "retry",
+    "en": "The update payload exceeds the size limit"
+  },
+  {
+    "code": "error.413.docs_upload_too_large",
+    "status": 413,
+    "params": [],
+    "remediation": "retry",
+    "en": "The upload exceeds the size limit"
+  },
+  {
     "code": "error.413.payload_too_large",
     "status": 413,
     "params": [],
@@ -434,6 +511,13 @@
     "en": "Something went wrong"
   },
   {
+    "code": "error.503.docs_download_url_unavailable",
+    "status": 503,
+    "params": [],
+    "remediation": "retry",
+    "en": "Download links are not available with this storage configuration"
+  },
+  {
     "code": "error.503.docs_exporter_unavailable",
     "status": 503,
     "params": [],
@@ -446,5 +530,12 @@
     "params": [],
     "remediation": "retry",
     "en": "Workspace membership service is unavailable"
+  },
+  {
+    "code": "error.507.docs_workspace_quota",
+    "status": 507,
+    "params": [],
+    "remediation": "retry",
+    "en": "The workspace storage quota is exhausted"
   }
 ]

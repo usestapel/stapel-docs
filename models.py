@@ -205,7 +205,15 @@ class UploadSession(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="+",
     )
+    #: Declared blob size; finalize compares it to the STORED object.
     size_bytes = models.BigIntegerField(default=0)
+    #: Declared sha256 of the blob (hex, optional). When set, finalize
+    #: hashes the stored object and refuses a mismatch — the ticket then
+    #: binds the exact bytes, not merely a slot to write into.
+    checksum = models.CharField(max_length=64, blank=True, default="")
+    #: The ticket is a capability, so it expires; a pending session past
+    #: this instant can never be finalized (UPLOAD_SESSION_TTL_SECONDS).
+    expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
