@@ -1,0 +1,130 @@
+{
+  "error.400.docs_bad_since": {
+    "hash": "dedd1365cb2c5195",
+    "text": "El número de secuencia del parámetro ?since= no es válido"
+  },
+  "error.400.docs_duplicate_name": {
+    "hash": "9f69c81b2a7af7a1",
+    "text": "Ya existe un elemento con este nombre aquí"
+  },
+  "error.400.docs_export_format": {
+    "hash": "b0cab258f3b9a133",
+    "text": "Formato de exportación desconocido"
+  },
+  "error.400.docs_folder_cycle": {
+    "hash": "4081aa6bf69eabb4",
+    "text": "Una carpeta no puede moverse dentro de sí misma"
+  },
+  "error.400.docs_folder_depth": {
+    "hash": "f32a1169a0bd8b21",
+    "text": "Se ha superado el límite de profundidad del árbol de carpetas"
+  },
+  "error.400.docs_not_trashed": {
+    "hash": "aeb8676d075462de",
+    "text": "El elemento no está en la papelera"
+  },
+  "error.400.docs_too_many_updates": {
+    "hash": "1eefbc668cb5398b",
+    "text": "Demasiadas actualizaciones en una sola solicitud"
+  },
+  "error.400.docs_too_many_uploads": {
+    "hash": "fe46b9bc52f27fea",
+    "text": "Ya hay demasiadas sesiones de subida abiertas en este espacio de trabajo"
+  },
+  "error.400.docs_type_not_editable": {
+    "hash": "cb6790494ea1e51c",
+    "text": "Este tipo de documento no tiene contenido editable"
+  },
+  "error.400.docs_unknown_type": {
+    "hash": "9ef2a4d3ba698bff",
+    "text": "Tipo de documento desconocido"
+  },
+  "error.400.docs_updates_not_crdt": {
+    "hash": "c01d2560478e2644",
+    "text": "El diario de actualizaciones solo admite escrituras para tipos con disciplina CRDT"
+  },
+  "error.400.docs_upload_expired": {
+    "hash": "3795e6adb93fcc40",
+    "text": "La sesión de subida ha caducado"
+  },
+  "error.400.docs_upload_mime": {
+    "hash": "d8810c5ff65a5921",
+    "text": "No se permite subir este tipo de contenido"
+  },
+  "error.400.docs_upload_mismatch": {
+    "hash": "6641efdc842001a5",
+    "text": "El objeto subido no coincide con lo que declaró la sesión de subida"
+  },
+  "error.400.docs_upload_state": {
+    "hash": "2ee6d8c53f5550d7",
+    "text": "La sesión de subida no está en un estado que permita esta operación"
+  },
+  "error.400.docs_upload_unmeasurable": {
+    "hash": "c95db10a3df9b7f2",
+    "text": "No se ha podido determinar el tamaño del objeto subido"
+  },
+  "error.403.docs_forbidden": {
+    "hash": "589a70cd095f43d7",
+    "text": "No tienes acceso a este documento"
+  },
+  "error.403.docs_upload_owner": {
+    "hash": "8cc4fc76f0601f20",
+    "text": "Solo el usuario que abrió esta subida puede finalizarla"
+  },
+  "error.404.docs_document_not_found": {
+    "hash": "2717993aecde6b43",
+    "text": "Documento no encontrado"
+  },
+  "error.404.docs_folder_not_found": {
+    "hash": "05d0e5f0e341070f",
+    "text": "Carpeta no encontrada"
+  },
+  "error.404.docs_revision_not_found": {
+    "hash": "668704818e735b18",
+    "text": "Revisión no encontrada"
+  },
+  "error.404.docs_upload_not_found": {
+    "hash": "27063db5e683cb4a",
+    "text": "Sesión de subida no encontrada"
+  },
+  "error.409.docs_seq_conflict": {
+    "hash": "0c140d3c9d2b3bee",
+    "text": "Otra persona ha guardado una versión más reciente"
+  },
+  "error.412.docs_missing_if_match": {
+    "hash": "f19eb03ee69b35df",
+    "text": "Para guardar una instantánea se requiere una secuencia If-Match"
+  },
+  "error.413.docs_body_too_large": {
+    "hash": "598c05088813e60e",
+    "text": "El contenido del documento supera el límite de tamaño"
+  },
+  "error.413.docs_export_too_large": {
+    "hash": "003d77be75a82a78",
+    "text": "El documento es demasiado grande para exportarlo"
+  },
+  "error.413.docs_update_too_large": {
+    "hash": "dc952de3a63e96e1",
+    "text": "La actualización supera el límite de tamaño"
+  },
+  "error.413.docs_upload_too_large": {
+    "hash": "3223b956de256d92",
+    "text": "La subida supera el límite de tamaño"
+  },
+  "error.503.docs_download_url_unavailable": {
+    "hash": "8c72bb5e4ed02eac",
+    "text": "Los enlaces de descarga no están disponibles con esta configuración de almacenamiento"
+  },
+  "error.503.docs_exporter_unavailable": {
+    "hash": "5e2eaca9d0b0a47e",
+    "text": "El backend de exportación no está instalado"
+  },
+  "error.503.docs_workspaces_unavailable": {
+    "hash": "955a6b8b68652447",
+    "text": "El servicio de miembros del espacio de trabajo no está disponible"
+  },
+  "error.507.docs_workspace_quota": {
+    "hash": "bbb3bb29c37ce880",
+    "text": "La cuota de almacenamiento del espacio de trabajo está agotada"
+  }
+}

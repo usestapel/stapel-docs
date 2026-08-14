@@ -6,6 +6,34 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-15
+
+### Added — the error catalogs this module owns (ru, es)
+
+This module registers 32 `error.*.docs_*` keys and shipped a catalog for
+none of them. Since stapel-core 0.23.1 a consumer resolves a key it does
+not own from the **owner's** catalog, and since 0.22.0 a writer may only
+translate keys it owns — so shipping nothing did not leave the gap open for
+someone else to fill legally: it made every consumer render the English
+literal, and the one that filled it locally was maintaining a shadow of
+this module's canon that nothing here would ever update.
+
+`translations/errors.ru.json` + `translations/errors.es.json` (32 keys
+each) now ship, with the `translations/.state.json` provenance sidecar,
+and both are in the wheel (`package-data`) — a catalog that reaches only
+the repository is a catalog no deployment can read. Languages match what
+every other stapel library with error keys promises: en canon in
+`errors.py`, ru and es as catalogs.
+
+Provenance is recorded, not implied: the curated stapel-translate builtin
+corpus carries none of these keys, so every value is a machine translation
+(`origin: llm`, the gate's unreviewed counter) reproduced offline from the
+table in `tests/test_error_i18n.py`. `tests/test_error_i18n.py` is also the
+gate — coverage scoped to ownership, no foreign keys, placeholders
+preserved, byte-stable, no drift.
+
+Strings and packaging only: no code, no schema, no migration changed.
+
 ## [0.2.0] — 2026-08-14
 
 ### Added

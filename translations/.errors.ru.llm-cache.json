@@ -1,0 +1,130 @@
+{
+  "error.400.docs_bad_since": {
+    "hash": "dedd1365cb2c5195",
+    "text": "Некорректный номер последовательности в параметре ?since="
+  },
+  "error.400.docs_duplicate_name": {
+    "hash": "9f69c81b2a7af7a1",
+    "text": "Элемент с таким именем здесь уже существует"
+  },
+  "error.400.docs_export_format": {
+    "hash": "b0cab258f3b9a133",
+    "text": "Неизвестный формат экспорта"
+  },
+  "error.400.docs_folder_cycle": {
+    "hash": "4081aa6bf69eabb4",
+    "text": "Папку нельзя переместить внутрь самой себя"
+  },
+  "error.400.docs_folder_depth": {
+    "hash": "f32a1169a0bd8b21",
+    "text": "Превышена предельная глубина дерева папок"
+  },
+  "error.400.docs_not_trashed": {
+    "hash": "aeb8676d075462de",
+    "text": "Элемент не находится в корзине"
+  },
+  "error.400.docs_too_many_updates": {
+    "hash": "1eefbc668cb5398b",
+    "text": "Слишком много обновлений в одном запросе"
+  },
+  "error.400.docs_too_many_uploads": {
+    "hash": "fe46b9bc52f27fea",
+    "text": "В этом рабочем пространстве уже открыто слишком много сессий загрузки"
+  },
+  "error.400.docs_type_not_editable": {
+    "hash": "cb6790494ea1e51c",
+    "text": "У этого типа документа нет редактируемого содержимого"
+  },
+  "error.400.docs_unknown_type": {
+    "hash": "9ef2a4d3ba698bff",
+    "text": "Неизвестный тип документа"
+  },
+  "error.400.docs_updates_not_crdt": {
+    "hash": "c01d2560478e2644",
+    "text": "Запись в журнал обновлений допустима только для типов с CRDT-дисциплиной"
+  },
+  "error.400.docs_upload_expired": {
+    "hash": "3795e6adb93fcc40",
+    "text": "Срок действия сессии загрузки истёк"
+  },
+  "error.400.docs_upload_mime": {
+    "hash": "d8810c5ff65a5921",
+    "text": "Этот тип содержимого загружать нельзя"
+  },
+  "error.400.docs_upload_mismatch": {
+    "hash": "6641efdc842001a5",
+    "text": "Загруженный объект не соответствует тому, что было заявлено в сессии загрузки"
+  },
+  "error.400.docs_upload_state": {
+    "hash": "2ee6d8c53f5550d7",
+    "text": "Сессия загрузки находится в состоянии, в котором это действие невозможно"
+  },
+  "error.400.docs_upload_unmeasurable": {
+    "hash": "c95db10a3df9b7f2",
+    "text": "Не удалось определить размер загруженного объекта"
+  },
+  "error.403.docs_forbidden": {
+    "hash": "589a70cd095f43d7",
+    "text": "У вас нет доступа к этому документу"
+  },
+  "error.403.docs_upload_owner": {
+    "hash": "8cc4fc76f0601f20",
+    "text": "Завершить загрузку может только пользователь, который её начал"
+  },
+  "error.404.docs_document_not_found": {
+    "hash": "2717993aecde6b43",
+    "text": "Документ не найден"
+  },
+  "error.404.docs_folder_not_found": {
+    "hash": "05d0e5f0e341070f",
+    "text": "Папка не найдена"
+  },
+  "error.404.docs_revision_not_found": {
+    "hash": "668704818e735b18",
+    "text": "Версия не найдена"
+  },
+  "error.404.docs_upload_not_found": {
+    "hash": "27063db5e683cb4a",
+    "text": "Сессия загрузки не найдена"
+  },
+  "error.409.docs_seq_conflict": {
+    "hash": "0c140d3c9d2b3bee",
+    "text": "Кто-то другой сохранил более новую версию"
+  },
+  "error.412.docs_missing_if_match": {
+    "hash": "f19eb03ee69b35df",
+    "text": "Для сохранения снимка нужен заголовок If-Match с номером последовательности"
+  },
+  "error.413.docs_body_too_large": {
+    "hash": "598c05088813e60e",
+    "text": "Содержимое документа превышает предельный размер"
+  },
+  "error.413.docs_export_too_large": {
+    "hash": "003d77be75a82a78",
+    "text": "Документ слишком велик для экспорта"
+  },
+  "error.413.docs_update_too_large": {
+    "hash": "dc952de3a63e96e1",
+    "text": "Обновление превышает предельный размер"
+  },
+  "error.413.docs_upload_too_large": {
+    "hash": "3223b956de256d92",
+    "text": "Загрузка превышает предельный размер"
+  },
+  "error.503.docs_download_url_unavailable": {
+    "hash": "8c72bb5e4ed02eac",
+    "text": "При такой конфигурации хранилища ссылки для скачивания недоступны"
+  },
+  "error.503.docs_exporter_unavailable": {
+    "hash": "5e2eaca9d0b0a47e",
+    "text": "Бэкенд экспорта не установлен"
+  },
+  "error.503.docs_workspaces_unavailable": {
+    "hash": "955a6b8b68652447",
+    "text": "Сервис участников рабочего пространства недоступен"
+  },
+  "error.507.docs_workspace_quota": {
+    "hash": "bbb3bb29c37ce880",
+    "text": "Квота хранилища рабочего пространства исчерпана"
+  }
+}
