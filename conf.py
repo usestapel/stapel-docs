@@ -138,8 +138,14 @@ DEFAULTS = {
         # Bodies above this are refused by the export renderer: exporters
         # parse content in-process, so their input needs its own ceiling.
         "MAX_EXPORT_BYTES": 5 * 1024 * 1024,
-        # Per-workspace stored-byte budget; 0 = no quota (host opt-in).
-        "WORKSPACE_QUOTA_BYTES": 0,
+        # Per-workspace stored-byte budget (document heads + revisions).
+        # The only limit in this block that used to ship off, which made a
+        # single workspace's growth bounded by the object store's invoice
+        # instead of by anything the service enforces. 10 GiB is a ceiling
+        # a real workspace does not reach by accident and an operator
+        # raises on purpose; 0 disables the quota entirely — an explicit
+        # opt-out, never the shipped default.
+        "WORKSPACE_QUOTA_BYTES": 10 * 1024 * 1024 * 1024,
 
         # ── Upload session invariants ────────────────────────────────
         # A ticket is a capability: it expires, it belongs to the user who

@@ -106,6 +106,20 @@ def test_workspace_quota_refuses_the_write_that_would_cross_it(actor, workspace_
     assert resp.json()["localizable_error"] == "error.507.docs_workspace_quota"
 
 
+def test_the_workspace_quota_ships_switched_on(monkeypatch, workspace_id):
+    """No override_settings: the SHIPPED configuration must refuse a write
+    into a workspace that has already stored more than the default budget.
+    A quota that ships at 0 is a limit only the invoice enforces."""
+    from stapel_docs import services
+
+    monkeypatch.setattr(
+        services, "workspace_usage_bytes", lambda ws: 64 * 1024 * 1024 * 1024
+    )
+    with pytest.raises(services.DocsError) as exc:
+        services.assert_quota(workspace_id, 1)
+    assert exc.value.error_key == "error.507.docs_workspace_quota"
+
+
 def test_quota_zero_means_unlimited(actor, workspace_id):
     doc = _create_doc(actor, workspace_id)
     with override_settings(STAPEL_DOCS={"WORKSPACE_QUOTA_BYTES": 0}):

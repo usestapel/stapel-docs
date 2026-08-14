@@ -64,7 +64,7 @@ nested dict key; its sub-keys are listed as `SHARING.<KEY>` rows below.
 | MAX_UPDATES_PER_REQUEST | env | batch ceiling for one append request → 400 `error.400.docs_too_many_updates`. | no | 200 |
 | MAX_UPLOAD_BYTES | env | largest accepted upload blob, checked against the DECLARED size at open and the STORED object at finalize → 413 `error.413.docs_upload_too_large`. | no | 1073741824 |
 | MAX_EXPORT_BYTES | env | largest body an exporter is allowed to parse in-process → 413 `error.413.docs_export_too_large`. | no | 5242880 |
-| WORKSPACE_QUOTA_BYTES | env | per-workspace stored-byte budget (heads + revisions); 0 = no quota. Over it → 507 `error.507.docs_workspace_quota`. | no | 0 |
+| WORKSPACE_QUOTA_BYTES | env | per-workspace stored-byte budget (heads + revisions); over it → 507 `error.507.docs_workspace_quota`. `0` disables the quota — an explicit opt-out. | no | 10737418240 |
 
 ### Upload session invariants (source: env)
 

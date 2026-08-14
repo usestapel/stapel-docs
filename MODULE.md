@@ -194,7 +194,7 @@ registry with defaults in [CONFIG.MD](CONFIG.MD).
 | `REPLAY_WINDOW`, `AUTO_REVISION_INTERVAL_SECONDS` | value | journal/revision cadence |
 | `FOLDER_MAX_DEPTH`, `TRASH_RETENTION_DAYS` | value | tree/trash tuning |
 | `MAX_BODY_BYTES`, `MAX_UPDATE_BYTES`, `MAX_UPDATES_PER_REQUEST`, `MAX_UPLOAD_BYTES`, `MAX_EXPORT_BYTES` | value (`0` = ceiling off) | hard resource ceilings on every accepted byte |
-| `WORKSPACE_QUOTA_BYTES` | value (`0` = no quota) | per-workspace stored-byte budget (507 when crossed) |
+| `WORKSPACE_QUOTA_BYTES` | value (ships at 10 GiB; `0` = quota off) | per-workspace stored-byte budget (507 when crossed) |
 | `UPLOAD_SESSION_TTL_SECONDS`, `MAX_PENDING_UPLOADS_PER_WORKSPACE` | value | upload-ticket expiry, open-session ceiling |
 | `UPLOAD_ALLOWED_MIME_TYPES` | value (ships a real allowlist; `["*/*"]` = any) | which content types may be uploaded at all |
 | `INTERNAL_REQUIRE_CALLER`, `INTERNAL_TRUSTED_SERVICES` | value | authority carried by comm callers of `docs.create_document` |

@@ -39,6 +39,16 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ### Changed
 
+- **UPGRADE NOTE — the workspace storage quota ships switched on** (audit
+  DOCS-03). `WORKSPACE_QUOTA_BYTES` defaults to **10 GiB** instead of `0`.
+  It was the one limit in the hard-invariants block that shipped off, so
+  the only thing bounding a workspace's growth was the object store's
+  invoice. A workspace already holding more than 10 GiB of heads +
+  revisions will start refusing writes with 507
+  `error.507.docs_workspace_quota` until the setting is raised. **To keep
+  unlimited storage** set `STAPEL_DOCS["WORKSPACE_QUOTA_BYTES"] = 0` — `0`
+  remains "no quota", now as a deliberate opt-out rather than as the
+  shipped default.
 - **UPGRADE NOTE — uploads ship with a real MIME allowlist** (audit
   DOCS-03). `UPLOAD_ALLOWED_MIME_TYPES` no longer defaults to `[]`, and
   `[]` no longer means "anything": an empty allowlist now allows nothing,
