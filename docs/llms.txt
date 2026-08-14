@@ -2,7 +2,7 @@
 
 Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).
 
-Contract: axes 1 · surface 54 · extension points 7 · operations 27 · error codes 72.
+Contract: axes 1 · surface 54 · extension points 7 · operations 27 · error codes 73.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -189,7 +189,7 @@ Paths are relative to `/docs/api/v1/`.
 - POST /uploads — docs_api_v1_uploads_create
 - POST /uploads/{upload_id}/finalize — docs_api_v1_uploads_finalize_create
 
-## Error codes (72) — the StapelError envelope
+## Error codes (73) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -209,6 +209,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.400.docs_upload_mime [400] fix_input
 - error.400.docs_upload_mismatch [400] fix_input
 - error.400.docs_upload_state [400] fix_input
+- error.400.docs_upload_unmeasurable [400] fix_input
 - error.400.expected_list [400] fix_input
 - error.400.field.blank [400] fix_input {field}
 - error.400.field.does_not_exist [400] fix_input {field}

@@ -235,6 +235,49 @@ def test_finalize_consumes_the_session_atomically(actor, workspace_id):
     assert Revision.objects.filter(document_id=ticket["document_id"]).count() == 1
 
 
+def test_an_unmeasurable_object_fails_the_finalize(actor, workspace_id, monkeypatch):
+    """A store that cannot report a size must not hand the decision back to
+    the client's declaration: the ceiling and the quota are enforced on a
+    measurement or not at all."""
+    ticket = _open_upload(actor, workspace_id, size_bytes=0)
+    get_storage().put_bytes(ticket["key"], b"x" * 4096)
+    monkeypatch.setattr(
+        type(get_storage()), "head_object", lambda self, key: (True, None)
+    )
+
+    resp = actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize")
+    assert resp.status_code == 400
+    assert resp.json()["localizable_error"] == "error.400.docs_upload_unmeasurable"
+    # Nothing was promoted and nothing was charged.
+    row = Document.objects.get(pk=ticket["document_id"])
+    assert row.head_seq == 0
+    assert row.size_bytes == 0
+    assert UploadSession.objects.get(pk=ticket["upload_id"]).state == "pending"
+
+
+def test_head_object_does_not_swallow_a_size_failure(tmp_path):
+    """The seam's own contract: `(exists, None)` is not a sink for storage
+    errors — the caller must see the failure."""
+    from django.core.files.storage import FileSystemStorage
+
+    from stapel_docs.storage import DjangoStorageBackend
+
+    backend = DjangoStorageBackend()
+    backend.put_bytes("probe.bin", b"measured")
+    assert backend.head_object("probe.bin") == (True, len(b"measured"))
+
+    def _boom(self, name):
+        raise OSError("the object store lost the file's metadata")
+
+    original = FileSystemStorage.size
+    FileSystemStorage.size = _boom
+    try:
+        with pytest.raises(OSError):
+            backend.head_object("probe.bin")
+    finally:
+        FileSystemStorage.size = original
+
+
 def test_declared_size_over_the_ceiling_is_refused(actor, workspace_id):
     with override_settings(STAPEL_DOCS={"MAX_UPLOAD_BYTES": 1024}):
         resp = actor.post(

@@ -126,6 +126,13 @@
     "en": "Upload session is not in an operable state"
   },
   {
+    "code": "error.400.docs_upload_unmeasurable",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "The size of the uploaded object could not be determined"
+  },
+  {
     "code": "error.400.expected_list",
     "status": 400,
     "params": [],

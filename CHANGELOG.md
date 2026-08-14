@@ -39,6 +39,15 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ### Changed
 
+- **An upload whose object cannot be measured is refused** (audit
+  DOCS-03), with the new 400 `error.400.docs_upload_unmeasurable`. Finalize
+  used to fall back to the size the CLIENT declared when the store could
+  not report one — and `DjangoStorageBackend.head_object` turned any
+  exception from `storage.size()` into "exists, size unknown", so a storage
+  fault became an upload that passed the ceiling unchecked and charged the
+  workspace quota nothing (zero, for a ticket opened without a declared
+  size). `head_object` no longer swallows those errors: a backend that
+  cannot size an object raises, and the finalize fails.
 - **UPGRADE NOTE — the workspace storage quota ships switched on** (audit
   DOCS-03). `WORKSPACE_QUOTA_BYTES` defaults to **10 GiB** instead of `0`.
   It was the one limit in the hard-invariants block that shipped off, so

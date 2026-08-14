@@ -18,6 +18,7 @@ ERR_400_UPLOAD_STATE = "error.400.docs_upload_state"
 ERR_400_UPLOAD_MISMATCH = "error.400.docs_upload_mismatch"
 ERR_400_UPLOAD_MIME = "error.400.docs_upload_mime"
 ERR_400_UPLOAD_EXPIRED = "error.400.docs_upload_expired"
+ERR_400_UPLOAD_UNMEASURABLE = "error.400.docs_upload_unmeasurable"
 ERR_400_TOO_MANY_UPDATES = "error.400.docs_too_many_updates"
 ERR_400_TOO_MANY_UPLOADS = "error.400.docs_too_many_uploads"
 ERR_403_FORBIDDEN = "error.403.docs_forbidden"
@@ -51,6 +52,7 @@ STAPEL_DOCS_ERRORS = {
     ERR_400_UPLOAD_MISMATCH: "The uploaded object does not match what the upload session declared",
     ERR_400_UPLOAD_MIME: "This content type may not be uploaded",
     ERR_400_UPLOAD_EXPIRED: "The upload session has expired",
+    ERR_400_UPLOAD_UNMEASURABLE: "The size of the uploaded object could not be determined",
     ERR_400_TOO_MANY_UPDATES: "Too many updates in one request",
     ERR_400_TOO_MANY_UPLOADS: "Too many upload sessions are already open in this workspace",
     ERR_403_FORBIDDEN: "You do not have access to this document",

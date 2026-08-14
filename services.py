@@ -37,6 +37,7 @@ from .errors import (
     ERR_400_UPLOAD_MIME,
     ERR_400_UPLOAD_MISMATCH,
     ERR_400_UPLOAD_STATE,
+    ERR_400_UPLOAD_UNMEASURABLE,
     ERR_403_FORBIDDEN,
     ERR_404_DOCUMENT,
     ERR_404_FOLDER,
@@ -1029,7 +1030,13 @@ def finalize_upload(session) -> Document:
     exists, size = storage.head_object(session.key)
     if not exists:
         raise DocsError(400, ERR_400_UPLOAD_STATE)
-    size = size if size is not None else (session.size_bytes or 0)
+    if size is None:
+        # An object nobody measured cannot be checked against the ceiling
+        # or charged to the quota, and the client's declaration is not a
+        # substitute for a measurement — falling back to it (or to the 0 a
+        # ticket opened with no declared size carries) is how a storage
+        # fault becomes free, unbounded storage.
+        raise DocsError(400, ERR_400_UPLOAD_UNMEASURABLE)
     upload_limit = resource_limit("MAX_UPLOAD_BYTES")
     if upload_limit and size > upload_limit:
         raise DocsError(

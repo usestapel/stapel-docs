@@ -166,10 +166,11 @@ class DjangoStorageBackend(DocsStorage):
         storage = self._storage()
         if not storage.exists(key):
             return False, None
-        try:
-            return True, storage.size(key)
-        except Exception:
-            return True, None
+        # The caller enforces ceilings and charges quota with this number,
+        # so a store that cannot report a size must fail the caller instead
+        # of answering "exists, unknown" — which is how a storage-layer
+        # error turns into an upload accepted for free.
+        return True, storage.size(key)
 
     def download_to_file(self, key, dst_path):
         storage = self._storage()
