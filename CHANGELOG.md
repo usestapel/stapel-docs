@@ -6,6 +6,8 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-14
+
 ### Added
 
 - **Resource invariants** (security audit DOCS-01): hard ceilings on every
@@ -39,6 +41,16 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ### Changed
 
+- **Requires stapel-core >= 0.24.0** (was `>=0.15.11`). Not driven by a new
+  call: this module declares `import_strings=("STORAGE",)`, and on an older
+  core an import-string key was still read from the environment unless the
+  module listed it in `no_env` — which this one never did, so a bare
+  `STORAGE` environment variable could choose the storage class the package
+  loads. The download-URL refusal below is a property of that class
+  (`mints_expiring_urls = True`), so on an older core "may this deployment
+  hand out permanent public links" is a question the environment can answer.
+  Core 0.24.0 makes every `import_strings` key implicitly `no_env`, with
+  `env_overridable=` as the per-key opt-out.
 - **UPGRADE NOTE — an ownerless upload ticket needs `manage`** (audit
   DOCS-03). The owner binding on upload finalize was skipped entirely when
   `created_by_id` was falsy, which is exactly what GDPR anonymize leaves

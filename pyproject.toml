@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-docs"
-version = "0.1.1"
+version = "0.2.0"
 description = "Documents: storage, revisions and per-type editors for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,14 +23,25 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # Measured floor, not a guess: the full suite (incl. contract emission and
-    # the e2e host lifecycle) runs green against 0.15.11, 0.16.0 and 0.18.0
-    # (probed 2026-08-10); older cores are unmeasured and unclaimed. 0.1.0
-    # shipped the scaffold placeholder (>=0.3,<0.4), which made the package
-    # UNINSTALLABLE next to any real host — every fleet service floors core
-    # at >=0.18, so pip either refused the resolve or silently downgraded
-    # core to 0.3.2 (observed live in the iron-recordings venv).
-    "stapel-core>=0.15.11,<1.0",
+    # Floor raised to 0.24.0 by this module's own security posture, not by a
+    # new API call. `docs_settings` declares `import_strings=("STORAGE",)`,
+    # and before core 0.24.0 an `AppSettings` import-string key was still
+    # resolved from the environment unless the module remembered to list it
+    # in `no_env` — which this one did not. So a bare `STORAGE` environment
+    # variable could choose the storage class this package loads. That is
+    # what the DOCS-03 download-URL gate rests on: the endpoints refuse
+    # unless the configured backend advertises `mints_expiring_urls = True`,
+    # so an env-selected backend is an env-selected answer to "may I hand
+    # out permanent public links". Core 0.24.0 makes every `import_strings`
+    # key implicitly `no_env` (opt out per key with `env_overridable=`), so
+    # the storage class comes from the project's settings or the default and
+    # nowhere else. On an older core the check is decorative, hence a floor
+    # rather than a preference.
+    #
+    # Previously >=0.15.11 — a floor measured green against 0.15.11, 0.16.0
+    # and 0.18.0 on 2026-08-10, itself replacing the scaffold placeholder
+    # (>=0.3,<0.4) that made the package uninstallable next to any real host.
+    "stapel-core>=0.24.0,<1.0",
 ]
 
 [project.urls]
