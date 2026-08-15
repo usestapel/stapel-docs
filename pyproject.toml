@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-docs"
-version = "0.2.1"
+version = "0.2.2"
 description = "Documents: storage, revisions and per-type editors for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -41,7 +41,9 @@ dependencies = [
     # Previously >=0.15.11 — a floor measured green against 0.15.11, 0.16.0
     # and 0.18.0 on 2026-08-10, itself replacing the scaffold placeholder
     # (>=0.3,<0.4) that made the package uninstallable next to any real host.
-    "stapel-core>=0.24.0,<1.0",
+    # Floor: 0.26.0 emits docs/errors.json with the `owner` field the
+    # committed artifact and its drift gate require.
+    "stapel-core>=0.26.0,<1.0",
 ]
 
 [project.urls]
