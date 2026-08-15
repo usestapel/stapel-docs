@@ -4,140 +4,160 @@
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Bad request"
+    "en": "Bad request",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.captcha_invalid",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Captcha verification failed. Please try again."
+    "en": "Captcha verification failed. Please try again.",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.captcha_required",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Captcha token is required."
+    "en": "Captcha token is required.",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.docs_bad_since",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Invalid ?since= sequence number"
+    "en": "Invalid ?since= sequence number",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_duplicate_name",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "An item with this name already exists here"
+    "en": "An item with this name already exists here",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_export_format",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Unknown export format"
+    "en": "Unknown export format",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_folder_cycle",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "A folder cannot be moved under itself"
+    "en": "A folder cannot be moved under itself",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_folder_depth",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Folder tree depth limit exceeded"
+    "en": "Folder tree depth limit exceeded",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_not_trashed",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "The item is not in the trash"
+    "en": "The item is not in the trash",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_too_many_updates",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Too many updates in one request"
+    "en": "Too many updates in one request",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_too_many_uploads",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Too many upload sessions are already open in this workspace"
+    "en": "Too many upload sessions are already open in this workspace",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_type_not_editable",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "This document type has no editable body"
+    "en": "This document type has no editable body",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_unknown_type",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Unknown document type"
+    "en": "Unknown document type",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_updates_not_crdt",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Update journal writes are only legal for crdt-discipline types"
+    "en": "Update journal writes are only legal for crdt-discipline types",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_upload_expired",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "The upload session has expired"
+    "en": "The upload session has expired",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_upload_mime",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "This content type may not be uploaded"
+    "en": "This content type may not be uploaded",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_upload_mismatch",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "The uploaded object does not match what the upload session declared"
+    "en": "The uploaded object does not match what the upload session declared",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_upload_state",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Upload session is not in an operable state"
+    "en": "Upload session is not in an operable state",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.docs_upload_unmeasurable",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "The size of the uploaded object could not be determined"
+    "en": "The size of the uploaded object could not be determined",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.400.expected_list",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Expected a list of items"
+    "en": "Expected a list of items",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.blank",
@@ -146,7 +166,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} may not be blank"
+    "en": "{field} may not be blank",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.does_not_exist",
@@ -155,7 +176,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} does not exist"
+    "en": "{field} does not exist",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.invalid",
@@ -164,7 +186,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} is invalid"
+    "en": "{field} is invalid",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.invalid_choice",
@@ -173,7 +196,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} is not a valid choice"
+    "en": "{field} is not a valid choice",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.max_length",
@@ -183,7 +207,8 @@
       "max_length"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be at most {max_length} characters"
+    "en": "{field} must be at most {max_length} characters",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.max_value",
@@ -193,7 +218,8 @@
       "max_value"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be at most {max_value}"
+    "en": "{field} must be at most {max_value}",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.min_length",
@@ -203,7 +229,8 @@
       "min_length"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be at least {min_length} characters"
+    "en": "{field} must be at least {min_length} characters",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.min_value",
@@ -213,7 +240,8 @@
       "min_value"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be at least {min_value}"
+    "en": "{field} must be at least {min_value}",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.null",
@@ -222,7 +250,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} may not be null"
+    "en": "{field} may not be null",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.required",
@@ -231,7 +260,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} is required"
+    "en": "{field} is required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.unique",
@@ -240,252 +270,288 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be unique"
+    "en": "{field} must be unique",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.invalid_ad_id",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Invalid advertisement ID"
+    "en": "Invalid advertisement ID",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.validation_error",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Validation error"
+    "en": "Validation error",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.verification_failed",
     "status": 400,
     "params": [],
     "remediation": "verify",
-    "en": "Verification failed"
+    "en": "Verification failed",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.verification_invalid_factor",
     "status": 400,
     "params": [],
     "remediation": "verify",
-    "en": "This verification factor is not available"
+    "en": "This verification factor is not available",
+    "owner": "stapel_core"
   },
   {
     "code": "error.401.unauthorized",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "Authentication required"
+    "en": "Authentication required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.402.payment_required",
     "status": 402,
     "params": [],
     "remediation": "retry",
-    "en": "Payment required"
+    "en": "Payment required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.403.docs_forbidden",
     "status": 403,
     "params": [],
     "remediation": "retry",
-    "en": "You do not have access to this document"
+    "en": "You do not have access to this document",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.403.docs_upload_owner",
     "status": 403,
     "params": [],
     "remediation": "retry",
-    "en": "Only the user who opened this upload may finalize it"
+    "en": "Only the user who opened this upload may finalize it",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.403.forbidden",
     "status": 403,
     "params": [],
     "remediation": "retry",
-    "en": "You do not have permission to perform this action"
+    "en": "You do not have permission to perform this action",
+    "owner": "stapel_core"
   },
   {
     "code": "error.403.network_blocked",
     "status": 403,
     "params": [],
     "remediation": "contact_support",
-    "en": "Requests from this network are not allowed"
+    "en": "Requests from this network are not allowed",
+    "owner": "stapel_core"
   },
   {
     "code": "error.403.verification_enrollment_required",
     "status": 403,
     "params": [],
     "remediation": "verify",
-    "en": "Verification factor enrollment required"
+    "en": "Verification factor enrollment required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.403.verification_required",
     "status": 403,
     "params": [],
     "remediation": "verify",
-    "en": "Additional verification required"
+    "en": "Additional verification required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.404.ad_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Listing not found"
+    "en": "Listing not found",
+    "owner": "stapel_core"
   },
   {
     "code": "error.404.docs_document_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Document not found"
+    "en": "Document not found",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.404.docs_folder_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Folder not found"
+    "en": "Folder not found",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.404.docs_revision_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Revision not found"
+    "en": "Revision not found",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.404.docs_upload_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Upload session not found"
+    "en": "Upload session not found",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.404.not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Requested resource not found"
+    "en": "Requested resource not found",
+    "owner": "stapel_core"
   },
   {
     "code": "error.404.verification_challenge_not_found",
     "status": 404,
     "params": [],
     "remediation": "verify",
-    "en": "Verification challenge not found or expired"
+    "en": "Verification challenge not found or expired",
+    "owner": "stapel_core"
   },
   {
     "code": "error.405.method_not_allowed",
     "status": 405,
     "params": [],
     "remediation": "retry",
-    "en": "Method not allowed"
+    "en": "Method not allowed",
+    "owner": "stapel_core"
   },
   {
     "code": "error.406.not_acceptable",
     "status": 406,
     "params": [],
     "remediation": "retry",
-    "en": "Not acceptable"
+    "en": "Not acceptable",
+    "owner": "stapel_core"
   },
   {
     "code": "error.408.request_timeout",
     "status": 408,
     "params": [],
     "remediation": "retry",
-    "en": "Request timeout"
+    "en": "Request timeout",
+    "owner": "stapel_core"
   },
   {
     "code": "error.409.conflict",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "Resource already exists"
+    "en": "Resource already exists",
+    "owner": "stapel_core"
   },
   {
     "code": "error.409.docs_seq_conflict",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "A newer version was saved by someone else"
+    "en": "A newer version was saved by someone else",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.410.gone",
     "status": 410,
     "params": [],
     "remediation": "retry",
-    "en": "Resource has been permanently removed"
+    "en": "Resource has been permanently removed",
+    "owner": "stapel_core"
   },
   {
     "code": "error.412.docs_missing_if_match",
     "status": 412,
     "params": [],
     "remediation": "retry",
-    "en": "Snapshot saves require an If-Match sequence"
+    "en": "Snapshot saves require an If-Match sequence",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.413.docs_body_too_large",
     "status": 413,
     "params": [],
     "remediation": "retry",
-    "en": "The document body exceeds the size limit"
+    "en": "The document body exceeds the size limit",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.413.docs_export_too_large",
     "status": 413,
     "params": [],
     "remediation": "retry",
-    "en": "The document is too large to export"
+    "en": "The document is too large to export",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.413.docs_update_too_large",
     "status": 413,
     "params": [],
     "remediation": "retry",
-    "en": "The update payload exceeds the size limit"
+    "en": "The update payload exceeds the size limit",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.413.docs_upload_too_large",
     "status": 413,
     "params": [],
     "remediation": "retry",
-    "en": "The upload exceeds the size limit"
+    "en": "The upload exceeds the size limit",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.413.payload_too_large",
     "status": 413,
     "params": [],
     "remediation": "retry",
-    "en": "Request body is too large"
+    "en": "Request body is too large",
+    "owner": "stapel_core"
   },
   {
     "code": "error.415.unsupported_media_type",
     "status": 415,
     "params": [],
     "remediation": "retry",
-    "en": "Unsupported media type"
+    "en": "Unsupported media type",
+    "owner": "stapel_core"
   },
   {
     "code": "error.422.unprocessable_entity",
     "status": 422,
     "params": [],
     "remediation": "wait_and_retry",
-    "en": "Unprocessable entity"
+    "en": "Unprocessable entity",
+    "owner": "stapel_core"
   },
   {
     "code": "error.423.locked",
     "status": 423,
     "params": [],
     "remediation": "wait_and_retry",
-    "en": "Resource is locked"
+    "en": "Resource is locked",
+    "owner": "stapel_core"
   },
   {
     "code": "error.423.verification_locked",
     "status": 423,
     "params": [],
     "remediation": "wait_and_retry",
-    "en": "Too many failed attempts — verification locked"
+    "en": "Too many failed attempts — verification locked",
+    "owner": "stapel_core"
   },
   {
     "code": "error.429.rate_limit",
@@ -494,48 +560,55 @@
       "retry_after_minutes"
     ],
     "remediation": "wait_and_retry",
-    "en": "Too many attempts. Try again in {retry_after_minutes} minutes."
+    "en": "Too many attempts. Try again in {retry_after_minutes} minutes.",
+    "owner": "stapel_core"
   },
   {
     "code": "error.429.too_many_requests",
     "status": 429,
     "params": [],
     "remediation": "wait_and_retry",
-    "en": "Too many requests. Please try again later."
+    "en": "Too many requests. Please try again later.",
+    "owner": "stapel_core"
   },
   {
     "code": "error.500.internal",
     "status": 500,
     "params": [],
     "remediation": "contact_support",
-    "en": "Something went wrong"
+    "en": "Something went wrong",
+    "owner": "stapel_core"
   },
   {
     "code": "error.503.docs_download_url_unavailable",
     "status": 503,
     "params": [],
     "remediation": "retry",
-    "en": "Download links are not available with this storage configuration"
+    "en": "Download links are not available with this storage configuration",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.503.docs_exporter_unavailable",
     "status": 503,
     "params": [],
     "remediation": "retry",
-    "en": "The export backend is not installed"
+    "en": "The export backend is not installed",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.503.docs_workspaces_unavailable",
     "status": 503,
     "params": [],
     "remediation": "retry",
-    "en": "Workspace membership service is unavailable"
+    "en": "Workspace membership service is unavailable",
+    "owner": "stapel_docs"
   },
   {
     "code": "error.507.docs_workspace_quota",
     "status": 507,
     "params": [],
     "remediation": "retry",
-    "en": "The workspace storage quota is exhausted"
+    "en": "The workspace storage quota is exhausted",
+    "owner": "stapel_docs"
   }
 ]
