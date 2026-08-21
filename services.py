@@ -622,43 +622,49 @@ def _save_snapshot(
     already_stored = storage_tx.put(key, body, content_type=content_mime(document))
     added = 0 if already_stored else len(body)
 
-    document.head_seq = new_seq
-    document.snapshot_seq = new_seq
-    document.snapshot_key = key
-    document.size_bytes = len(body)
-    document.save(
-        update_fields=["head_seq", "snapshot_seq", "snapshot_key", "size_bytes", "updated_at"]
-    )
-
     revision = None
-    if force_revision or _auto_revision_due(document):
-        revision = Revision.objects.create(
-            document=document,
-            seq=new_seq,
-            kind=Revision.KIND_AUTO,
-            storage_key=key,
-            created_by=user,
-            size_bytes=len(body),
+    # Mutation + outbox rows share this atomic block (outbox canon — see
+    # module docstring). The callers already hold a wider
+    # transaction.atomic(); nesting here is a safe savepoint (per
+    # stapel_core.comm.mutate_and_emit's documented nesting guarantee) and
+    # makes this helper self-sufficient for emit-check's lexical scan.
+    with transaction.atomic():
+        document.head_seq = new_seq
+        document.snapshot_seq = new_seq
+        document.snapshot_key = key
+        document.size_bytes = len(body)
+        document.save(
+            update_fields=["head_seq", "snapshot_seq", "snapshot_key", "size_bytes", "updated_at"]
         )
 
-    # Orphan cleanup: the previous snapshot dies iff no Revision points at
-    # it (content-addressed keys make identical bodies dedup for free).
-    freed = 0
-    if (
-        prev_key
-        and prev_key != key
-        and not Revision.objects.filter(document=document, storage_key=prev_key).exists()
-    ):
-        storage_tx.delete(prev_key)
-        freed = prev_size
+        if force_revision or _auto_revision_due(document):
+            revision = Revision.objects.create(
+                document=document,
+                seq=new_seq,
+                kind=Revision.KIND_AUTO,
+                storage_key=key,
+                created_by=user,
+                size_bytes=len(body),
+            )
 
-    _compact_journal(document)
+        # Orphan cleanup: the previous snapshot dies iff no Revision points at
+        # it (content-addressed keys make identical bodies dedup for free).
+        freed = 0
+        if (
+            prev_key
+            and prev_key != key
+            and not Revision.objects.filter(document=document, storage_key=prev_key).exists()
+        ):
+            storage_tx.delete(prev_key)
+            freed = prev_size
 
-    if emit_updated:
-        events.emit_document_updated(document)
-    delta = added - freed
-    if delta:
-        events.emit_storage_changed(document.workspace_id, delta)
+        _compact_journal(document)
+
+        if emit_updated:
+            events.emit_document_updated(document)
+        delta = added - freed
+        if delta:
+            events.emit_storage_changed(document.workspace_id, delta)
     return revision
 
 

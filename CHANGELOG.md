@@ -6,6 +6,22 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-08-21
+
+### Fixed — `_save_snapshot` mutation and outbox emits shared no atomic block (EMIT003)
+
+`_save_snapshot` (the single snapshot-save path behind `save_content` and
+`create_document`) wrote the document/revision rows and then called
+`events.emit_document_updated` / `events.emit_storage_changed` relying on the
+*caller's* `transaction.atomic()` — invisible to
+`stapel_core.lint.emit_check`'s lexical EMIT003 gate and, more importantly,
+inconsistent with every other emit site in this module, which all open their
+own `transaction.atomic()` around mutation + emit. Wrapped the writes and
+both emits in the helper's own `transaction.atomic()`; nesting inside the
+callers' wider atomic block is a safe savepoint
+(`stapel_core.comm.mutate_and_emit`'s documented nesting guarantee) and now
+the helper is self-sufficient under the static gate.
+
 ## [0.2.2] — 2026-08-15
 
 ### Changed — `stapel-core` floor raised to 0.26.0
