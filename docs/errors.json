@@ -604,6 +604,14 @@
     "owner": "stapel_docs"
   },
   {
+    "code": "error.503.mandate_unavailable",
+    "status": 503,
+    "params": [],
+    "remediation": "retry",
+    "en": "Cannot verify workspace mandate right now",
+    "owner": "stapel_core"
+  },
+  {
     "code": "error.507.docs_workspace_quota",
     "status": 507,
     "params": [],

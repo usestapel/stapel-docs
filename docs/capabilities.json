@@ -1,6 +1,6 @@
 {
   "module": "stapel-docs",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "provides": "Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).",
   "axes": [
     {

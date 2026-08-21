@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-docs"
-version = "0.2.3"
+version = "0.2.4"
 description = "Documents: storage, revisions and per-type editors for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -43,7 +43,12 @@ dependencies = [
     # (>=0.3,<0.4) that made the package uninstallable next to any real host.
     # Floor: 0.26.0 emits docs/errors.json with the `owner` field the
     # committed artifact and its drift gate require.
-    "stapel-core>=0.26.0,<1.0",
+    # Floor: 0.27.0 registers `error.503.mandate_unavailable` (+ ru/es
+    # catalogs) — CI always installs core off git HEAD, so the committed
+    # docs/errors.json (regenerated against the current core) needs the
+    # floor to match or a consumer on an older core silently regenerates a
+    # smaller artifact and the drift gate goes red again.
+    "stapel-core>=0.27.0,<1.0",
 ]
 
 [project.urls]

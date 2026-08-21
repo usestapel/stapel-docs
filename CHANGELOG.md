@@ -6,6 +6,18 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-08-21
+
+### Changed — `stapel-core` floor raised to 0.27.0
+
+CI installs `stapel-core` off git HEAD (currently 0.32.0), which has grown
+`error.503.mandate_unavailable` (+ ru/es catalogs) since this module's floor
+was last raised. `docs/errors.json` regenerated against that HEAD now carries
+the entry, and the drift gate (`tests/test_contract.py`) went red against the
+stale committed artifact until it did. Floor raised to >=0.27.0 (the release
+that registers the error) so the committed contract and the declared minimum
+agree again; `make contract` re-run to pick it up.
+
 ## [0.2.3] — 2026-08-21
 
 ### Fixed — `_save_snapshot` mutation and outbox emits shared no atomic block (EMIT003)
