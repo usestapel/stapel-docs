@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.deleted",
+  "description": "Account erasure executed (stapel-gdpr). Deprecated there since 0.5.0 and removed in 0.6.0 in favour of gdpr.erasure.requested; stapel-docs keeps consuming it for one minor and routes it through the same erase(subject_type='account').",
+  "type": "object",
+  "required": ["user_id"],
+  "properties": {
+    "user_id":        { "type": "string", "format": "uuid" },
+    "correlation_id": { "type": "string" },
+    "trigger":        { "type": "string" },
+    "deleted_at":     { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

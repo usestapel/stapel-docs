@@ -33,8 +33,12 @@
   (`authz.authorize`, fail-closed via `workspaces.check_capability`).
 - A **comm ingest seam**: the `docs.create_document` Function (the
   canonical product-glue path) plus the `INGEST` action-mapper registry
-  for event-driven ingest, and a GDPR provider (anonymize authorship —
-  documents are co-produced workspace content and survive their authors).
+  for event-driven ingest, and **subject-scoped erasure** (`erasure.py`,
+  see *Erasure*): docs answers stapel-gdpr for `account` (anonymize
+  authorship — documents are co-produced workspace content and survive
+  their authors), `workspace` and `document` (hard purge of rows, journal,
+  revisions and objects), receipts what it removed, and answers the owner
+  probe from the same subscriber.
 
 **What it delegates (does NOT implement):**
 
@@ -214,9 +218,59 @@ validated in tests (`VALIDATE_SCHEMAS`).
 | Action (emit) | `document.updated` | per accepted save / restored revision (journal appends deliberately do NOT emit — bus economy) | `schemas/emits/document.updated.json` |
 | Action (emit) | `document.deleted` | "left the visible corpus" — fires on trash AND purge | `schemas/emits/document.deleted.json` |
 | Action (emit) | `document.storage_changed` | per-workspace byte delta; whether `Workspace.storage_used_bytes` follows is the host's subscriber decision | `schemas/emits/document.storage_changed.json` |
-| Action (consume) | `user.deleted` | GDPR anonymize (authorship nulled; content survives) | — |
+| Action (emit) | `gdpr.section.erased` | the erasure receipt: `{correlation_id, owner: "docs", subject_type, subject_key, receipt_id, counts}` — emitted in the same transaction as the erasure it reports | `schemas/emits/gdpr.section.erased.json` |
+| Action (emit) | `gdpr.owner.alive` | probe answer: `{owner: "docs", subject_types}` — from the *same* subscriber that erases | `schemas/emits/gdpr.owner.alive.json` |
+| Action (consume) | `gdpr.erasure.requested` | subject-scoped erasure — `account` \| `workspace` \| `document` (see **Erasure** below) | `schemas/consumes/gdpr.erasure.requested.json` |
+| Action (consume) | `gdpr.owner.probe` | answered with `gdpr.owner.alive` | `schemas/consumes/gdpr.owner.probe.json` |
+| Action (consume) | `user.deleted` | the pre-0.5.0 account path, routed through the same `erase("account", …)`; deprecated in stapel-gdpr 0.5.0, removed there in 0.6.0 | `schemas/consumes/user.deleted.json` |
 | Action (consume) | configured `INGEST` names | event-driven ingest via host mappers | host-owned |
 | Function (**call**) | `workspaces.check_capability` | every authorization verdict (fail-closed) | provided by **stapel-workspaces** |
+
+### Erasure
+
+This module is a **data owner** in stapel-gdpr's erasure protocol
+(deletion-lifecycle §1.3/§2). One subscriber (`actions.py`) handles both
+`gdpr.erasure.requested` and `gdpr.owner.probe`; all the erasing itself
+lives in `erasure.py` (`erase(subject_type, subject_key, workspace_id=None)
+-> counts`), so a host can also call it in process.
+
+Declare it in the host's inventory exactly as it claims itself
+(`stapel_docs.erasure.OWNER` / `SUBJECT_TYPES`):
+
+```python
+STAPEL_GDPR = {"DATA_OWNERS": {"docs": ["account", "workspace", "document"]}}
+```
+
+| Subject | `subject_key` | What is erased | Counts in the receipt |
+|---|---|---|---|
+| `document` | the document id | the row, its update journal, every `Revision` and **every object of its history** — through `services.purge_document`, the same O(document) purge trash uses. Live or trashed alike: an erasure is not a trash operation and does not wait out `TRASH_RETENTION_DAYS`. Upload sessions still pointing at it die with their staging objects | `documents`, `revisions`, `updates`, `upload_sessions`, `storage_objects` |
+| `workspace` | the workspace id | every document of the workspace (live and trashed) as above, then the whole folder tree and every pending upload session with its staging object | same keys, plus `folders` |
+| `account` | the user id | **anonymize, not delete** — `DocumentUpdate.author_id`, `Revision.created_by`, `Document.owner`, `Folder.created_by`, `UploadSession.created_by` are nulled. Documents are co-produced workspace content and survive their authors (storage-verdict §3); destroying them would erase other members' data under the banner of erasing one person's | `documents_anonymized`, `folders_anonymized`, `revisions_anonymized`, `updates_anonymized`, `upload_sessions_anonymized` |
+
+Rules the subscriber keeps:
+
+- **Idempotent.** Delivery is at-least-once; a redelivery finds nothing left
+  and receipts zeros. `receipt_id` is `docs:<correlation_id>` — stable, so a
+  redelivery does not invent a second erasure in the audit trail.
+- **One transaction.** Erasure and receipt commit together (outbox canon):
+  the receipt leaves iff the erasure committed, so a half-done purge can
+  never complete the request. Objects die after the commit — a purge that
+  rolls back must leave surviving rows readable.
+- **Silence over false certification.** A subject type this owner does not
+  claim is ignored (gdpr opens no part for it); a request whose
+  `workspace_id` contradicts the document's row raises instead of receipting
+  zeros — the part then times out visibly rather than certifying an erasure
+  that never happened.
+- **Co-location.** The probe is answered from this same module, which is what
+  makes gdpr's `W006` evidence that the erasure path is *consumed* rather
+  than that a container is deployed. Do not answer it from anywhere else.
+
+Not owned here: **share and mandate grants**. v1 implements only the
+immutable workspace baseline — every verdict comes from
+`workspaces.check_capability`, and the sharing axis's own grant rows
+(whitelist/link) do not exist yet (`SHARING`, phase 3). When they land, they
+join the `document`/`workspace` erasures in this module; today the grants an
+erased subject held are the membership rows stapel-workspaces erases.
 
 ### Contract emission — the quintet in `docs/`
 

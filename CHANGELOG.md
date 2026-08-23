@@ -6,6 +6,79 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-23
+
+### Added — subject-scoped erasure: docs answers stapel-gdpr for `account`, `workspace` and `document`
+
+stapel-gdpr 0.5.0 generalized account closure into an erasure keyed by a
+subject (`{subject_type, subject_key}`) and made owner silence visible: a
+declared owner that never answers is named at boot (`gdpr.W006`) instead of
+discovered when a request times out. This module was reachable only through
+`user.deleted`, i.e. only for accounts — a deleted workspace or a deleted
+document left its rows, its journal, its revisions and every object of its
+history in place, with nothing that could prove otherwise.
+
+- New `erasure.py`: `erase(subject_type, subject_key, workspace_id=None)`
+  returns what it removed, per subject:
+  - `document` — the row, the update journal, every `Revision` and every
+    storage object of the document's history, through the module's own
+    `services.purge_document` (O(document), idempotent, objects deleted
+    after commit). Live or trashed alike: an erasure is not a trash
+    operation and does not wait out `TRASH_RETENTION_DAYS`. Upload sessions
+    still pointing at the document die with their staging objects.
+  - `workspace` — every document of the workspace as above, then the folder
+    tree and every pending upload session with its staging object.
+  - `account` — unchanged policy, now reached through the same entry point:
+    authorship is **anonymized, not deleted** (storage-verdict §3), because
+    documents are co-produced workspace content and destroying them would
+    erase other members' data under the banner of erasing one person's.
+- New consumers in `actions.py` (one module, both handlers — that
+  co-location is what makes an `alive` answer evidence the erasure path is
+  *consumed*): `gdpr.erasure.requested` → the erase above plus a
+  `gdpr.section.erased` receipt `{owner: "docs", subject_type, subject_key,
+  receipt_id, counts}` emitted in the same transaction; `gdpr.owner.probe` →
+  `gdpr.owner.alive {owner, subject_types}`.
+- Contracts committed: `schemas/emits/gdpr.section.erased.json`,
+  `schemas/emits/gdpr.owner.alive.json` (validated on every emit under
+  `VALIDATE_SCHEMAS`) and `schemas/consumes/{gdpr.erasure.requested,
+  gdpr.owner.probe,user.deleted}.json` — the consumed half of the comm
+  surface was undeclared until now.
+- `DocsGDPRProvider.anonymize()` / `.delete()` now return the per-model
+  counts they changed (they returned `None`); the base `GDPRProvider`
+  ignores a return value, so the orchestrator's in-process path is
+  unaffected, and the counts are what an `account` receipt carries.
+
+Refusals are deliberate: a subject type this owner does not claim is
+ignored (gdpr opens no part for it), and a request whose `workspace_id`
+contradicts the document's row raises instead of receipting zeros — the
+part then times out visibly rather than certifying an erasure that never
+happened.
+
+Host wiring (one line, no new setting here):
+
+```python
+STAPEL_GDPR = {"DATA_OWNERS": {"docs": ["account", "workspace", "document"]}}
+```
+
+**Minor, not patch**: new public module (`stapel_docs.erasure`), two new
+emitted actions and two new consumed ones — public surface grew.
+
+### Deprecated — `user.deleted`
+
+Still consumed, and now routed through `erase("account", …)` instead of
+calling the provider beside it. stapel-gdpr emits it alongside
+`gdpr.erasure.requested` for one minor and removes it in its 0.6.0; this
+module's handler goes with it. It deliberately emits **no** receipt: the
+account erasure that carries a correlation_id arrives as
+`gdpr.erasure.requested` and is receipted there.
+
+### Not in this release
+
+Share and mandate grants: v1 has none to erase — every verdict comes from
+`workspaces.check_capability` and the sharing axis's own grant rows
+(whitelist/link) do not exist yet (`SHARING`, phase 3). They join the
+`document`/`workspace` erasures in `erasure.py` when they land.
+
 ## [0.2.4] — 2026-08-21
 
 ### Changed — `stapel-core` floor raised to 0.27.0

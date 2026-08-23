@@ -51,21 +51,41 @@ class DocsGDPRProvider(GDPRProvider):
             ).count(),
         }
 
-    def delete(self, user_id) -> None:
+    def delete(self, user_id) -> dict:
         # A user.deleted consumer maps to anonymize for this module:
         # documents survive their authors (storage-verdict §3).
-        self.anonymize(user_id)
+        return self.anonymize(user_id)
 
-    def anonymize(self, user_id) -> None:
-        """Null every authorship reference. Idempotent (a nulled row nulls
-        to itself), so at-least-once redelivery is harmless."""
+    def anonymize(self, user_id) -> dict:
+        """Null every authorship reference; return how many rows changed.
+
+        Idempotent (a nulled row nulls to itself), so at-least-once
+        redelivery is harmless — and the second delivery reports zeros,
+        which is what a receipt should say about work that was already done.
+        The counts are what ``gdpr.section.erased`` carries for an
+        ``account`` subject (``erasure.erase_account``); the base
+        :class:`GDPRProvider` ignores a return value, so the orchestrator's
+        in-process path is unaffected.
+        """
         from .models import Document, DocumentUpdate, Folder, Revision, UploadSession
 
-        DocumentUpdate.objects.filter(author_id=user_id).update(author_id=None)
-        Revision.objects.filter(created_by_id=user_id).update(created_by=None)
-        Document.objects.filter(owner_id=user_id).update(owner=None)
-        Folder.objects.filter(created_by_id=user_id).update(created_by=None)
-        UploadSession.objects.filter(created_by_id=user_id).update(created_by=None)
+        return {
+            "updates_anonymized": DocumentUpdate.objects.filter(
+                author_id=user_id
+            ).update(author_id=None),
+            "revisions_anonymized": Revision.objects.filter(
+                created_by_id=user_id
+            ).update(created_by=None),
+            "documents_anonymized": Document.objects.filter(owner_id=user_id).update(
+                owner=None
+            ),
+            "folders_anonymized": Folder.objects.filter(created_by_id=user_id).update(
+                created_by=None
+            ),
+            "upload_sessions_anonymized": UploadSession.objects.filter(
+                created_by_id=user_id
+            ).update(created_by=None),
+        }
 
 
 __all__ = ["DocsGDPRProvider"]

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "gdpr.section.erased",
+  "description": "This owner erased its slice of one subject and says what it removed. Echoes the correlation_id of the gdpr.erasure.requested it answers; receipt_id is this owner's durable proof, counts is the per-model tally. Shape is stapel-gdpr's consumer contract verbatim, so the legacy account-only form (user_id + service) still validates.",
+  "type": "object",
+  "required": ["correlation_id"],
+  "properties": {
+    "correlation_id": { "type": "string" },
+    "owner":          { "type": "string" },
+    "service":        { "type": "string" },
+    "subject_type":   { "type": "string" },
+    "subject_key":    { "type": "string" },
+    "user_id":        { "type": "string" },
+    "receipt_id":     { "type": "string" },
+    "counts":         { "type": "object" }
+  },
+  "additionalProperties": false
+}
