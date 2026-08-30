@@ -95,6 +95,7 @@ Highlights: `STORAGE`, `DOC_TYPES`, `EXPORTERS`, `INGEST`, `REPLAY_WINDOW`,
 | Function (provides) | `docs.create_document` | `schemas/functions/docs.create_document.json` |
 | Action (emit) | `document.created`, `document.updated`, `document.deleted`, `document.storage_changed` | `schemas/emits/*.json` |
 | Action (consume) | `user.deleted` | GDPR anonymize (authorship nulled, content survives) |
+| Action (consume) | `user.merged` | authorship re-parented to the surviving account (the opposite instruction to erasure) |
 | Function (call) | `workspaces.check_capability` | provided by stapel-workspaces |
 
 ## Operations

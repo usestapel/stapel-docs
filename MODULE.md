@@ -223,6 +223,7 @@ validated in tests (`VALIDATE_SCHEMAS`).
 | Action (consume) | `gdpr.erasure.requested` | subject-scoped erasure — `account` \| `workspace` \| `document` (see **Erasure** below) | `schemas/consumes/gdpr.erasure.requested.json` |
 | Action (consume) | `gdpr.owner.probe` | answered with `gdpr.owner.alive` | `schemas/consumes/gdpr.owner.probe.json` |
 | Action (consume) | `user.deleted` | the pre-0.5.0 account path, routed through the same `erase("account", …)`; deprecated in stapel-gdpr 0.5.0, removed there in 0.6.0 | `schemas/consumes/user.deleted.json` |
+| Action (consume) | `user.merged` | the other half of that life cycle, and the opposite instruction: a guest folded into an existing account has its authorship **re-parented**, not anonymized — `Document.owner`, `Folder.created_by`, `Revision.created_by`, `DocumentUpdate.author_id`, `UploadSession.created_by`. A survivor with no user row here yet raises `MergeTargetNotReady` so the outbox redelivers. Idempotent | `schemas/consumes/user.merged.json` |
 | Action (consume) | configured `INGEST` names | event-driven ingest via host mappers | host-owned |
 | Function (**call**) | `workspaces.check_capability` | every authorization verdict (fail-closed) | provided by **stapel-workspaces** |
 

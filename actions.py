@@ -15,6 +15,9 @@ Consumers living here:
 - ``user.deleted`` → the same erasure, subject ``account`` (deprecated by
   stapel-gdpr 0.5.0, removed there in 0.6.0; kept working here for one
   minor so a host on either version erases);
+- ``user.merged`` → the other half of that life cycle: a guest folded into
+  an existing account keeps its authorship, re-parented rather than
+  anonymized;
 - the INGEST seam (design §2/§6): ``STAPEL_DOCS["INGEST"]`` maps
   ``{action_name: dotted-path mapper}`` so a host gets event-driven ingest
   without writing a subscriber. Docs never learns a foreign event schema —
@@ -23,10 +26,22 @@ Consumers living here:
 import logging
 from typing import Callable
 
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from stapel_core.comm import on_action, subscribe_action
 
 logger = logging.getLogger(__name__)
+
+
+class MergeTargetNotReady(RuntimeError):
+    """A ``user.merged`` arrived before the surviving account exists here.
+
+    Transient, not a bug: the guest has authored rows to carry over but
+    there is no local user row to point their FKs at yet. Raising is the
+    comm layer's retry signal — ``deliver()`` wraps a failing handler in
+    ``ActionDeliveryError`` and the outbox redelivers — so the transfer
+    completes once the survivor's user projection lands. An operator seeing
+    this in a redelivery loop is looking at an ordering lag, not a defect.
+    """
 
 
 @on_action("gdpr.erasure.requested")
@@ -119,6 +134,106 @@ def handle_user_deleted(event):
     erase("account", user_id)
 
 
+@on_action("user.merged")
+def handle_user_merged(event):
+    """Carry a merged-away account's authorship over to the survivor.
+
+    Re-parents every row this module keys by a user, in one transaction:
+
+    * :class:`~stapel_docs.models.Document` ``owner`` — who the document
+      belongs to;
+    * :class:`~stapel_docs.models.Folder` ``created_by``;
+    * :class:`~stapel_docs.models.Revision` ``created_by`` — the version
+      history keeps naming the person who saved each revision;
+    * :class:`~stapel_docs.models.DocumentUpdate` ``author_id`` — the CRDT
+      journal's attributed writes (a bare UUID column, deliberately FK-less);
+    * :class:`~stapel_docs.models.UploadSession` ``created_by``, so an
+      in-flight upload can still be finalized by the account that now holds
+      the ticket.
+
+    The opposite instruction to ``user.deleted``, which *anonymizes* the same
+    columns: an account erasure means "nobody wrote this any more", a merge
+    means "somebody else did". Answering only the first would leave a guest's
+    documents owned by an id that can no longer sign in — never listed for
+    the survivor, and never erased either, because no erasure is requested
+    for an account that was merged rather than closed.
+
+    Two different "unknown id" situations, and conflating them loses data:
+
+    * the guest authored nothing here (or a previous delivery already moved
+      it all) — a genuine no-op, returned quietly;
+    * the guest authored rows but the survivor has no user row here yet —
+      NOT a no-op. :class:`MergeTargetNotReady` is raised so the event is
+      redelivered, because returning success would let the outbox mark it
+      delivered and strand the documents.
+    """
+    from django.contrib.auth import get_user_model
+    from django.db import transaction
+
+    from .models import Document, DocumentUpdate, Folder, Revision, UploadSession
+
+    payload = event.payload or {}
+    from_user_id = payload.get("from_user_id")
+    into_user_id = payload.get("into_user_id")
+    if not from_user_id or not into_user_id:
+        logger.error("user.merged without from/into user id: %s", event.event_id)
+        return
+    if str(from_user_id) == str(into_user_id):
+        return
+
+    #: model -> the column naming a user on it.
+    owned = (
+        (Document, "owner_id"),
+        (Folder, "created_by_id"),
+        (Revision, "created_by_id"),
+        (DocumentUpdate, "author_id"),
+        (UploadSession, "created_by_id"),
+    )
+
+    with transaction.atomic():
+        # Both reads and the decision they feed happen inside the transaction
+        # and before the first write, so the "not yet" path below can never
+        # leave half the authorship moved.
+        try:
+            owns_something = any(
+                model.objects.filter(**{column: from_user_id}).exists()
+                for model, column in owned
+            )
+            # The survivor probe is read here, under the same guard, because a
+            # malformed *into* id must not escape as a poison pill either.
+            survivor_exists = (
+                get_user_model().objects.filter(pk=into_user_id).exists()
+            )
+        except (ValidationError, ValueError, TypeError):
+            # Django raises ValidationError (not ValueError) for a malformed
+            # UUID; an id that cannot address a row here names nothing, and an
+            # escaping exception is a poison pill no redelivery repairs.
+            logger.warning("user.merged with unusable user ids: %s", event.event_id)
+            return
+        if not owns_something:
+            # Quiet by design — this is also the at-least-once idempotency
+            # path: a redelivery finds nothing left under the guest.
+            return
+        if not survivor_exists:
+            raise MergeTargetNotReady(
+                f"user.merged {from_user_id} -> {into_user_id}: the surviving "
+                f"account has no user row in stapel-docs yet; redeliver once "
+                f"its projection has landed"
+            )
+
+        moved = {
+            model.__name__: model.objects.filter(**{column: from_user_id}).update(
+                **{column: into_user_id}
+            )
+            for model, column in owned
+        }
+
+    logger.info(
+        "user.merged %s -> %s: docs authorship carried over (%s)",
+        from_user_id, into_user_id, moved,
+    )
+
+
 # ─── INGEST seam ─────────────────────────────────────────────────────
 
 #: action name -> resolved mapper. Rebuilt atomically by :func:`wire_ingest`;
@@ -180,8 +295,10 @@ def _handle_ingest(event):
 
 
 __all__ = [
+    "MergeTargetNotReady",
     "handle_erasure_requested",
     "handle_owner_probe",
     "handle_user_deleted",
+    "handle_user_merged",
     "wire_ingest",
 ]

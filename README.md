@@ -24,7 +24,7 @@ pip install stapel-docs
 
 | Fact | Value |
 |---|---|
-| Version | `0.3.0` |
+| Version | `0.4.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13) |
 | HTTP operations | 27 |
 | Config axes | 1 |
@@ -134,6 +134,7 @@ Highlights: `STORAGE`, `DOC_TYPES`, `EXPORTERS`, `INGEST`, `REPLAY_WINDOW`,
 | Function (provides) | `docs.create_document` | `schemas/functions/docs.create_document.json` |
 | Action (emit) | `document.created`, `document.updated`, `document.deleted`, `document.storage_changed` | `schemas/emits/*.json` |
 | Action (consume) | `user.deleted` | GDPR anonymize (authorship nulled, content survives) |
+| Action (consume) | `user.merged` | authorship re-parented to the surviving account (the opposite instruction to erasure) |
 | Function (call) | `workspaces.check_capability` | provided by stapel-workspaces |
 
 ## Operations

@@ -6,6 +6,49 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-30
+
+### Added — `user.merged`: a guest's documents survive being folded into an account
+
+This module knew one thing about an account's end: erase it. When a visitor
+who wrote as a guest signs in with an authenticator an existing account
+already holds, stapel-auth folds the two and emits `user.merged` — the
+opposite instruction. Nothing here answered it, so the guest's documents kept
+an `owner` that could no longer sign in: never listed for the survivor, and
+never erased either, because no erasure is ever requested for an account that
+was *merged* rather than closed. The failure has no symptom at the seam —
+nothing raises, nothing retries, nothing is logged — and the first report of
+it is a person saying the notes they wrote are gone.
+
+- **`user.merged` is subscribed in `stapel_docs.actions`** and re-parents
+  every column this module keys by a user, in one transaction:
+  `Document.owner`, `Folder.created_by`, `Revision.created_by`,
+  `DocumentUpdate.author_id` (the CRDT journal's attributed writes) and
+  `UploadSession.created_by`, so an in-flight upload can still be finalized
+  by the account that now holds the ticket.
+- **Re-parent, not anonymize.** The erasure path nulls exactly these columns
+  because "nobody wrote this any more"; a merge sets them because somebody
+  else did. The two events reach the same tables through the same registry,
+  and answering only one of them is a silent wrong answer to the other.
+- **An ordering lag is retried; a bad id is not.** A guest who authored
+  nothing here is a quiet no-op (also the at-least-once idempotency path); a
+  guest who authored rows while the survivor has no user row here *yet*
+  raises `MergeTargetNotReady`, so the outbox redelivers instead of marking
+  the event delivered and stranding the documents. A malformed or missing id
+  is logged and ACKed — `ValidationError` included, which is what Django
+  raises for an uncoercible UUID and is not a `ValueError`, the guard a
+  poison payload otherwise escapes through and loops on forever.
+- `schemas/consumes/user.merged.json` and the MODULE.md / readme action
+  tables carry the contract. `tests/test_user_merged.py` pins the rows
+  moving, a redelivery moving nothing further, every malformed shape ACKing,
+  an event about users with no rows here doing nothing — and
+  `stapel_core.lifecycle.E001` returning `[]`, so the pair cannot be broken
+  again without a red test.
+
+**Minor, not patch**: a new consumed action is public surface. Requires no
+new stapel-core API; the E001 check that names the gap ships in stapel-core
+0.52.1.
+
 ## [0.3.0] — 2026-08-23
 
 ### Added — subject-scoped erasure: docs answers stapel-gdpr for `account`, `workspace` and `document`
