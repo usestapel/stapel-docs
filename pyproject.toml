@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-docs"
-version = "0.4.0"
+version = "0.4.1"
 description = "Documents: storage, revisions and per-type editors for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -60,8 +60,13 @@ Issues = "https://github.com/usestapel/stapel-docs/issues"
 
 [project.optional-dependencies]
 s3 = ["boto3>=1.26"]
-pdf = ["fpdf2>=2.8"]
-all = ["boto3>=1.26", "fpdf2>=2.8"]
+# `markdown` joined the [pdf] extra in 0.4.1: an md document exports as
+# rendered structure, which needs a parser. Missing it raises
+# ExporterUnavailable (-> 503) rather than degrading to the pre-0.4.1
+# verbatim print, so a partial install is visible instead of silently
+# producing PDFs full of literal `#` and `**`.
+pdf = ["fpdf2>=2.8", "markdown>=3.4"]
+all = ["boto3>=1.26", "fpdf2>=2.8", "markdown>=3.4"]
 
 [tool.setuptools]
 package-dir = {"stapel_docs" = "."}

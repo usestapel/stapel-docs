@@ -57,6 +57,18 @@ A type whose spec vanishes from the registry degrades to `file` behavior —
 read-only, never unreadable: revisions still list, snapshots still download,
 trash/purge/export still work.
 
+## Export
+
+`?format=pdf` renders `txt` verbatim, `csv` as a bordered grid, and `md`
+**parsed** — headings, bold/italic, bulleted and numbered lists, fenced code
+in monospace, tables, clickable links. Cyrillic (and everything else DejaVu
+covers) holds throughout, code blocks included, because the fonts ship in the
+wheel. Pure python: fpdf2 + Python-Markdown, no WeasyPrint and so no system
+pango/cairo to install. A document body is user input on its way to an HTML
+renderer, so it is sanitized to an allowlist first — images are dropped
+before the renderer can fetch them, scripts and styles lose their content,
+and only `http(s)`/`mailto` links become annotations.
+
 ## Ingest
 
 Product glue dumps content in with one comm call — no HTTP, no import:

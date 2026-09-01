@@ -103,6 +103,24 @@ outside `storage.py`** — lint-enforced (storage-verdict §9.2).
 mime)`; raise `ExportUnsupportedType` (→ 400) or `ExporterUnavailable`
 (missing optional dependency → 503). Broken entries: check ERROR (E020).
 
+`txt` prints verbatim, `csv` as a bordered grid, and **`md` is parsed and
+rendered** (Python-Markdown → sanitized HTML → fpdf2 `write_html`):
+headings sized, bold/italic in real oblique/bold faces, lists bulleted and
+numbered, fenced code in DejaVuSansMono, tables as grids, links as PDF
+annotations. All five faces are bundled — fpdf2's core fonts (Courier
+included, which is what `<code>` would otherwise get) are latin-1 only, so
+cyrillic holds everywhere including inside code blocks. The body is user
+input and reaches an HTML renderer, so it passes an allowlist sanitizer
+first: **`<img>` is dropped before fpdf2 sees it** (fpdf2 resolves an image
+`src` by fetching it — an export must not become a request the document's
+author chose; the alt text is kept), `<script>`/`<style>` lose their
+content, non-`http(s)`/`mailto` hrefs lose their annotation, unlisted
+attributes are stripped, and unbalanced tags are closed here rather than in
+fpdf2's parser. No WeasyPrint, i.e. no system pango/cairo: the extra stays
+pure-python. Missing `markdown` raises `ExporterUnavailable` (503) rather
+than falling back to the pre-0.4.1 verbatim print — a PDF full of literal
+`#` and `**` is indistinguishable from a rendered one at the point of use.
+
 ### Ingest — `docs.create_document` + `INGEST` (**merge**)
 
 Canonical path: product glue calls the `docs.create_document` comm

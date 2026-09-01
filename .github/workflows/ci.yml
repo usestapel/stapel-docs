@@ -41,7 +41,12 @@ jobs:
       - name: Install test dependencies
         # stapel-tools: tests/test_contract.py drives the contract emitters
         # (llms_txt, readme) and fails on ModuleNotFound without it.
-        run: pip install pytest pytest-django pytest-cov "stapel-tools>=0.26.0"
+        # pypdf: tests/test_export.py reads the *text layer* of the PDFs it
+        # renders — the only way to assert that a markdown body came out
+        # parsed and not printed. Without it those assertions skip, and a
+        # skipped assertion is how the verbatim-md defect survived a green
+        # suite in the first place.
+        run: pip install pytest pytest-django pytest-cov pypdf "stapel-tools>=0.26.0"
 
       - name: Tests with coverage
         run: |

@@ -6,6 +6,92 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-09-02
+
+### Changed — a markdown document exports as markdown, not as its source
+
+`?format=pdf` on an `md` document printed the body verbatim: literal `#`,
+`**`, backticks and pipe-tables, laid out as one wrapped paragraph. The
+exporter's own docstring admitted it ("md is rendered verbatim as plain text
+in v1"), which is the giveaway — the format was in the supported list, the
+endpoint returned 200, the PDF was well-formed and openable, and nothing
+anywhere said the output was wrong. A caller could only find out by looking
+at one.
+
+- **The md path parses.** Python-Markdown produces HTML, the HTML is
+  sanitized (below), and fpdf2's `write_html` renders it: headings sized off
+  the 11pt body, `**bold**` and `*italic*` in the real bold and oblique
+  faces, `-`/`1.` lists bulleted and numbered, fenced blocks in a monospace
+  face, pipe tables as bordered grids, `[text](url)` as a clickable PDF
+  annotation, `---` as a rule. Fpdf2's own defaults are overridden where they
+  do not survive this font set: `<code>`/`<pre>` default to Courier, and
+  headings to a dark red sized for a 12pt Times body.
+- **Two fpdf2 defaults needed more than a style override.** A markdown table
+  has no syntax for asking for borders, so the sanitizer emits the `border`
+  attribute that gets fpdf2's full-grid layout — a table here looks like the
+  csv exporter's, not like a rule under the header row. And fpdf2 draws a
+  list marker with the PDF's *live* font rather than the one the paragraph
+  is about to use, so every list under a heading got a bold 15pt `1.` beside
+  11pt text; `HTML2FPDF_CLASS` (fpdf2's own hook) pins the marker to the body
+  face, defensively enough that a future fpdf2 loses the fix instead of
+  raising mid-export.
+- **Three more DejaVu faces ship in `assets/`** — Oblique, BoldOblique and
+  SansMono (v2.37; the two already there are v2.35). fpdf2 synthesizes
+  neither italics nor a monospace, and its core fonts — Courier included, the
+  one `<code>` would otherwise get — are latin-1 only, so a cyrillic
+  identifier inside a fenced block had no way to render. The three faces are
+  registered on the md path alone: `add_font` re-parses the TTF per document,
+  and a txt or csv export has no use for them. ~1.6MB in the wheel, in
+  exchange for a renderer that needs nothing installed on the host.
+- **No WeasyPrint.** The rendering verdict in the design corpus said
+  WeasyPrint; it drags system pango/cairo, and the fleet default is
+  zero-infra. The deviation is deliberate and recorded by the track lead:
+  fpdf2 + Python-Markdown keeps `[pdf]` pure-python and `pip install`-able
+  everywhere the rest of the module is.
+
+### Security — a document body is user input reaching an HTML renderer
+
+Markdown passes raw HTML through untouched, so switching the md path to an
+HTML renderer handed whoever typed the body a renderer to aim. `<img>` is the
+sharp edge: fpdf2 resolves an image `src` **by fetching it**, which turns
+"export this document" into "make this server issue a request of the author's
+choosing" — a note containing `<img src="http://169.254.169.254/...">` is a
+metadata-service probe with an export button on it. fpdf2 2.8.8's own
+resource-access policy blocks private addresses, but that is a second line,
+not the design.
+
+- **An allowlist sanitizer sits between the parser and the renderer**
+  (`_sanitize_html`). Images are dropped entirely before fpdf2 sees one, alt
+  text kept as italics so a figure's caption is not lost; `<script>` and
+  `<style>` lose their content, not just their tags; only `http`, `https` and
+  `mailto` hrefs become annotations (a `javascript:` anchor keeps its text and
+  loses its link); every attribute outside a per-tag allowlist is stripped,
+  including a `<font face=…>` naming a font the document never registered,
+  which is a 500 written by the body's author; unknown tags keep their text
+  and lose their markup; and unbalanced tags are closed here rather than
+  crashing fpdf2's parser mid-document.
+
+### Added — `markdown` in the `[pdf]` and `all` extras
+
+`markdown>=3.4`. **Missing, it raises `ExporterUnavailable` → 503**, the same
+answer as a missing fpdf2, and explicitly *not* a fallback to the old
+verbatim rendering: the fallback would return 200 with a PDF nobody can tell
+from a rendered one, and the incomplete install would never be discovered.
+txt and csv are untouched by the absence — only the md path imports it, and
+a test pins that.
+
+`tests/test_export.py` reads the **text layer** of the PDFs it renders
+(pypdf, added to the CI test deps) and asserts the markdown markers are gone
+while the content is not, that the bold/oblique/mono faces are actually
+embedded, that the link became an annotation, that cyrillic survives inside a
+code block, and that a body with a remote image exports without fetching it.
+The parse-and-sanitize claims are also asserted directly on the pure
+function, so they hold in a checkout without pypdf.
+
+**Patch, not minor**: no public name, setting, error key, endpoint or schema
+changed — the same request returns the same media type, rendered properly.
+The new dependency is optional and inside an existing extra.
+
 ## [0.4.0] — 2026-08-30
 
 ### Added — `user.merged`: a guest's documents survive being folded into an account
