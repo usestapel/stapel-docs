@@ -6,6 +6,72 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-09-02
+
+### Added — the crdt slice: builtin live types, server assembly, a socket
+
+The deferred week-2 tail of `tasks/stapel-docs-design.md` §9. The journal
+substrate, compaction and `?since=`/resync have been live since 0.2.0; what
+was missing was everything that makes the `collab="crdt"` discipline more
+than a declaration: not one builtin type used it, nothing on the server
+could fold a journal into a snapshot, and there was no stream. This release
+fills all three in, **additively** — nothing existing changes behavior, no
+new required dependency, and a deployment that installs neither new extra
+sees exactly one new thing: a `socket_path: null` field on document
+envelopes. It is 0.7.0 (pre-1.0: minor = breaking) because it adds a
+contract surface, not because anything breaks.
+
+- **`[crdt]` extra + `stapel_docs.crdt`** — the pycrdt codec (`pycrdt>=0.12,
+  <0.15`, the y-crdt Rust binding, so the wire is Yjs-compatible with what
+  y-codemirror.next speaks). Canonical shape: ONE `Y.Text` named
+  `"content"`. `EMPTY_STATE = b"\x00\x00"` is pinned by a test against the
+  installed pycrdt, so a codec upgrade that changes the wire form of
+  "nothing" fails in CI instead of corrupting stored empty bodies.
+- **Builtin types `ymd` / `ytxt`** ("Markdown (live)" / "Plain text
+  (live)"), registered **only when pycrdt is importable**. Their snapshot
+  body IS the binary Y state — a text-only snapshot would break convergence
+  for clients holding older Y docs — so `GET /content` serves
+  `application/octet-stream`, and the human-readable form is the exporters'
+  job: new builtin `md`/`txt` exporters serve the `text_extractor` output,
+  and the pdf exporter renders it. `DocTypeSpec` gains `codec` (`"yjs"` =
+  the library's own codec; `""` keeps a host type's journal fully opaque).
+- **Write-door validation** for yjs-codec types: the content PUT and every
+  journal append payload are apply-validated through pycrdt — a corrupt
+  payload is `400 error.400.docs_invalid_crdt_payload` (+ ru/es catalogs)
+  at the boundary, not an assembly that can never complete. Snapshot types
+  and host-codec crdt types are untouched.
+- **Server snapshot assembly** — `services.assemble_crdt_snapshot`: fold
+  snapshot + journal under the row lock and store the result through the
+  same `_write_snapshot` path every save uses (content-addressed put, auto
+  revision, orphan cleanup, compaction) — WITHOUT minting a seq: assembly
+  is a materialization of operations the head already counts, so
+  `snapshot_seq` catches up to `head_seq` and the head never moves.
+  `document.updated` is emitted here — assembly is the debounce point the
+  design wanted; appends stay silent. Triggers: an append leaving the
+  journal `CRDT_ASSEMBLE_UPDATE_INTERVAL` (default 200, deliberately <
+  REPLAY_WINDOW 500 — new check `W033`) rows past the snapshot assembles
+  inline on commit; the beat task `assemble_idle_crdt_snapshots` (cadence
+  `CRDT_ASSEMBLE_SCHEDULE`) folds journals idle for
+  `CRDT_ASSEMBLE_IDLE_SECONDS`.
+- **`[realtime]` extra + the stream** — `docs:doc:<document_id>` on the
+  stapel-realtime substrate, chat's proven pattern with one deliberate
+  difference: realtime here is optional and **polling `?since=` stays
+  first-class forever** (design §5.3 p.7), so the wiring check (`W034`) is
+  a warning where chat's is an error. Store-first: REST append is the write
+  path, and after the commit one frame per journal row (base64 update +
+  author + client_id, the row's own seq) goes out best-effort.
+  `DocUpdatesConsumer` (`ws/docs/<document_id>`) is read-only and resumable,
+  and its gate is the SAME `authz.authorize(view, document=doc)` call HTTP
+  makes — a whitelist grantee works over the socket exactly as over a URL,
+  proven by a socket test, so the 0.6.1 lesson does not repeat on a new
+  transport. Trash/purge revoke the stream; revoking a user-subject grant
+  kicks that user. Document envelopes carry `socket_path` when the
+  substrate app is installed, `null` otherwise.
+- **Honesty:** no presence/cursors/awareness channel yet (a later, separate
+  decision); no write frames over the socket ever; ref-subject grant
+  revocation kicks nobody by name (bounded by the substrate's 30 s
+  authorize cache) — all stated in MODULE.md rather than half-built.
+
 ## [0.6.1] — 2026-09-02
 
 ### Fixed — the sharing mechanism existed; the HTTP layer never asked it

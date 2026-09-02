@@ -18,6 +18,13 @@
   `?since=` with chat-pattern compaction + honest `resync` semantics.
   Exactly two disciplines exist; a third must pass the I1–I4 contract
   before it may be born.
+- **The crdt slice** (0.7.0, all optional extras, everything additive):
+  builtin yjs-codec types `ymd`/`ytxt` (registered only when pycrdt is
+  importable — `[crdt]`), server-side snapshot **assembly** that folds the
+  journal via pycrdt without minting a seq, and a **realtime stream**
+  `docs:doc:<id>` on the stapel-realtime substrate (`[realtime]`) with the
+  same `authorize()` choke point the HTTP surface uses. Polling `?since=`
+  stays first-class forever. See *The crdt slice* below.
 - **Content-addressed object storage** behind a swappable seam
   (`DocsStorage`): identical bodies dedup for free, orphaned snapshots die
   when nothing points at them, per-workspace byte deltas are announced via
@@ -90,12 +97,105 @@ depicts. Thumbnail bytes are deliberately absent from the
 `document.storage_changed` delta and from the quota sum — they were never
 charged, so removing them must not credit anything back.
 
+## The crdt slice (0.7.0)
+
+The deferred week-2 tail of the design (§9): the crdt discipline gets its
+first builtin types, server assembly and a socket. Everything is behind
+optional extras and everything existing keeps its exact behavior — a
+deployment that installs neither extra sees nothing new but a `socket_path:
+null` field on document envelopes.
+
+**Builtin yjs-codec types — conditional.** `ymd` ("Markdown (live)",
+`editor_hint="markdown.crdt"`) and `ytxt` ("Plain text (live)",
+`editor_hint="text.crdt"`) register **only when pycrdt is importable**
+(`pip install stapel-docs[crdt]`); without the extra no crdt builtin
+exists and zero new dependencies are required. The canonical shared shape
+is ONE `Y.Text` named `"content"` (what y-codemirror.next binds), so the
+wire is Yjs-compatible — pycrdt is the y-crdt Rust binding.
+
+**The body IS the Y state.** The snapshot of a yjs-codec document is the
+binary CRDT state, never extracted text: a text-only snapshot would break
+convergence for clients holding older Y docs (item identity must survive).
+Consequences, each pinned by a test:
+
+- `GET /content` (and revision content) serves the state as
+  `application/octet-stream` — the type's logical mime stays on the spec,
+  the wire tells the truth about the bytes;
+- the content PUT **apply-validates** the body as a Y update
+  (`error.400.docs_invalid_crdt_payload` otherwise), and journal appends to
+  yjs-codec types validate each payload the same way — a corrupt payload is
+  a 400 at the door, not an assembly that can never complete. Host crdt
+  types with their own codec (`codec=""`) stay fully opaque;
+- **human-readable export is the exporters' job**: `?format=md` / `?format=txt`
+  serve the type's `text_extractor` output, and `?format=pdf` renders the
+  extracted markdown/text — "download as markdown" hands a person markdown,
+  never Y binary. `text_extractor` (`stapel_docs.crdt.extract_text`) is also
+  what feeds search/knowledge indexing.
+
+**Server assembly — a materialization, not a mutation.**
+`services.assemble_crdt_snapshot(document_id)` row-locks the document,
+folds `snapshot(bytes) + journal rows snapshot_seq+1..head_seq` through
+pycrdt and stores the result via the same `_write_snapshot` path every
+save uses (content-addressed put, auto revision at the folded seq, orphan
+cleanup, compaction) — but **mints no seq**: assembly introduces no
+operations, so `head_seq` never moves and `snapshot_seq` catches up to it
+(invariant: snapshot == fold of updates `1..snapshot_seq`). It emits
+`document.updated` — assembly IS the debounce point; journal appends stay
+silent (bus economy, design §6) — plus the `storage_changed` byte delta.
+No quota check on purpose: the bytes were each accepted through the update
+ceilings, and refusing the fold would only leave them in the journal
+forever. Two triggers: an append that leaves the journal
+`CRDT_ASSEMBLE_UPDATE_INTERVAL` (default 200, deliberately < REPLAY_WINDOW
+500 — W033) rows past the snapshot assembles inline on commit (the repo's
+opportunistic-work canon), and the beat task
+`assemble_idle_crdt_snapshots` (cadence `CRDT_ASSEMBLE_SCHEDULE`) folds
+journals whose newest row is older than `CRDT_ASSEMBLE_IDLE_SECONDS`.
+
+**The realtime stream — delivery only, store-first.** REST append is the
+write path; after the commit one frame per journal row
+(`{"update": <base64>, "author_id", "client_id"}`, envelope `seq` = the
+row's seq) goes out on `docs:doc:<document_id>` via
+`stapel_realtime.delivery.deliver_frame` — lazily imported, best-effort,
+never a hard dependency. `DocUpdatesConsumer`
+(`ws/docs/<document_id>`, discovered from `routing.py` by
+`build_websocket_application`) is a `ResumableStreamConsumer`: resume by
+`last_seq`, replay from the durable rows in the same payload shape as live
+frames, resync past the window. Its `authorize()` is the SAME
+`authz.authorize(action="view", document=doc)` call HTTP makes — a
+whitelist grantee works over the socket exactly as over a URL (the 0.6.1
+lesson, applied to a new transport before it shipped) — and fail-closed in
+both senses: `deny` and `unavailable` alike refuse (a socket has no 503).
+Document envelopes carry `socket_path` (`ws/docs/<id>`) when
+`stapel_realtime` is in INSTALLED_APPS and `null` otherwise; `[realtime]`
+installed without the app is a warning (`stapel_docs.W034`), never an
+error — **polling stays first-class**.
+
+**Revoke-to-kick.** Trashing or purging a document revokes its whole
+stream; revoking a user-subject whitelist grant kicks that user's sockets.
+Honest gaps, bounded by the substrate's authorize cache (30 s TTL,
+re-checked on every hello): a **ref-subject** grant names a container, not
+a user, so its revocation kicks nobody by name; and membership/capability
+loss in stapel-workspaces is not this module's event to observe. The
+sharing kill-switch inerts rows the same way — open sockets age out of the
+cache rather than being enumerated.
+
+**Honesty (not built, on purpose):** no presence/cursors/awareness channel
+yet (the design's §5.3 p.5 ephemeral channel — a later, separate decision);
+no write frames over the socket ever (design §5.3 p.6 — chat is the
+fleet's documented exception, docs is not one); and revision **restore** of
+a yjs-codec document restores the state as a new head exactly like any
+other type, which for CRDT semantics means a live client that kept typing
+merges the restored state rather than being reset by it — restore is a
+snapshot-era gesture, and the honest live-collaboration "undo" is the
+editor's own Y undo manager.
+
 ## Extension points (fork-free)
 
 ### 🚩 The document-type registry — `DOC_TYPES` (**merge**)
 
 A document is ONE entity with a `type` slug resolved against an open merge
-registry: builtins (`txt`, `md`, `csv`, `file`) ← settings overlay
+registry: builtins (`txt`, `md`, `csv`, `file`; plus `ymd`, `ytxt` when
+pycrdt is importable — see *The crdt slice*) ← settings overlay
 `STAPEL_DOCS["DOC_TYPES"]` (`{slug: dotted-path to a DocTypeSpec | None
 to remove}`) ← runtime `register_doc_type(spec)` calls. `sheet`, `slides`,
 office formats are later registry entries, **not schema changes**.
@@ -118,7 +218,10 @@ STAPEL_DOCS = {"DOC_TYPES": {"sheet": "myproject.docs.SHEET_SPEC"}}
 The spec carries everything the library knows about a type: `editor_hint`
 (frontend dispatch key, `""` = download-only), `collab` (which write path
 is legal), `diffable`, `mime_type`, `extension`, `empty_body`,
-`text_extractor` (bytes → str, may be None). Broken overlay entries are a
+`text_extractor` (bytes → str, may be None), and `codec` (crdt types only:
+`"yjs"` opts into the server-side pycrdt mechanisms — apply-validation and
+snapshot assembly; `""`, the default, keeps the journal fully opaque and
+snapshot assembly the client's job). Broken overlay entries are a
 system-check ERROR (E002). A type whose spec **vanishes** from the
 registry degrades to `file` behavior — read-only, never unreadable
 (verdict §7.3): revisions still list, snapshots still download,
@@ -138,8 +241,13 @@ outside `storage.py`** — lint-enforced (storage-verdict §9.2).
 
 ### Exporters — `EXPORTERS` (**merge**)
 
-`{format: dotted-path | None}` merged over the built-in `pdf`
-(`PdfExporter`, extra `[pdf]`, fpdf2 + bundled DejaVu fonts). Contract:
+`{format: dotted-path | None}` merged over the builtins: `pdf`
+(`PdfExporter`, extra `[pdf]`, fpdf2 + bundled DejaVu fonts) and, since
+0.7.0, `md` / `txt` (`MarkdownExporter` / `TextExporter`, no extra) — the
+type's `text_extractor` output served verbatim under the honest text mime.
+They exist because a yjs-codec document's stored body is binary Y state:
+"download as markdown" must hand a person markdown, and any type with a
+`text_extractor` gets the same door for free. Contract:
 `formats: tuple[str, ...]`; `export(document, body, spec) -> (bytes,
 mime)`; raise `ExportUnsupportedType` (→ 400) or `ExporterUnavailable`
 (missing optional dependency → 503). Broken entries: check ERROR (E020).
@@ -304,6 +412,7 @@ registry with defaults in [CONFIG.MD](CONFIG.MD).
 | `EXPORTERS` | **merge** over builtins (`None` removes) | export formats |
 | `INGEST` | **merge** (empty builtin set) | event-driven ingest mappers |
 | `REPLAY_WINDOW`, `AUTO_REVISION_INTERVAL_SECONDS` | value | journal/revision cadence |
+| `CRDT_ASSEMBLE_UPDATE_INTERVAL`, `CRDT_ASSEMBLE_IDLE_SECONDS`, `CRDT_ASSEMBLE_SCHEDULE` | value | crdt snapshot assembly: the append-triggered interval (< REPLAY_WINDOW, W033), the idle-sweep age, the sweep's beat cadence |
 | `FOLDER_MAX_DEPTH`, `TRASH_RETENTION_DAYS` | value | tree/trash tuning |
 | `MAX_BODY_BYTES`, `MAX_UPDATE_BYTES`, `MAX_UPDATES_PER_REQUEST`, `MAX_UPLOAD_BYTES`, `MAX_EXPORT_BYTES` | value (`0` = ceiling off) | hard resource ceilings on every accepted byte |
 | `WORKSPACE_QUOTA_BYTES` | value (ships at 10 GiB; `0` = quota off) | per-workspace stored-byte budget (507 when crossed) |
@@ -440,11 +549,13 @@ then commit `docs/*` + `README.md`.
 
 ## App-layer (not in this module)
 
-- **Realtime collaborative editing transport** (websocket fan-out, edge
-  awareness) — v1 is snapshot-save + journal replay over HTTP; a realtime
-  layer authorizes through the same `authorize()`.
+- **Presence / cursors / awareness** — the ephemeral channel (design §5.3
+  p.5). The journal stream ships (0.7.0, *The crdt slice*); the awareness
+  channel is a later, separate decision, and its absence is stated to the
+  owner rather than half-shipped.
 - **Knowledge-chunk indexing / search** — subscribe to `document.updated`
-  and read via `text_extractor`-equipped specs.
+  (which the crdt slice emits at assembly time — the debounce point) and
+  read via `text_extractor`-equipped specs.
 - **Quota enforcement** — react to `document.storage_changed` in the
   billing/workspaces host layer; docs only accounts and announces.
 - **Sharing UI** — the share sheet, the copy-link affordance, the "who has

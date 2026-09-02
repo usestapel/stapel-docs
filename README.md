@@ -24,13 +24,13 @@ pip install stapel-docs
 
 | Fact | Value |
 |---|---|
-| Version | `0.6.1` |
+| Version | `0.7.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13) |
 | HTTP operations | 44 |
 | Config axes | 1 |
-| Usage surface | 89 |
+| Usage surface | 91 |
 | Extension points | 7 |
-| Error codes | 84 |
+| Error codes | 85 |
 | Fleet dependencies | [`stapel-auth`](https://github.com/usestapel/stapel-auth) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) · [`stapel-workspaces`](https://github.com/usestapel/stapel-workspaces) (optional) |
 
 ## Documentation
@@ -41,8 +41,9 @@ pip install stapel-docs
 
 Google-Drive-style **workspace documents**: a folder tree, documents that are
 each ONE entity with a `type` from an open registry (`txt` / `md` / `csv` /
-opaque `file` built in), a journal + revision versioning substrate, trash with
-irreversible purge, and registry-driven export (PDF built in).
+opaque `file` built in; live `ymd` / `ytxt` with the `[crdt]` extra), a
+journal + revision versioning substrate, trash with irreversible purge, and
+registry-driven export (pdf / md / txt built in).
 
 The versioning substrate is decided for both collaboration disciplines:
 **snapshot** types save whole states under optimistic lock (`If-Match` carries
@@ -95,6 +96,23 @@ STAPEL_DOCS = {
 A type whose spec vanishes from the registry degrades to `file` behavior —
 read-only, never unreadable: revisions still list, snapshots still download,
 trash/purge/export still work.
+
+## Live collaboration (0.7.0)
+
+With `pip install "stapel-docs[crdt]"` two live types register: `ymd`
+(Markdown) and `ytxt` (plain text), Yjs on the wire (pycrdt server-side).
+Clients POST opaque Y updates to the journal and replay `?since=`; the
+server folds the journal into the snapshot in the background (no seq is
+minted — assembly is a materialization, not an edit) and mints revisions and
+`document.updated` at that debounce point. The stored body is the binary Y
+state; `?format=md` / `?format=txt` / `?format=pdf` serve the human-readable
+form.
+
+With `pip install "stapel-docs[realtime]"` (and `stapel_realtime` in
+INSTALLED_APPS) each document's journal also streams over
+`ws/docs/<document_id>` — resumable, read-only, authorized through the same
+choke point as HTTP; every document envelope carries its own `socket_path`.
+Without the extra, polling `?since=` remains a first-class mode — forever.
 
 ## Export
 

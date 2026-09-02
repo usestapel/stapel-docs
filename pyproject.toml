@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-docs"
-version = "0.6.1"
+version = "0.7.0"
 description = "Documents: storage, revisions and per-type editors for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -71,7 +71,29 @@ pdf = ["fpdf2>=2.8", "markdown>=3.4"]
 # its absence is a visible 503 on the thumbnail endpoint rather than a
 # silently missing feature.
 thumbnails = ["Pillow>=10"]
-all = ["boto3>=1.26", "fpdf2>=2.8", "markdown>=3.4", "Pillow>=10"]
+# The Yjs codec (0.7.0): the builtin crdt types (ymd/ytxt), server snapshot
+# assembly and the write-door apply-validation all live behind this import.
+# Optional on purpose — without it the crdt builtins simply do not register
+# and nothing else changes; the journal substrate keeps serving host-codec
+# crdt types either way. Ceiling <0.15: the codec's wire form of "nothing"
+# (crdt.EMPTY_STATE) is pinned by a test, so the floor/ceiling move together
+# with a verified run, never by resolver drift. Tested against 0.14.4.
+crdt = ["pycrdt>=0.12,<0.15"]
+# The WebSocket delivery of the update journal (0.7.0). An extra and not a
+# dependency — deliberately unlike stapel-chat, where realtime is the
+# product: here polling ?since= is first-class forever (design §5.3 p.7),
+# so a half-wired install is a warning (stapel_docs.W034), never a failed
+# check. [channels] because serving the socket is what the extra is FOR;
+# emit-only delivery would ride the same package anyway.
+realtime = ["stapel-realtime[channels]>=0.1.2,<1.0"]
+all = [
+    "boto3>=1.26",
+    "fpdf2>=2.8",
+    "markdown>=3.4",
+    "Pillow>=10",
+    "pycrdt>=0.12,<0.15",
+    "stapel-realtime[channels]>=0.1.2,<1.0",
+]
 
 [tool.setuptools]
 package-dir = {"stapel_docs" = "."}

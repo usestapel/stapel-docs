@@ -52,6 +52,9 @@ nested dict key; its sub-keys are listed as `SHARING.<KEY>` rows below.
 |-----|--------|---------|----------|---------|
 | REPLAY_WINDOW | env | journal rows with seq ≤ snapshot_seq − window are compacted away (chat-pattern replay window). | no | 500 |
 | AUTO_REVISION_INTERVAL_SECONDS | env | a snapshot save mints an `auto` Revision when the newest revision is older than this (0 = revision on every save). | no | 300 |
+| CRDT_ASSEMBLE_UPDATE_INTERVAL | env | an append that leaves a yjs-codec document's journal this many rows past the snapshot triggers a server assembly on commit (`services.assemble_crdt_snapshot`). Deliberately **below REPLAY_WINDOW** — a client lagging one assembly cycle must stay replayable instead of forced to resync; `stapel_docs.W033` warns when a host inverts the relation. `0` disables the opportunistic trigger (the idle sweep still runs). | no | 200 |
+| CRDT_ASSEMBLE_IDLE_SECONDS | env | the beat sweep (`assemble_idle_crdt_snapshots`) folds documents whose newest journal row past the snapshot is at least this old — the tail a burst below the interval leaves behind once everybody stops typing. | no | 300 |
+| CRDT_ASSEMBLE_SCHEDULE | env | crontab kwargs for `stapel_docs.tasks.assemble_idle_crdt_snapshots`, exposed to a host beat schedule by `get_docs_beat_schedule()` (same shape as TRASH_PURGE_SCHEDULE). | no | {"minute": "*/5"} |
 | FOLDER_MAX_DEPTH | env | folder tree depth ceiling (create/move/ingest-path all enforce it). | no | 10 |
 | TRASH_RETENTION_DAYS | env | soft-deleted items become purgeable by `docs_purge_expired` after this many days; purge is irreversible. | no | 30 |
 

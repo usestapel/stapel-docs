@@ -1,6 +1,6 @@
 {
   "module": "stapel-docs",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "provides": "Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).",
   "axes": [
     {
@@ -181,6 +181,12 @@
       "intent": "Append opaque commutative updates (crdt-discipline types only) at ++head_seq each, with client_id/client_seq retry dedup. Journal appends deliberately do NOT emit document.updated (bus economy)."
     },
     {
+      "name": "assemble_crdt_snapshot",
+      "kind": "factory",
+      "path": "stapel_docs.services.assemble_crdt_snapshot",
+      "intent": "Materialize a yjs-codec document's update journal into its snapshot: fold via pycrdt, snapshot_seq catches up to head_seq WITHOUT minting a seq, auto revision + compaction + document.updated ride the same storage path as every save. Triggered from append_updates past CRDT_ASSEMBLE_UPDATE_INTERVAL and by the idle beat sweep; call directly to force a fold. No-op (None) for non-yjs types."
+    },
+    {
       "name": "assert_body_mutable",
       "kind": "gate_function",
       "path": "stapel_docs.services.assert_body_mutable",
@@ -191,6 +197,12 @@
       "kind": "gate_function",
       "path": "stapel_docs.services.assert_body_size",
       "intent": "Refuse a snapshot body above MAX_BODY_BYTES (413). Every path that accepts client bytes calls it before touching storage — a body checked after the write has already cost the store."
+    },
+    {
+      "name": "assert_crdt_body",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.assert_crdt_body",
+      "intent": "Refuse a snapshot body or journal payload that does not parse as a Y update, for codec=\"yjs\" types only (400 error.400.docs_invalid_crdt_payload). The write-door guard that keeps a text body from corrupting the crdt discipline; snapshot and host-codec types pass through untouched."
     },
     {
       "name": "assert_quota",

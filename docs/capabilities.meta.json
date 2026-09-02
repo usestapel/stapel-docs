@@ -231,6 +231,14 @@
       "kind": "factory",
       "intent": "The replay feed since a sequence number, with honest resync semantics: a since that fell out of the compaction window returns (\"resync\", None) instead of a silently incomplete list."
     },
+    "assemble_crdt_snapshot": {
+      "kind": "factory",
+      "intent": "Materialize a yjs-codec document's update journal into its snapshot: fold via pycrdt, snapshot_seq catches up to head_seq WITHOUT minting a seq, auto revision + compaction + document.updated ride the same storage path as every save. Triggered from append_updates past CRDT_ASSEMBLE_UPDATE_INTERVAL and by the idle beat sweep; call directly to force a fold. No-op (None) for non-yjs types."
+    },
+    "assert_crdt_body": {
+      "kind": "gate_function",
+      "intent": "Refuse a snapshot body or journal payload that does not parse as a Y update, for codec=\"yjs\" types only (400 error.400.docs_invalid_crdt_payload). The write-door guard that keeps a text body from corrupting the crdt discipline; snapshot and host-codec types pass through untouched."
+    },
     "create_named_revision": {
       "kind": "factory",
       "intent": "Name the CURRENT head snapshot; naming the same head twice renames the existing named revision instead of stacking rows."

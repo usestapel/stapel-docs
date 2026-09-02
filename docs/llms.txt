@@ -1,8 +1,8 @@
-# stapel-docs 0.6.1
+# stapel-docs 0.7.0
 
 Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).
 
-Contract: axes 1 · surface 89 · extension points 7 · operations 44 · error codes 84.
+Contract: axes 1 · surface 91 · extension points 7 · operations 44 · error codes 85.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -19,6 +19,8 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
   Refuse a generic body write to a type that owns its own write path: file bodies come from an upload session (where size/MIME/quota policy lives) and a vanished type is read-only. Skipping it re-opens the content PUT as a second, unpoliced door into blob bodies.
 - assert_body_size — stapel_docs.services.assert_body_size
   Refuse a snapshot body above MAX_BODY_BYTES (413). Every path that accepts client bytes calls it before touching storage — a body checked after the write has already cost the store.
+- assert_crdt_body — stapel_docs.services.assert_crdt_body
+  Refuse a snapshot body or journal payload that does not parse as a Y update, for codec="yjs" types only (400 error.400.docs_invalid_crdt_payload). The write-door guard that keeps a text body from corrupting the crdt discipline; snapshot and host-codec types pass through untouched.
 - assert_quota — stapel_docs.services.assert_quota
   Refuse a write that would push the workspace past WORKSPACE_QUOTA_BYTES (507). Call it before accepting bytes, not after storing them.
 - authorize — stapel_docs.authz.authorize
@@ -86,6 +88,8 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - update_document — stapel_docs.services.update_document
   Patch title/metadata — and strip the reserved upload-pending marker no caller outside the upload flow may set.
 ### factory
+- assemble_crdt_snapshot — stapel_docs.services.assemble_crdt_snapshot
+  Materialize a yjs-codec document's update journal into its snapshot: fold via pycrdt, snapshot_seq catches up to head_seq WITHOUT minting a seq, auto revision + compaction + document.updated ride the same storage path as every save. Triggered from append_updates past CRDT_ASSEMBLE_UPDATE_INTERVAL and by the idle beat sweep; call directly to force a fold. No-op (None) for non-yjs types.
 - attach_star — stapel_docs.services.attach_star
   Set is_starred on a single already-fetched Folder/Document — the detail-envelope counterpart of with_stars, for rows a queryset annotation can no longer reach.
 - available — stapel_docs.thumbnails.available
@@ -281,7 +285,7 @@ Paths are relative to `/docs/api/v1/`.
 - POST /uploads — docs_api_v1_uploads_create
 - POST /uploads/{upload_id}/finalize — docs_api_v1_uploads_finalize_create
 
-## Error codes (84) — the StapelError envelope
+## Error codes (85) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -291,6 +295,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.400.docs_export_format [400] fix_input
 - error.400.docs_folder_cycle [400] fix_input
 - error.400.docs_folder_depth [400] fix_input
+- error.400.docs_invalid_crdt_payload [400] fix_input
 - error.400.docs_not_trashed [400] fix_input
 - error.400.docs_share_level [400] fix_input
 - error.400.docs_share_mode_disabled [400] fix_input
