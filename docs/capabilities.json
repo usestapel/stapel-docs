@@ -1,6 +1,6 @@
 {
   "module": "stapel-docs",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "provides": "Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).",
   "axes": [
     {
@@ -19,10 +19,10 @@
       "gates": {
         "operations": [],
         "co_gates": [],
-        "behavior": "Grant sources are additive and monotonic over the immutable workspace baseline: enabling a mode can only ever grant, never revoke, and the baseline can never be configured away. 'manage' is never grantable by any share source (anti-escalation invariant)."
+        "behavior": "Grant sources are additive and monotonic over the immutable workspace baseline: each is an independent sufficient reason, the composition is a union with the maximum level, so enabling a mode can only ever grant and disabling one can only ever inert its own rows (they are shown as suspended, never hidden). 'manage' is never grantable by any share source (anti-escalation invariant), an anonymous presenter never writes whatever level their link carries, and a link dies the moment its creator loses docs.share.link — checked live, with an outage answering 503 rather than a fabricated verdict."
       },
       "curated": {
-        "summary": "Composite axis over STAPEL_DOCS['SHARING']: MODES (additional grant sources, subset of whitelist|link), LINK.ANONYMOUS (anonymous link redemption), LINK.MAX_LEVEL (ceiling for minted link level) and LINK.TTL_DAYS. v1 ships the whole config surface with closed defaults (MODES=[], no anonymous links, view ceiling) — opening any of it before the mechanism exists is a loud system-check error (stapel_docs.E010-E013), never a silent no-op.",
+        "summary": "Composite axis over STAPEL_DOCS['SHARING']: MODES (additional grant sources, subset of whitelist|link), RESOLVERS (subject-reference resolvers), LINK.ANONYMOUS, LINK.MAX_LEVEL and LINK.TTL_DAYS. Both grant sources are IMPLEMENTED since 0.6.0 and the axis still ships CLOSED (MODES=[], no anonymous links, view ceiling, 30-day TTL): a host opens it deliberately, one settings line, and configuring what this version does not sanction is a loud system-check error (stapel_docs.E010-E014), never a silent no-op.",
         "business_label": "Document sharing beyond the workspace"
       }
     }
@@ -51,7 +51,7 @@
     {
       "name": "SHARING_RESOLVERS",
       "kind": "merge_registry",
-      "summary": "SHARING['RESOLVERS'] ({ref_kind: dotted-path}) — the whitelist subject-reference resolver registry of the sharing axis. Real-but-empty in v1: entries are validated for importability at check time (E014), consulted by nothing until whitelist mode ships."
+      "summary": "SHARING['RESOLVERS'] ({ref_kind: dotted-path}) — the whitelist subject-reference resolver registry. A resolver is a point query, resolve(ref, user_id) -> bool: the host answers 'is this person in that container' from its own data or a comm call, and docs never imports the source module or copies its membership. Fail-closed on both boundaries: an unregistered kind is refused at MINT (no dead rows), and an unknown kind or a raising resolver denies at READ."
     },
     {
       "name": "PRESENTERS",
@@ -74,6 +74,69 @@
         "stapel_core.django.workspaces.require_capability",
         "stapel_core.comm.call"
       ]
+    },
+    {
+      "name": "check_share_capability",
+      "kind": "gate_function",
+      "path": "stapel_docs.authz.check_share_capability",
+      "intent": "allow|deny|unavailable for docs.share.whitelist / docs.share.link — who may GIVE access. Deliberately outside authorize()'s action vocabulary: minting a grant is a workspace mandate, not a level on the document, and conflating them turns 'shared with me' into 'may share with others'.",
+      "instead_of": [
+        "stapel_core.django.workspaces.require_capability"
+      ]
+    },
+    {
+      "name": "effective_modes",
+      "kind": "factory",
+      "path": "stapel_docs.authz.effective_modes",
+      "intent": "Grant sources actually in force: deployment MODES ∩ what this version implements (∩ per-workspace narrowing once workspaces exposes settings). The one place the axis is read, so a mode can never be enabled by a code path that forgot to filter."
+    },
+    {
+      "name": "get_ref_resolver",
+      "kind": "factory",
+      "path": "stapel_docs.authz.get_ref_resolver",
+      "intent": "The registered SHARING['RESOLVERS'] callable for a ref kind, or None. An unregistered kind and an unimportable path answer the same way — nothing to ask — and the caller turns that into deny."
+    },
+    {
+      "name": "granted_level",
+      "kind": "gate_function",
+      "path": "stapel_docs.authz.granted_level",
+      "intent": "The MAXIMUM level the enabled grant sources give one principal on one document, plus an outage flag — the same number authorize() decided with. Present so the presentation layer never re-derives 'what may this bearer do': a second answer to that question is how a share mode ships half-enforced."
+    },
+    {
+      "name": "link_settings",
+      "kind": "factory",
+      "path": "stapel_docs.authz.link_settings",
+      "intent": "SHARING['LINK'] with its closed defaults merged in (ANONYMOUS/MAX_LEVEL/TTL_DAYS) — the two locks on the leakiest door, read in one place."
+    },
+    {
+      "name": "may_write",
+      "kind": "gate_function",
+      "path": "stapel_docs.authz.may_write",
+      "intent": "Whether a principal may ever author a write. An anonymous presenter never writes, whatever level their link carries: the journal and revision history are attributed by design, and an authorless edit is vandalism with no subject to name."
+    },
+    {
+      "name": "mode_enabled",
+      "kind": "gate_function",
+      "path": "stapel_docs.authz.mode_enabled",
+      "intent": "Kill-switch predicate for one mode. The share sheet marks rows of a disabled mode 'suspended' with it — never hides them, because an admin who cannot see an inert grant believes it was revoked."
+    },
+    {
+      "name": "ref_kind",
+      "kind": "factory",
+      "path": "stapel_docs.authz.ref_kind",
+      "intent": "The resolver-registry key of a subject reference: everything before the LAST colon ('chat:conversation:<id>' -> 'chat:conversation'). One rule at every namespacing depth, so a host's registered key is exactly what it wrote."
+    },
+    {
+      "name": "resolve_ref",
+      "kind": "gate_function",
+      "path": "stapel_docs.authz.resolve_ref",
+      "intent": "Point-query a host resolver: is this user a member of this external container? Fail-closed on every unhappy path (unknown kind, raising resolver), answers cached ~30 s so revocation in the container reaches the document in seconds rather than never. Never copy a foreign module's membership instead of calling this."
+    },
+    {
+      "name": "sharing_settings",
+      "kind": "factory",
+      "path": "stapel_docs.authz.sharing_settings",
+      "intent": "The effective SHARING dict with closed defaults merged in (never a partial overlay). Read the axis through this, not settings.STAPEL_DOCS — a half-merged LINK sub-dict is how ANONYMOUS silently reads as absent rather than False."
     },
     {
       "name": "get_doc_type",
@@ -163,6 +226,12 @@
       "intent": "Mint a folder under the depth limit with live-sibling name uniqueness enforced in code (SQL cannot compare NULL parents). A bare Folder.objects.create skips both invariants."
     },
     {
+      "name": "create_link",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.create_link",
+      "intent": "Mint one bearer link (secrets.token_urlsafe, mandatory expiry, level ≤ LINK['MAX_LEVEL'] refused loudly rather than clamped). Emits document.share.link_created. The second cap — never above the granter's own level — is applied by the caller through authorize()."
+    },
+    {
       "name": "create_named_revision",
       "kind": "factory",
       "path": "stapel_docs.services.create_named_revision",
@@ -203,6 +272,24 @@
       "kind": "gate_function",
       "path": "stapel_docs.services.finalize_upload",
       "intent": "Promote the uploaded object to the document's first version (HEAD-verified size, seq 1, first revision, pending marker cleared) and announce document.created + the byte delta. Emitting the events yourself skips every one of those steps."
+    },
+    {
+      "name": "get_access",
+      "kind": "factory",
+      "path": "stapel_docs.services.get_access",
+      "intent": "One grant of THIS document or a 404-mapped DocsError — scoped by document, so an id from another workspace addresses nothing."
+    },
+    {
+      "name": "get_link",
+      "kind": "factory",
+      "path": "stapel_docs.services.get_link",
+      "intent": "One link of THIS document or a 404-mapped DocsError."
+    },
+    {
+      "name": "get_link_by_token",
+      "kind": "factory",
+      "path": "stapel_docs.services.get_link_by_token",
+      "intent": "Resolve a presented token to (document, link), 404 when it names nothing. Liveness and level are decided by authorize(), never here — and the bearer views render every refusal as 404 so the endpoint is not an oracle for guessing tokens."
     },
     {
       "name": "get_live_document",
@@ -247,6 +334,24 @@
       "intent": "Fetch an upload session by id or 404 — the finalize endpoint's lookup."
     },
     {
+      "name": "grant_access",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.grant_access",
+      "intent": "Create or raise one whitelist grant (upsert — re-granting is the sheet's ordinary gesture). Refuses a disabled mode, an unknown level, a half-named subject, and a ref whose kind has no registered resolver: a row that could only ever deny is never stored. Emits document.share.granted in the mutating transaction."
+    },
+    {
+      "name": "link_expiry",
+      "kind": "factory",
+      "path": "stapel_docs.services.link_expiry",
+      "intent": "The deadline a link minted now would carry (LINK['TTL_DAYS']). TTL_DAYS=None means perpetual and becomes a century, not a null: the column is NOT NULL by the invitation canon, and a date every reader renders beats an absence every reader special-cases."
+    },
+    {
+      "name": "list_access",
+      "kind": "factory",
+      "path": "stapel_docs.services.list_access",
+      "intent": "Whitelist grants of one document, newest first, already marked suspended when the mode is off."
+    },
+    {
       "name": "list_documents",
       "kind": "factory",
       "path": "stapel_docs.services.list_documents",
@@ -257,6 +362,18 @@
       "kind": "factory",
       "path": "stapel_docs.services.list_folders",
       "intent": "Live folders of a workspace — whole tree, workspace roots (parent_id=None) or one folder's children. The one listing that respects soft-deletion."
+    },
+    {
+      "name": "list_links",
+      "kind": "factory",
+      "path": "stapel_docs.services.list_links",
+      "intent": "Bearer links of one document, newest first, marked suspended when link sharing is off. The envelope carries live tokens — gate the caller on docs.share.link."
+    },
+    {
+      "name": "mark_sharing_suspended",
+      "kind": "factory",
+      "path": "stapel_docs.services.mark_sharing_suspended",
+      "intent": "Stamp is_suspended on share-sheet rows whose mode is switched off. The kill-switch is a display state, not a filter: rows stay listed so an operator can see and revoke what a re-enabled mode would restore."
     },
     {
       "name": "move_document",
@@ -316,6 +433,12 @@
       "intent": "Documents one user reached most recently in a workspace, newest first, live only — the read side of the recents surface."
     },
     {
+      "name": "redeem_link",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.redeem_link",
+      "intent": "Stamp first_redeemed_at once and emit document.share.link_redeemed. Call only AFTER authorize() allowed the request: the stamp is evidence somebody got in, so a refused presentation must not write it. Guarded by a conditional UPDATE, so two simultaneous first openings emit exactly one event."
+    },
+    {
       "name": "rename_folder",
       "kind": "gate_function",
       "path": "stapel_docs.services.rename_folder",
@@ -350,6 +473,18 @@
       "kind": "factory",
       "path": "stapel_docs.services.revision_content",
       "intent": "A revision's FULL bytes — every revision is a self-contained snapshot (I1), so one get_bytes suffices; no delta chain to walk."
+    },
+    {
+      "name": "revoke_access",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.revoke_access",
+      "intent": "Delete one whitelist grant and emit document.share.revoked. Works while the mode is off: taking access away must never be the thing nobody is allowed to do."
+    },
+    {
+      "name": "revoke_link",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.revoke_link",
+      "intent": "Withdraw a bearer link; idempotent (an already-revoked link keeps its first revoked_at and emits once). Revocation is terminal — revoked beats expired beats active, and a revoked link never revives."
     },
     {
       "name": "save_content",
@@ -495,7 +630,7 @@
       "intent": "Resize image bytes so the longest edge fits a tier, as JPEG (alpha composited onto white, never upscaled). Raises ThumbnailsUnavailable without Pillow and ThumbnailSourceUnusable for bytes it cannot decode — a caller's bad input is a 400, not a 500."
     }
   ],
-  "operations_total": 35,
+  "operations_total": 44,
   "requires": [
     {
       "module": "stapel-core",

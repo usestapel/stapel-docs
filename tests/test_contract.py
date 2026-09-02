@@ -74,13 +74,13 @@ CANONICAL_PREFIX = "/docs/api/v1/"
 # The usage surface (stapel_tools.surface: services / storage / doc_types /
 # exporters / thumbnails / authz — 67 entries, each one a symbol a product
 # would otherwise reimplement) plus the full-CRUD 35-operation HTTP surface do
-# not fit the generator's default 4000-token budget (~6920 measured). Same exception
+# not fit the generator's default 4000-token budget (~8.7k measured). Same exception
 # stapel-auth (8000), stapel-recordings (5000) and stapel-workspaces (4500)
 # already take: raise the ceiling for this module, do not shorten intents to
 # fit. Must match the Makefile — if they drift, the gate starts measuring the
 # wrong number.
 ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
-LLMS_TXT_BUDGET = "7000"
+LLMS_TXT_BUDGET = "9000"
 
 
 def _emit(out_dir: Path) -> None:

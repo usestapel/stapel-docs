@@ -72,6 +72,38 @@
     "owner": "stapel_docs"
   },
   {
+    "code": "error.400.docs_share_level",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "That access level may not be granted here",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.400.docs_share_mode_disabled",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This way of sharing is switched off for this deployment",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.400.docs_share_ref_kind",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "No resolver is registered for this kind of reference",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.400.docs_share_subject",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "A share grant names exactly one subject",
+    "owner": "stapel_docs"
+  },
+  {
     "code": "error.400.docs_thumbnail_tier",
     "status": 400,
     "params": [],
@@ -322,6 +354,14 @@
     "owner": "stapel_core"
   },
   {
+    "code": "error.401.docs_share_auth_required",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "Sign in to open this shared document",
+    "owner": "stapel_docs"
+  },
+  {
     "code": "error.401.unauthorized",
     "status": 401,
     "params": [],
@@ -394,6 +434,14 @@
     "owner": "stapel_core"
   },
   {
+    "code": "error.404.docs_access_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "Share grant not found",
+    "owner": "stapel_docs"
+  },
+  {
     "code": "error.404.docs_document_not_found",
     "status": 404,
     "params": [],
@@ -407,6 +455,14 @@
     "params": [],
     "remediation": "retry",
     "en": "Folder not found",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.404.docs_link_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "Share link not found",
     "owner": "stapel_docs"
   },
   {

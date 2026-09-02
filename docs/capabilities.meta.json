@@ -42,7 +42,7 @@
     {
       "name": "SHARING_RESOLVERS",
       "kind": "merge_registry",
-      "summary": "SHARING['RESOLVERS'] ({ref_kind: dotted-path}) — the whitelist subject-reference resolver registry of the sharing axis. Real-but-empty in v1: entries are validated for importability at check time (E014), consulted by nothing until whitelist mode ships."
+      "summary": "SHARING['RESOLVERS'] ({ref_kind: dotted-path}) — the whitelist subject-reference resolver registry. A resolver is a point query, resolve(ref, user_id) -> bool: the host answers 'is this person in that container' from its own data or a comm call, and docs never imports the source module or copies its membership. Fail-closed on both boundaries: an unregistered kind is refused at MINT (no dead rows), and an unknown kind or a raising resolver denies at READ."
     },
     {
       "name": "PRESENTERS",
@@ -58,8 +58,8 @@
   "axes": {
     "SHARING": {
       "business_label": "Document sharing beyond the workspace",
-      "summary": "Composite axis over STAPEL_DOCS['SHARING']: MODES (additional grant sources, subset of whitelist|link), LINK.ANONYMOUS (anonymous link redemption), LINK.MAX_LEVEL (ceiling for minted link level) and LINK.TTL_DAYS. v1 ships the whole config surface with closed defaults (MODES=[], no anonymous links, view ceiling) — opening any of it before the mechanism exists is a loud system-check error (stapel_docs.E010-E013), never a silent no-op.",
-      "behavior": "Grant sources are additive and monotonic over the immutable workspace baseline: enabling a mode can only ever grant, never revoke, and the baseline can never be configured away. 'manage' is never grantable by any share source (anti-escalation invariant)."
+      "summary": "Composite axis over STAPEL_DOCS['SHARING']: MODES (additional grant sources, subset of whitelist|link), RESOLVERS (subject-reference resolvers), LINK.ANONYMOUS, LINK.MAX_LEVEL and LINK.TTL_DAYS. Both grant sources are IMPLEMENTED since 0.6.0 and the axis still ships CLOSED (MODES=[], no anonymous links, view ceiling, 30-day TTL): a host opens it deliberately, one settings line, and configuring what this version does not sanction is a loud system-check error (stapel_docs.E010-E014), never a silent no-op.",
+      "behavior": "Grant sources are additive and monotonic over the immutable workspace baseline: each is an independent sufficient reason, the composition is a union with the maximum level, so enabling a mode can only ever grant and disabling one can only ever inert its own rows (they are shown as suspended, never hidden). 'manage' is never grantable by any share source (anti-escalation invariant), an anonymous presenter never writes whatever level their link carries, and a link dies the moment its creator loses docs.share.link — checked live, with an outage answering 503 rather than a fabricated verdict."
     }
   },
   "surface_roots": [
@@ -383,6 +383,97 @@
     "available": {
       "kind": "factory",
       "intent": "Is the thumbnail renderer installed? For host diagnostics and system checks that want to say so at deploy time instead of at the first 503."
+    },
+    "granted_level": {
+      "kind": "gate_function",
+      "intent": "The MAXIMUM level the enabled grant sources give one principal on one document, plus an outage flag — the same number authorize() decided with. Present so the presentation layer never re-derives 'what may this bearer do': a second answer to that question is how a share mode ships half-enforced."
+    },
+    "check_share_capability": {
+      "kind": "gate_function",
+      "intent": "allow|deny|unavailable for docs.share.whitelist / docs.share.link — who may GIVE access. Deliberately outside authorize()'s action vocabulary: minting a grant is a workspace mandate, not a level on the document, and conflating them turns 'shared with me' into 'may share with others'.",
+      "instead_of": [
+        "stapel_core.django.workspaces.require_capability"
+      ]
+    },
+    "sharing_settings": {
+      "kind": "factory",
+      "intent": "The effective SHARING dict with closed defaults merged in (never a partial overlay). Read the axis through this, not settings.STAPEL_DOCS — a half-merged LINK sub-dict is how ANONYMOUS silently reads as absent rather than False."
+    },
+    "effective_modes": {
+      "kind": "factory",
+      "intent": "Grant sources actually in force: deployment MODES ∩ what this version implements (∩ per-workspace narrowing once workspaces exposes settings). The one place the axis is read, so a mode can never be enabled by a code path that forgot to filter."
+    },
+    "mode_enabled": {
+      "kind": "gate_function",
+      "intent": "Kill-switch predicate for one mode. The share sheet marks rows of a disabled mode 'suspended' with it — never hides them, because an admin who cannot see an inert grant believes it was revoked."
+    },
+    "link_settings": {
+      "kind": "factory",
+      "intent": "SHARING['LINK'] with its closed defaults merged in (ANONYMOUS/MAX_LEVEL/TTL_DAYS) — the two locks on the leakiest door, read in one place."
+    },
+    "ref_kind": {
+      "kind": "factory",
+      "intent": "The resolver-registry key of a subject reference: everything before the LAST colon ('chat:conversation:<id>' -> 'chat:conversation'). One rule at every namespacing depth, so a host's registered key is exactly what it wrote."
+    },
+    "get_ref_resolver": {
+      "kind": "factory",
+      "intent": "The registered SHARING['RESOLVERS'] callable for a ref kind, or None. An unregistered kind and an unimportable path answer the same way — nothing to ask — and the caller turns that into deny."
+    },
+    "resolve_ref": {
+      "kind": "gate_function",
+      "intent": "Point-query a host resolver: is this user a member of this external container? Fail-closed on every unhappy path (unknown kind, raising resolver), answers cached ~30 s so revocation in the container reaches the document in seconds rather than never. Never copy a foreign module's membership instead of calling this."
+    },
+    "may_write": {
+      "kind": "gate_function",
+      "intent": "Whether a principal may ever author a write. An anonymous presenter never writes, whatever level their link carries: the journal and revision history are attributed by design, and an authorless edit is vandalism with no subject to name."
+    },
+    "mark_sharing_suspended": {
+      "kind": "factory",
+      "intent": "Stamp is_suspended on share-sheet rows whose mode is switched off. The kill-switch is a display state, not a filter: rows stay listed so an operator can see and revoke what a re-enabled mode would restore."
+    },
+    "list_access": {
+      "kind": "factory",
+      "intent": "Whitelist grants of one document, newest first, already marked suspended when the mode is off."
+    },
+    "grant_access": {
+      "kind": "gate_function",
+      "intent": "Create or raise one whitelist grant (upsert — re-granting is the sheet's ordinary gesture). Refuses a disabled mode, an unknown level, a half-named subject, and a ref whose kind has no registered resolver: a row that could only ever deny is never stored. Emits document.share.granted in the mutating transaction."
+    },
+    "get_access": {
+      "kind": "factory",
+      "intent": "One grant of THIS document or a 404-mapped DocsError — scoped by document, so an id from another workspace addresses nothing."
+    },
+    "revoke_access": {
+      "kind": "gate_function",
+      "intent": "Delete one whitelist grant and emit document.share.revoked. Works while the mode is off: taking access away must never be the thing nobody is allowed to do."
+    },
+    "list_links": {
+      "kind": "factory",
+      "intent": "Bearer links of one document, newest first, marked suspended when link sharing is off. The envelope carries live tokens — gate the caller on docs.share.link."
+    },
+    "link_expiry": {
+      "kind": "factory",
+      "intent": "The deadline a link minted now would carry (LINK['TTL_DAYS']). TTL_DAYS=None means perpetual and becomes a century, not a null: the column is NOT NULL by the invitation canon, and a date every reader renders beats an absence every reader special-cases."
+    },
+    "create_link": {
+      "kind": "gate_function",
+      "intent": "Mint one bearer link (secrets.token_urlsafe, mandatory expiry, level ≤ LINK['MAX_LEVEL'] refused loudly rather than clamped). Emits document.share.link_created. The second cap — never above the granter's own level — is applied by the caller through authorize()."
+    },
+    "get_link": {
+      "kind": "factory",
+      "intent": "One link of THIS document or a 404-mapped DocsError."
+    },
+    "revoke_link": {
+      "kind": "gate_function",
+      "intent": "Withdraw a bearer link; idempotent (an already-revoked link keeps its first revoked_at and emits once). Revocation is terminal — revoked beats expired beats active, and a revoked link never revives."
+    },
+    "get_link_by_token": {
+      "kind": "factory",
+      "intent": "Resolve a presented token to (document, link), 404 when it names nothing. Liveness and level are decided by authorize(), never here — and the bearer views render every refusal as 404 so the endpoint is not an oracle for guessing tokens."
+    },
+    "redeem_link": {
+      "kind": "gate_function",
+      "intent": "Stamp first_redeemed_at once and emit document.share.link_redeemed. Call only AFTER authorize() allowed the request: the stamp is evidence somebody got in, so a refused presentation must not write it. Guarded by a conditional UPDATE, so two simultaneous first openings emit exactly one event."
     }
   }
 }

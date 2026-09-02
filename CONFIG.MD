@@ -96,12 +96,30 @@ missing preview).
 | INTERNAL_TRUSTED_SERVICES | env | service names allowed to call `docs.create_document` without a user actor (narrow delegated capability). | no | [] |
 | TRASH_PURGE_SCHEDULE | env | crontab kwargs for `stapel_docs.tasks.purge_expired_trash`, exposed to a host beat schedule by `get_docs_beat_schedule()`. | no | {"hour": 4, "minute": 20} |
 
-### Sharing axis (closed defaults; v1 system-check guards E010-E014) (source: env)
+### Sharing axis (implemented since 0.6.0; still CLOSED by default; guards E010-E014) (source: env)
+
+Both grant sources are implemented. The axis nevertheless ships shut: a
+document is visible to exactly its workspace until a host writes one line of
+settings. Opening `MODES` is that line; the two `LINK` locks below stay shut
+independently of it, so the leakiest door (an anonymous link) needs two
+deliberate decisions, not one.
 
 | Key | Source | Purpose | Required | Default |
 |-----|--------|---------|----------|---------|
-| SHARING.MODES | env | additional grant sources over the immutable workspace baseline (subset of whitelist \| link). v1 implements neither — non-empty is a system-check ERROR. | no | [] |
-| SHARING.RESOLVERS | env | {ref_kind: dotted-path} whitelist subject-reference resolvers — real-but-empty seam; entries are import-validated at check time (E014). | no | {} |
-| SHARING.LINK.ANONYMOUS | env | anonymous link redemption. True in v1 = system-check ERROR (E012). | no | false |
-| SHARING.LINK.MAX_LEVEL | env | ceiling for minted link level. Above `view` in v1 = system-check ERROR (E013); `manage` is never grantable by any share source. | no | view |
-| SHARING.LINK.TTL_DAYS | env | link TTL; None (perpetual) only ever by explicit host choice. | no | 30 |
+| SHARING.MODES | env | additional grant sources over the immutable workspace baseline (subset of whitelist \| link). Both are implemented; `[]` means baseline only. A mode that is off makes its existing rows inert (shown as `suspended`), never deleted, and refuses new mints. | no | [] |
+| SHARING.RESOLVERS | env | {ref_kind: dotted-path} whitelist subject-reference resolvers, `resolve(ref, user_id) -> bool`. Fail-closed at both boundaries: an unregistered kind is refused at mint, an unknown/raising resolver denies at read. Entries are import-validated at check time (E014). | no | {} |
+| SHARING.LINK.ANONYMOUS | env | anonymous link redemption (no session at all, or an anonymous auth account). The rule carries the branch; a deployment turning it on is still a system-check ERROR (E012) under the owner's §10 verdict. An anonymous presenter never writes, whatever the level. | no | false |
+| SHARING.LINK.MAX_LEVEL | env | ceiling for minted link level; a request above it is refused (400), never silently clamped. `edit` is a system-check ERROR (E013) in this version — edit-BY-LINK awaits an owner decision; `manage` is never grantable by any share source, ever. | no | view |
+| SHARING.LINK.TTL_DAYS | env | link TTL. `None` (perpetual) only ever by explicit host choice, and it becomes a deadline a century out rather than a null — the column is NOT NULL by the invitation canon. | no | 30 |
+
+Per-workspace NARROWING (`Workspace.settings["docs"]["sharing"]["modes"]`,
+axis §4) is **not wired**: stapel-workspaces exposes no reader for workspace
+settings (its comm surface is `check_membership` / `check_capability` /
+`check_mandate`), and docs does not reach into another module's rows. The
+intersection lives in `stapel_docs.authz.effective_modes` and is the whole
+change when that surface lands.
+
+Capabilities the host's role overlay decides (registered names, not settings):
+`docs.share.whitelist` and `docs.share.link` — who may GIVE access of each
+kind. Requiring a step-up for minting a link is `CAPABILITY_LEVELS` in
+stapel-workspaces, not a key here.

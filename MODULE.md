@@ -176,28 +176,77 @@ never learns a foreign event schema, and an unimportable mapper raises
 at-least-once and create is not naturally idempotent — dedup is the
 mapper/host's contract.
 
-### Sharing axis — `SHARING` (**closed by default in v1**)
+### Sharing axis — `SHARING` (**implemented, closed by default**)
 
-`authorize()` implements exactly the immutable workspace baseline (active
-membership + capability `docs.<action>` via `workspaces.check_capability`,
-deny-by-default). The additional grant sources are configuration that
-exists from day 1 with **closed defaults**, guarded by system checks —
-"configured but not implemented" is a LOUD deploy failure, never a silent
-no-op:
+`authorize()` is the single choke point and reads the axis in one place.
+Step 1 is the immutable workspace baseline (active membership + capability
+`docs.<action>` via `workspaces.check_capability`, deny-by-default). Step 2
+is the enabled grant SOURCES, each an independent sufficient reason,
+composed as a union with the maximum level. Step 3 is deny.
 
-| Key | v1 default | Opening it in v1 |
+Both sources ship working since 0.6.0. The axis still ships **shut**: a
+document is visible to exactly its workspace until a host writes one line
+of settings, because turning sharing on is one line and turning it off
+afterwards is a set of links already sent.
+
+| Key | Default | State | Opening it |
+|---|---|---|---|
+| `SHARING["MODES"]` | `[]` | both modes implemented | unknown mode → E010; known-but-unimplemented → E011 (kept for the next mode) |
+| `SHARING["RESOLVERS"]` | `{}` (**merge**) | seam live, no resolver shipped | entries import-validated → E014; unregistered kind refused at mint, unknown/raising resolver denies at read |
+| `SHARING["LINK"]["ANONYMOUS"]` | `False` | branch implemented and tested | `True` → **E012**: the owner's §10 verdict keeps deployments shut |
+| `SHARING["LINK"]["MAX_LEVEL"]` | `"view"` | ceiling enforced (400 above, never a silent clamp) | `"edit"` → **E013**: edit-BY-LINK awaits an owner decision |
+| `SHARING["LINK"]["TTL_DAYS"]` | `30` | mandatory expiry | `None` = perpetual, expressed as a date a century out (the column is NOT NULL) |
+
+Invariants the module refuses to bend:
+
+- **The baseline is immutable.** No mode configures it away, and no grant
+  subtracts from it — there are no deny rows in this algebra at all, which
+  is why two enabled modes cannot disagree and why disabling one can never
+  open anything.
+- **`manage` is never grantable.** Deleting, moving and administering
+  grants stay mandatory capabilities, so a shared-in principal can read and
+  even write the body and still cannot widen the circle of access.
+- **An anonymous presenter never writes**, whatever level their link
+  carries: the journal and revision history are attributed by design.
+- **An outage is not a verdict.** Every unreachable check (the baseline, a
+  link's sponsor) answers 503, never 403 and never allow.
+- **A kill-switch inerts, it does not delete.** Rows of a disabled mode
+  stop granting, stay listed, and are marked `suspended` — an admin who
+  cannot see an inert grant reads it as revoked.
+
+Two tables, both cascading off the document: `DocumentAccess` (whitelist —
+subject `user` by id, or `ref` resolved by a host resolver) and
+`DocumentLink` (the `WorkspaceInvitation` canon: unguessable token,
+mandatory `expires_at`, derived status where revoked beats expired beats
+active, `first_redeemed_at` stamped once). A link additionally dies the
+moment its creator stops holding `docs.share.link` — checked live on every
+presentation, because a bearer secret in unknown hands whose sponsor has
+left is the leak itself.
+
+The HTTP surface it adds:
+
+| Endpoint | Gate | Notes |
 |---|---|---|
-| `SHARING["MODES"]` | `[]` | unknown mode → E010; known-but-unimplemented → E011 |
-| `SHARING["RESOLVERS"]` | `{}` (**merge**, real-but-empty seam) | entries import-validated → E014 |
-| `SHARING["LINK"]["ANONYMOUS"]` | `False` | `True` → E012 |
-| `SHARING["LINK"]["MAX_LEVEL"]` | `"view"` | above `view` → E013 |
-| `SHARING["LINK"]["TTL_DAYS"]` | `30` | — (tuning) |
+| `GET`/`POST /documents/<id>/access` | `docs.share.whitelist` | The sheet lists other people, so reading it is itself an act of sharing administration. `POST` upserts (re-granting is the ordinary "make them an editor" gesture) and refuses a level above the granter's own, a half-named subject, a ref kind with no registered resolver, and a disabled mode |
+| `DELETE /documents/<id>/access/<access_id>` | `docs.share.whitelist` **or** `docs.manage` | Wider than minting on purpose: taking access away must never be the thing nobody in the room is allowed to do. Works while the mode is off |
+| `GET`/`POST /documents/<id>/links` | `docs.share.link` | The listing carries live tokens — which is why it is gated here and not on `docs.view`, and why no `document.share.*` **event** ever carries one. A level above `LINK["MAX_LEVEL"]` is a **400**, never a silent clamp |
+| `DELETE /documents/<id>/links/<link_id>` | `docs.share.link` **or** `docs.manage` | Revocation is terminal and idempotent |
+| `GET /shared/<token>` | the token | The **stripped** envelope: title, type, shape, and the level the holder has. No workspace, no folder, no owner, no star state, no revisions — a link grants a document, not a seat, and an old revision can hold text deleted on purpose since |
+| `GET /shared/<token>/content` | the token | Read-only by construction; leaves no recents (a bearer is not a member) |
+| `GET /shared/<token>/download` | the token | Presigned GET for the current body |
 
-The algebra is additive and monotonic: sources only ever grant, the
-baseline can never be configured away, and `manage` is **never** grantable
-by any share source (anti-escalation invariant). The `Principal` form
-(`user_id` / `is_anonymous` / `link_token`) is fixed on day 1 so
-anonymous-link support later is an additive branch inside `authorize`.
+The bearer path answers **401** (`error.401.docs_share_auth_required`) when
+`LINK["ANONYMOUS"]` is off and no session is present — "sign in" and "this
+is not yours" are different facts, and only the first tells the holder of a
+good link what to do. Every refusal after that is **404**, dead token and
+unknown token alike: an endpoint that tells a guesser their token was real
+once is an oracle.
+
+**Not wired:** per-workspace narrowing
+(`Workspace.settings["docs"]["sharing"]["modes"]`, axis §4). stapel-workspaces
+exposes no reader for workspace settings, and docs does not reach into
+another module's rows; `authz.effective_modes` is the single function that
+changes when it does.
 
 ### Presenters — `STAPEL_SWAP` keys (**swap**)
 
@@ -262,7 +311,7 @@ registry with defaults in [CONFIG.MD](CONFIG.MD).
 | `UPLOAD_ALLOWED_MIME_TYPES` | value (ships a real allowlist; `["*/*"]` = any) | which content types may be uploaded at all |
 | `INTERNAL_REQUIRE_CALLER`, `INTERNAL_TRUSTED_SERVICES` | value | authority carried by comm callers of `docs.create_document` |
 | `TRASH_PURGE_SCHEDULE` | value | cadence of `stapel_docs.tasks.purge_expired_trash` (beat) |
-| `SHARING` | axis (closed defaults; `RESOLVERS` **merge**) | sharing beyond the baseline |
+| `SHARING` | axis (implemented, closed defaults; `RESOLVERS` **merge**) | sharing beyond the baseline: whitelist grants and bearer links |
 
 ### Comm surface
 
@@ -326,12 +375,21 @@ Rules the subscriber keeps:
   makes gdpr's `W006` evidence that the erasure path is *consumed* rather
   than that a container is deployed. Do not answer it from anywhere else.
 
-Not owned here: **share and mandate grants**. v1 implements only the
-immutable workspace baseline — every verdict comes from
-`workspaces.check_capability`, and the sharing axis's own grant rows
-(whitelist/link) do not exist yet (`SHARING`, phase 3). When they land, they
-join the `document`/`workspace` erasures in this module; today the grants an
-erased subject held are the membership rows stapel-workspaces erases.
+**Sharing rows are the one exception to "anonymize, not delete"** (0.6.0):
+an account erasure DELETES the `DocumentAccess` rows naming that user as
+subject and REVOKES the links they sponsored, because a standing permission
+about a person is not co-produced content and must not outlive them — the
+link least of all, since it works in hands nobody can name. Their
+*provenance* (`granted_by`, `created_by`) is anonymized like any other
+authorship. Document and workspace erasure take both tables with them (FK
+CASCADE), counted in the receipt (`access_grants`, `links`). A `user.merged`
+carries the guest's grants over with collision folding to the HIGHER level:
+folding down would revoke access as a side effect of a merge.
+
+Not owned here: **mandate grants**. Who is a member, who holds
+`docs.share.*`, and who is anonymous are all answered by
+stapel-workspaces / stapel-auth through existing seams; docs owns only the
+object-level rows above.
 
 ### Contract emission — the quintet in `docs/`
 
@@ -339,8 +397,8 @@ This module emits its own machine-readable contract per-module
 (contract-pipeline.md §2): `docs/schema.json` (drf-spectacular OpenAPI,
 canonical `/docs/api/v1` prefix), `docs/flows.json` (`[]` — no
 `@flow_step` annotations), `docs/errors.json`, `docs/capabilities.json`
-(axes + extension points + the 67-entry usage surface, curated in
-`docs/capabilities.meta.json`) and `docs/llms.txt` (budget 5500 — see the
+(axes + extension points + the 89-entry usage surface, curated in
+`docs/capabilities.meta.json`) and `docs/llms.txt` (budget 9000 — see the
 Makefile for the justification). `README.md` is the sixth artifact,
 assembled from `docs/readme.md` — never hand-edit `README.md`.
 
@@ -389,8 +447,12 @@ then commit `docs/*` + `README.md`.
   and read via `text_extractor`-equipped specs.
 - **Quota enforcement** — react to `document.storage_changed` in the
   billing/workspaces host layer; docs only accounts and announces.
-- **Sharing UI** and the whitelist/link mechanisms themselves — phase 3,
-  behind the closed axis.
+- **Sharing UI** — the share sheet, the copy-link affordance, the "who has
+  access" list. The mechanism and its endpoints are here; how a product
+  presents them is not.
+- **Ref-subject resolvers** — docs ships none and never will: a resolver
+  answers "is this person in that container", which only the host knows.
+  Register one under `SHARING["RESOLVERS"]`.
 
 ## App-layer override vs upstream contribution — rule of thumb
 

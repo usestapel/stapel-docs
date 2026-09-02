@@ -6,6 +6,138 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-02
+
+### Added — the sharing mechanism: grant sources over an immutable baseline
+
+`tasks/sharing-axis-design.md`, implemented as ratified;
+`tasks/stapel-drive-spec.md` §3.5 for the landing notes. Sharing is not a
+model this module chose — it is a set of **switchable grant sources** layered
+over a workspace baseline that never changes. The axis was declared closed in
+0.2.0 with its config surface live and its mechanism absent; this release
+fills the mechanism in and leaves the surface exactly as closed as it was.
+
+- **`DocumentAccess`** — the whitelist row. Two subject kinds in one table,
+  because both mean the same thing (named principals, no bearer secret) and
+  differ only in how membership is computed: `user` matches an account by id,
+  `ref` names an EXTERNAL container (`chat:conversation:<id>`) whose
+  membership a host resolver answers by point query. docs never copies
+  another module's membership and never imports it — the chat case is a
+  whitelist with a different lookup, not a fourth mode. Exactly-one-subject is
+  a `CheckConstraint`; one grant per subject per document is a pair of
+  partial uniques (`""` does equal `""` in SQL, unlike NULL).
+- **`DocumentLink`** — the bearer link, the `WorkspaceInvitation` canon copied
+  in shape rather than reinvented: `@access.secret`, unguessable
+  `secrets.token_urlsafe(32)` token, MANDATORY `expires_at`, derived status
+  where **revoked beats expired beats active**, `first_redeemed_at` stamped
+  once. One difference in substance: a link is not a mandate. It is never
+  "accepted", it creates no membership, and it is re-checked on every single
+  presentation.
+- **`authorize()` step 2** — the union of enabled sources with the maximum
+  level. Each source is an independent sufficient reason; no source can say
+  "no", which is why two enabled modes cannot disagree, why disabling one can
+  never open anything, and why the baseline can never be configured away.
+- **Endpoints** — `GET`/`POST /documents/<id>/access` +
+  `DELETE …/access/<access_id>` (gated by `docs.share.whitelist`),
+  `GET`/`POST /documents/<id>/links` + `DELETE …/links/<link_id>` (gated by
+  `docs.share.link`; revocation additionally open to `docs.manage`, because
+  taking access away must never be the thing nobody in the room is allowed to
+  do), and the bearer read path `GET /shared/<token>` + `/content` +
+  `/download`.
+- **Events** — `document.share.granted` / `revoked` / `link_created` /
+  `link_revoked` / `link_redeemed` (first redemption only), schemas under
+  `schemas/emits/`, emitted inside the mutating transaction. **No payload
+  carries a token**: an event is copied into an outbox, a broker, a log
+  aggregator and somebody's dashboard, and a bearer secret that travels that
+  far has been leaked by its own audit trail.
+- **`IMPLEMENTED_SHARING_MODES = ("whitelist", "link")`** — E011 stops firing
+  for them and stays for the next mode somebody configures before it is
+  built (proven by a test that shrinks the list rather than deleting itself).
+
+### Security — what the axis refuses, and why each refusal has a test
+
+- **`manage` is never grantable by any share source.** A principal shared
+  into a document may read and write the body and can still never delete it,
+  move it, or widen access to it. This is the anti-escalation invariant the
+  whole axis rests on, and it is enforced by having no reachable grant path
+  for the action at all rather than by a check somebody could forget.
+- **An anonymous presenter never writes**, whatever level their link carries.
+  The journal and the revision history are attributed by design; an
+  authorless edit is vandalism with no subject to name, and the one
+  combination the axis forbids forever is "edit AND anonymous".
+- **A link dies when its creator loses `docs.share.link`** — checked live on
+  every presentation. The asymmetry with whitelist is deliberate: a whitelist
+  row is enumerable and an admin can strike it, but a bearer token in unknown
+  hands whose sponsor has left is the leak itself.
+- **An outage is not a verdict.** Both the baseline and the sponsor check
+  answer 503 on an unreachable workspaces service. A user locked out by an
+  outage and a user correctly refused must not receive the same answer.
+- **Resolvers fail closed on both boundaries**: an unregistered ref kind is
+  refused at MINT (a row that could only ever deny is never stored), and an
+  unknown kind, an unimportable path or a raising resolver denies at READ.
+  Answers are cached ~30 s — the middle between a copied membership that
+  never learns about a revocation and no cache at all.
+- **The bearer path is not an oracle.** A dead token and a token that never
+  existed get the identical 404; only a missing session gets a 401, because
+  "sign in" is the one refusal that tells the holder of a good link what to
+  do.
+- **A disabled mode inerts its rows, it does not hide them.** They stop
+  granting, they stay in the share sheet marked `suspended`, and minting into
+  a disabled mode is refused rather than storing a grant nothing will read.
+  An admin who cannot see an inert grant believes it was revoked.
+
+### Changed
+
+- **GDPR: sharing rows are the exception to "anonymize, not delete".** An
+  account erasure DELETES the `DocumentAccess` rows naming that user as
+  subject and REVOKES the links they sponsored — a standing permission about
+  a person is not co-produced content and must not outlive them. Provenance
+  (`granted_by`, `created_by`) is anonymized like any other authorship. The
+  erasure receipt gains `access_grants` and `links` counts; document and
+  workspace erasure take both tables with them through FK CASCADE.
+- **`user.merged` carries grants over with collision folding to the HIGHER
+  level.** Folding down would revoke access as a side effect of a merge — a
+  silent loss on the one table where losing access is hardest to diagnose.
+- `authorize()` gains `granted_level()` and `check_share_capability()`
+  alongside it. The first exists so the presentation layer never re-derives
+  "what may this bearer do" — a second answer to that question is how a share
+  mode ships half-enforced. The second is deliberately outside `authorize()`'s
+  action vocabulary: minting a grant is a workspace mandate, not a level on
+  the document, and conflating them turns "shared with me" into "may share
+  with others".
+- llms.txt budget 7000 → 9000 (22 more called symbols, 7 more operations,
+  7 more error keys). Raised deliberately, per the generator's own advice:
+  shortening the intent lines of security gates is how a gate becomes
+  something nobody can explain and therefore nobody adopts.
+
+### Unchanged, on purpose
+
+- **The shipped default is still `MODES: []`** — a document is visible to
+  exactly its workspace until a host writes one line of settings. Turning
+  sharing on is one line; turning it off afterwards is a set of links already
+  sent.
+- **E012 (`LINK["ANONYMOUS"]=True`) and E013 (`MAX_LEVEL` above `view`) still
+  fail deploys.** The rule carries both branches and both are covered by
+  tests, but the owner's §10 verdict governs what a DEPLOYMENT may switch on:
+  anonymous links and edit-by-link need an owner decision, not a config
+  override. This is the honest state and it is stated in `checks.py`,
+  `CONFIG.MD` and `MODULE.md` rather than implied.
+- **Per-workspace narrowing is not wired.** The axis names
+  `Workspace.settings["docs"]["sharing"]["modes"]`; stapel-workspaces exposes
+  no reader for workspace settings (its comm surface is `check_membership` /
+  `check_capability` / `check_mandate`), and reaching into another module's
+  rows is the seam violation the L2 canon exists to prevent. The intersection
+  lives in `authz.effective_modes` and is the whole change when that surface
+  lands.
+- **No resolver ships.** A resolver answers "is this person in that
+  container", which only the host knows. The registry and its validation are
+  here; the resolvers are the product's.
+- **Folder sharing is still not built** (axis §8): documents only in v1.
+
+### Migrations
+
+- `0004_sharing_access_and_links` — two additive tables, no data migration.
+
 ## [0.5.0] — 2026-09-02
 
 ### Added — the drive wave: starred, recents, search, usage, thumbnails

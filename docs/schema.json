@@ -323,6 +323,170 @@
         }
       }
     },
+    "/docs/api/v1/documents/{document_id}/access": {
+      "get": {
+        "operationId": "docs_api_v1_documents_access_list",
+        "description": "The whitelist half of the share sheet: who has access, and grant one.\n\nBoth methods are gated on ``docs.share.whitelist`` — the sheet lists\nother people, so seeing it is itself a sharing-administration act, not\na document read.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentAccessPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "DocumentAccessPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "1aa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "subject_kind": "user",
+                        "subject": "7bb85f64-5717-4562-b3fc-2c963f66af11",
+                        "level": "view",
+                        "granted_by": null,
+                        "suspended": false,
+                        "created_at": "2026-09-02T10:00:00+00:00"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_access_create",
+        "description": "The whitelist half of the share sheet: who has access, and grant one.\n\nBoth methods are gated on ``docs.share.whitelist`` — the sheet lists\nother people, so seeing it is itself a sharing-administration act, not\na document read.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessGrant"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessGrant"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessGrant"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentAccessPresenterDTO"
+                },
+                "examples": {
+                  "DocumentAccessPresenterDTO": {
+                    "value": {
+                      "id": "1aa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "subject_kind": "user",
+                      "subject": "7bb85f64-5717-4562-b3fc-2c963f66af11",
+                      "level": "view",
+                      "granted_by": null,
+                      "suspended": false,
+                      "created_at": "2026-09-02T10:00:00+00:00"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/access/{access_id}": {
+      "delete": {
+        "operationId": "docs_api_v1_documents_access_destroy",
+        "description": "Revoke one whitelist grant.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "access_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
     "/docs/api/v1/documents/{document_id}/content": {
       "get": {
         "operationId": "docs_api_v1_documents_content_retrieve",
@@ -458,6 +622,175 @@
         ],
         "responses": {
           "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/links": {
+      "get": {
+        "operationId": "docs_api_v1_documents_links_list",
+        "description": "The bearer-link half of the share sheet: list links, mint one.\n\nThe listing carries live tokens (a sheet that cannot re-show the link it\nminted makes people mint a second one), which is precisely why GET is\ngated on ``docs.share.link`` and not on document view.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentLinkPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "DocumentLinkPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "4cc85f64-5717-4562-b3fc-2c963f66afa6",
+                        "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "token": "0xk3…",
+                        "level": "view",
+                        "status": "active",
+                        "expires_at": "2026-10-02T10:00:00+00:00",
+                        "revoked_at": null,
+                        "first_redeemed_at": null,
+                        "created_by": null,
+                        "suspended": false,
+                        "created_at": "2026-09-02T10:00:00+00:00"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_links_create",
+        "description": "The bearer-link half of the share sheet: list links, mint one.\n\nThe listing carries live tokens (a sheet that cannot re-show the link it\nminted makes people mint a second one), which is precisely why GET is\ngated on ``docs.share.link`` and not on document view.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreate"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentLinkPresenterDTO"
+                },
+                "examples": {
+                  "DocumentLinkPresenterDTO": {
+                    "value": {
+                      "id": "4cc85f64-5717-4562-b3fc-2c963f66afa6",
+                      "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "token": "0xk3…",
+                      "level": "view",
+                      "status": "active",
+                      "expires_at": "2026-10-02T10:00:00+00:00",
+                      "revoked_at": null,
+                      "first_redeemed_at": null,
+                      "created_by": null,
+                      "suspended": false,
+                      "created_at": "2026-09-02T10:00:00+00:00"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/links/{link_id}": {
+      "delete": {
+        "operationId": "docs_api_v1_documents_links_destroy",
+        "description": "Revoke one bearer link (terminal — a revoked link never revives).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "link_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
             "description": "No response body"
           }
         }
@@ -1472,6 +1805,107 @@
         }
       }
     },
+    "/docs/api/v1/shared/{token}": {
+      "get": {
+        "operationId": "docs_api_v1_shared_retrieve",
+        "description": "The bearer's view of a document — stripped (axis §6).\n\nTitle, type and shape; no tree, no workspace, no owner, no revisions. A\nlink grants a document, not a seat, and history is withheld besides:\nan old revision can hold text that was deleted on purpose since.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedDocumentDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/shared/{token}/content": {
+      "get": {
+        "operationId": "docs_api_v1_shared_content_retrieve",
+        "description": "The bearer's read of the current body. Read-only by construction:\nthere is no PUT here, and an anonymous presenter could not write through\none anyway (axis §6).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/docs/api/v1/shared/{token}/download": {
+      "get": {
+        "operationId": "docs_api_v1_shared_download_retrieve",
+        "description": "Presigned GET URL for the bearer's copy of the current body.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadUrlDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/docs/api/v1/starred": {
       "get": {
         "operationId": "docs_api_v1_starred_retrieve",
@@ -1685,6 +2119,35 @@
   },
   "components": {
     "schemas": {
+      "AccessGrant": {
+        "type": "object",
+        "description": "``POST /documents/<id>/access`` — exactly one subject, one level.\n\n``subject_kind`` is explicit rather than inferred from which field is\npresent: an ACL write that guesses its own meaning is one typo away\nfrom granting to a subject the caller did not name.",
+        "properties": {
+          "subject_kind": {
+            "$ref": "#/components/schemas/SubjectKindEnum"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "ref": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "level": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LevelEnum"
+              }
+            ],
+            "default": "view"
+          }
+        },
+        "required": [
+          "subject_kind"
+        ]
+      },
       "AppendResultDTO": {
         "type": "object",
         "description": "Outcome of a journal append batch.",
@@ -1711,6 +2174,49 @@
         "required": [
           "id",
           "name"
+        ]
+      },
+      "DocumentAccessPresenterDTO": {
+        "type": "object",
+        "description": "Presents one whitelist grant as a share-sheet row.\n\n``suspended`` is the kill-switch state (axis §3): true when the row\nexists but its mode is switched off, so the sheet says \"paused by\nconfiguration\" instead of hiding a grant the admin would then believe\nwas revoked.",
+        "properties": {
+          "subject_kind": {
+            "type": "string",
+            "description": "subject kind"
+          },
+          "level": {
+            "type": "string",
+            "description": "level"
+          },
+          "id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "description": "The user id for subject_kind=user, the container reference for subject_kind=ref."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "granted_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "suspended": {
+            "type": "boolean",
+            "description": "The grant exists but its sharing mode is switched off for this deployment — inert, not revoked."
+          }
+        },
+        "required": [
+          "created_at",
+          "document_id",
+          "id",
+          "level",
+          "subject",
+          "subject_kind"
         ]
       },
       "DocumentCreate": {
@@ -1742,6 +2248,62 @@
           "title",
           "type",
           "workspace_id"
+        ]
+      },
+      "DocumentLinkPresenterDTO": {
+        "type": "object",
+        "description": "Presents one bearer link to whoever may administer sharing.\n\nThe token IS in this envelope — a share sheet that cannot re-show the\nlink it minted is a sheet that makes people mint a second one — which is\nexactly why the listing endpoint is gated on ``docs.share.link`` and why\nno ``document.share.*`` EVENT carries it.",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "token"
+          },
+          "level": {
+            "type": "string",
+            "description": "level"
+          },
+          "id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Derived: \"revoked\" beats \"expired\" beats \"active\"."
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "revoked_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "first_redeemed_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "When the link was first opened successfully; stamped once."
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "suspended": {
+            "type": "boolean",
+            "description": "The link exists but link sharing is switched off for this deployment — inert, not revoked."
+          }
+        },
+        "required": [
+          "created_at",
+          "document_id",
+          "expires_at",
+          "id",
+          "level",
+          "status",
+          "token"
         ]
       },
       "DocumentPresenterDTO": {
@@ -1936,6 +2498,28 @@
           "seq"
         ]
       },
+      "LevelEnum": {
+        "enum": [
+          "view",
+          "edit"
+        ],
+        "type": "string",
+        "description": "* `view` - view\n* `edit` - edit"
+      },
+      "LinkCreate": {
+        "type": "object",
+        "description": "``POST /documents/<id>/links`` — the level, capped by LINK.MAX_LEVEL.",
+        "properties": {
+          "level": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LevelEnum"
+              }
+            ],
+            "default": "view"
+          }
+        }
+      },
       "NamedRevision": {
         "type": "object",
         "properties": {
@@ -2080,6 +2664,66 @@
           "name",
           "workspace_id"
         ]
+      },
+      "SharedDocumentDTO": {
+        "type": "object",
+        "description": "What a link BEARER sees: the document, and nothing around it.\n\nThe stripped envelope of axis §6 — no workspace, no folder, no owner,\nno star state, no revision history. A link grants a document, not a\nseat: anything that would let the holder infer the shape of the\nworkspace (its tree, who is in it, what else it contains) is deliberately\nabsent, and history is absent besides, because an old revision can hold\ntext that was deleted on purpose since.\n\n``level`` is what the presenter may DO with it, so a client can render\na read-only editor without guessing from a 403 it has not hit yet.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "head_seq": {
+            "type": "integer"
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "editor_hint": {
+            "type": "string"
+          },
+          "collab": {
+            "type": "string"
+          },
+          "diffable": {
+            "type": "boolean"
+          },
+          "level": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "collab",
+          "diffable",
+          "editor_hint",
+          "head_seq",
+          "id",
+          "level",
+          "mime_type",
+          "size_bytes",
+          "title",
+          "type",
+          "updated_at"
+        ]
+      },
+      "SubjectKindEnum": {
+        "enum": [
+          "user",
+          "ref"
+        ],
+        "type": "string",
+        "description": "* `user` - user\n* `ref` - ref"
       },
       "TrashEmpty": {
         "type": "object",
