@@ -28,6 +28,14 @@ COLLAB_CRDT = "crdt"
 COLLAB_SNAPSHOT = "snapshot"
 COLLAB_CHOICES = (COLLAB_CRDT, COLLAB_SNAPSHOT)
 
+#: The one update/state encoding this library can parse itself: Yjs updates
+#: via pycrdt (``stapel_docs.crdt``). A crdt type carrying it gets the
+#: server-side mechanisms of 0.7.0 — apply-validation at the write doors and
+#: background snapshot assembly. ``codec=""`` (the default) means the
+#: encoding is the host's own: the journal stays opaque, the server folds
+#: nothing, and snapshot assembly is the client's job (design §5.1).
+CODEC_YJS = "yjs"
+
 
 class DocTypeNotRegistered(Exception):
     """No spec registered for the requested type slug."""
@@ -48,6 +56,10 @@ class DocTypeSpec:
     the type's own flow (``file`` bodies come from an upload session, which
     is where size, MIME and quota policy is applied). Without this the
     generic content PUT would be a second, unpoliced door into blob bodies.
+
+    ``codec`` (crdt types only) names the update/state encoding when the
+    library itself can parse it — :data:`CODEC_YJS` for the builtin pycrdt
+    codec. ``""`` keeps the journal fully opaque (host-owned encoding).
     """
 
     slug: str
@@ -60,6 +72,7 @@ class DocTypeSpec:
     extension: str = ""
     empty_body: bytes = b""
     text_extractor: Optional[Callable[[bytes], str]] = field(default=None)
+    codec: str = ""
 
     def __post_init__(self):
         if self.collab not in COLLAB_CHOICES:
@@ -100,6 +113,42 @@ BUILTIN_DOC_TYPES = {
     ),
 }
 
+#: Builtin yjs-codec types, registered CONDITIONALLY (0.7.0): a deployment
+#: without the ``[crdt]`` extra sees no crdt builtins and nothing else
+#: changes — zero new required dependencies. NOTE the body of these types is
+#: the binary Y state, not text: the snapshot IS the CRDT state, because a
+#: text-only snapshot would break convergence for clients holding older Y
+#: docs (item identity must survive). Human-readable export is the
+#: exporters' job (``?format=md`` / ``?format=txt`` / ``pdf``).
+_crdt_builtin_cache: dict[str, DocTypeSpec] | None = None
+
+
+def _crdt_builtins() -> dict[str, DocTypeSpec]:
+    global _crdt_builtin_cache
+    from . import crdt
+
+    if not crdt.available():
+        return {}
+    if _crdt_builtin_cache is None:
+        _crdt_builtin_cache = {
+            "ymd": DocTypeSpec(
+                slug="ymd", label="Markdown (live)", collab=COLLAB_CRDT,
+                diffable=False, editor_hint="markdown.crdt",
+                mime_type="text/markdown", extension=".md",
+                empty_body=crdt.EMPTY_STATE, text_extractor=crdt.extract_text,
+                codec=CODEC_YJS,
+            ),
+            "ytxt": DocTypeSpec(
+                slug="ytxt", label="Plain text (live)", collab=COLLAB_CRDT,
+                diffable=False, editor_hint="text.crdt",
+                mime_type="text/plain", extension=".txt",
+                empty_body=crdt.EMPTY_STATE, text_extractor=crdt.extract_text,
+                codec=CODEC_YJS,
+            ),
+        }
+    return _crdt_builtin_cache
+
+
 #: Runtime registrations (``register_doc_type``) — applied last.
 _runtime_doc_types: dict[str, DocTypeSpec] = {}
 
@@ -139,6 +188,7 @@ def get_doc_types() -> dict[str, DocTypeSpec]:
     from .conf import docs_settings
 
     registry = dict(BUILTIN_DOC_TYPES)
+    registry.update(_crdt_builtins())
     overlay = docs_settings.DOC_TYPES or {}
     for slug, dotted in overlay.items():
         if dotted is None:
@@ -161,6 +211,7 @@ __all__ = [
     "COLLAB_CRDT",
     "COLLAB_SNAPSHOT",
     "COLLAB_CHOICES",
+    "CODEC_YJS",
     "DocTypeSpec",
     "DocTypeNotRegistered",
     "BUILTIN_DOC_TYPES",

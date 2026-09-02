@@ -198,6 +198,25 @@ DEFAULTS = {
         # Named revisions are always minted on request.
         "AUTO_REVISION_INTERVAL_SECONDS": 300,
 
+        # ── CRDT snapshot assembly (yjs-codec types, 0.7.0) ──────────
+        # Server-side materialization of the journal into a snapshot
+        # (services.assemble_crdt_snapshot). Two triggers, both tunable:
+        # an append that leaves the journal this many rows past the
+        # snapshot assembles on commit. Deliberately < REPLAY_WINDOW: a
+        # client that lags exactly one assembly cycle must still be inside
+        # the replay window instead of being forced to resync (W033 warns
+        # when a host inverts the relation). 0 disables the opportunistic
+        # trigger (the idle sweep still runs).
+        "CRDT_ASSEMBLE_UPDATE_INTERVAL": 200,
+        # The beat sweep assembles documents whose newest journal row past
+        # the snapshot is at least this old — the tail a burst below the
+        # interval leaves behind once everybody stops typing.
+        "CRDT_ASSEMBLE_IDLE_SECONDS": 300,
+        # Cadence of stapel_docs.tasks.assemble_idle_crdt_snapshots
+        # (crontab kwargs, exposed via get_docs_beat_schedule() like the
+        # trash purge).
+        "CRDT_ASSEMBLE_SCHEDULE": {"minute": "*/5"},
+
         # ── Drive surfaces (starred / recents / search) ──────────────
         # Recents are a position, not a log: the newest N documents a user
         # reached, trimmed on write. 0 disables the cap (an explicit host

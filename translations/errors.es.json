@@ -4,6 +4,7 @@
   "error.400.docs_export_format": "Formato de exportación desconocido",
   "error.400.docs_folder_cycle": "Una carpeta no puede moverse dentro de sí misma",
   "error.400.docs_folder_depth": "Se ha superado el límite de profundidad del árbol de carpetas",
+  "error.400.docs_invalid_crdt_payload": "Los datos no son una actualización CRDT válida para este tipo de documento",
   "error.400.docs_not_trashed": "El elemento no está en la papelera",
   "error.400.docs_share_level": "Ese nivel de acceso no puede concederse aquí",
   "error.400.docs_share_mode_disabled": "Esta forma de compartir está desactivada en esta instalación",

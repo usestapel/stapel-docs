@@ -213,6 +213,65 @@ def check_download_url_expiry(app_configs, **kwargs):
 
 
 @checks.register(checks.Tags.compatibility)
+def check_crdt_assembly_window(app_configs, **kwargs):
+    """W033: CRDT_ASSEMBLE_UPDATE_INTERVAL must stay under REPLAY_WINDOW.
+
+    Assembly compacts the journal relative to the new snapshot, and the
+    replay window is what keeps a client that lagged one assembly cycle
+    replayable instead of forced to resync. An interval at or above the
+    window makes every assembly a potential resync storm for pollers —
+    legal (resync is honest), but almost never what a host meant.
+    """
+    from .conf import docs_settings
+
+    interval = int(docs_settings.CRDT_ASSEMBLE_UPDATE_INTERVAL)
+    window = int(docs_settings.REPLAY_WINDOW)
+    if interval <= 0 or window <= 0 or interval < window:
+        return []
+    return [checks.Warning(
+        f"STAPEL_DOCS['CRDT_ASSEMBLE_UPDATE_INTERVAL'] ({interval}) is not "
+        f"below REPLAY_WINDOW ({window}): a client that lags one assembly "
+        "cycle falls out of the replay window and is forced to resync. "
+        "Keep the assembly interval comfortably under the window "
+        "(shipped defaults: 200 vs 500).",
+        id="stapel_docs.W033",
+    )]
+
+
+def _realtime_importable() -> bool:
+    from importlib.util import find_spec
+
+    return find_spec("stapel_realtime") is not None
+
+
+@checks.register(checks.Tags.compatibility)
+def check_realtime_wiring(app_configs, **kwargs):
+    """W034: the [realtime] extra is installed but the substrate app is not.
+
+    A WARNING, not chat's E010 — realtime is optional here and polling
+    ``?since=`` is first-class forever (design §5.3 p.7). But an installed
+    extra whose app is missing from INSTALLED_APPS is a half-wired
+    deployment: the signal transport is never registered, the substrate's
+    own origin/layer checks stay dormant, and the socket the envelope's
+    ``socket_path`` would advertise answers nothing (it stays null).
+    """
+    from django.apps import apps
+
+    if not _realtime_importable():
+        return []
+    if apps.is_installed("stapel_realtime"):
+        return []
+    return [checks.Warning(
+        "stapel-realtime is installed but not in INSTALLED_APPS: the docs "
+        "socket is not served and document envelopes carry socket_path=null "
+        "(clients poll ?since=, which keeps working). Add 'stapel_realtime' "
+        "to INSTALLED_APPS to serve the socket, or uninstall the extra to "
+        "silence this.",
+        id="stapel_docs.W034",
+    )]
+
+
+@checks.register(checks.Tags.compatibility)
 def check_exporters(app_configs, **kwargs):
     """E020: every EXPORTERS overlay entry must import."""
     from django.utils.module_loading import import_string

@@ -23,13 +23,20 @@ The cadence is configuration (``STAPEL_DOCS["TRASH_PURGE_SCHEDULE"]``, a
 crontab kwargs dict), not a literal, and ``checks.py`` warns when celery is
 installed but nothing in the schedule points at the task — a silent
 non-running retention job is exactly the state the audit found.
+
+Since 0.7.0 the same schedulable form carries the crdt idle-assembly sweep
+(:func:`assemble_idle_crdt_snapshots`, cadence
+``STAPEL_DOCS["CRDT_ASSEMBLE_SCHEDULE"]``): active documents assemble
+opportunistically from ``append_updates``; the sweep folds the journal
+tails that go quiet below the interval.
 """
 import logging
 
 logger = logging.getLogger(__name__)
 
-#: The name a beat schedule must reference (stable across refactors).
+#: The names a beat schedule must reference (stable across refactors).
 PURGE_TASK_NAME = "stapel_docs.tasks.purge_expired_trash"
+ASSEMBLE_TASK_NAME = "stapel_docs.tasks.assemble_idle_crdt_snapshots"
 
 
 def purge_expired_trash() -> dict:
@@ -48,17 +55,67 @@ def purge_expired_trash() -> dict:
     return {"documents": documents, "folders": folders}
 
 
+def assemble_idle_crdt_snapshots() -> dict:
+    """Assemble every yjs-codec document whose journal went idle.
+
+    The interval trigger in ``append_updates`` covers active documents; a
+    burst that stops below the interval leaves a journal tail nothing would
+    ever fold. This sweep folds documents whose NEWEST journal row past the
+    snapshot is at least ``CRDT_ASSEMBLE_IDLE_SECONDS`` old — a document
+    still being typed into is left alone (its own appends will trigger, or
+    a later sweep will catch it once quiet).
+
+    Same observability rule as the purge: counts are returned and logged,
+    because a background job nobody can observe is indistinguishable from
+    one that stopped running.
+    """
+    from datetime import timedelta
+
+    from django.db.models import F, Max
+    from django.utils import timezone
+
+    from . import services
+    from .conf import docs_settings
+    from .models import DocumentUpdate
+
+    idle = int(docs_settings.CRDT_ASSEMBLE_IDLE_SECONDS)
+    cutoff = timezone.now() - timedelta(seconds=idle)
+    pending = (
+        DocumentUpdate.objects.filter(
+            seq__gt=F("document__snapshot_seq"),
+            document__deleted_at__isnull=True,
+        )
+        .values("document_id")
+        .annotate(newest=Max("created_at"))
+        .filter(newest__lte=cutoff)
+    )
+    assembled = 0
+    for row in pending:
+        # No-ops (host-codec crdt types, races with a concurrent assembly)
+        # answer None and are not counted — the count is folds, not visits.
+        if services.assemble_crdt_snapshot(row["document_id"]) is not None:
+            assembled += 1
+    logger.info("docs crdt idle assembly: %s document(s)", assembled)
+    return {"documents": assembled}
+
+
 def get_docs_beat_schedule() -> dict:
-    """Beat entry for the retention purge, on the configured cadence."""
+    """Beat entries for the retention purge and the crdt idle-assembly
+    sweep, each on its configured cadence."""
     from celery.schedules import crontab
 
     from .conf import docs_settings
 
-    schedule = dict(docs_settings.TRASH_PURGE_SCHEDULE or {})
+    purge_schedule = dict(docs_settings.TRASH_PURGE_SCHEDULE or {})
+    assemble_schedule = dict(docs_settings.CRDT_ASSEMBLE_SCHEDULE or {})
     return {
         "docs-trash-retention-purge": {
             "task": PURGE_TASK_NAME,
-            "schedule": crontab(**schedule),
+            "schedule": crontab(**purge_schedule),
+        },
+        "docs-crdt-idle-assembly": {
+            "task": ASSEMBLE_TASK_NAME,
+            "schedule": crontab(**assemble_schedule),
         },
     }
 
@@ -69,6 +126,15 @@ except ImportError:
     pass
 else:
     purge_expired_trash = shared_task(name=PURGE_TASK_NAME)(purge_expired_trash)
+    assemble_idle_crdt_snapshots = shared_task(name=ASSEMBLE_TASK_NAME)(
+        assemble_idle_crdt_snapshots
+    )
 
 
-__all__ = ["PURGE_TASK_NAME", "purge_expired_trash", "get_docs_beat_schedule"]
+__all__ = [
+    "ASSEMBLE_TASK_NAME",
+    "PURGE_TASK_NAME",
+    "assemble_idle_crdt_snapshots",
+    "get_docs_beat_schedule",
+    "purge_expired_trash",
+]

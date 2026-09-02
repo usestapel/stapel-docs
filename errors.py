@@ -8,6 +8,7 @@ from stapel_core.django.api.errors import register_service_errors
 ERR_400_UNKNOWN_TYPE = "error.400.docs_unknown_type"
 ERR_400_TYPE_NOT_EDITABLE = "error.400.docs_type_not_editable"
 ERR_400_UPDATES_NOT_CRDT = "error.400.docs_updates_not_crdt"
+ERR_400_INVALID_CRDT_PAYLOAD = "error.400.docs_invalid_crdt_payload"
 ERR_400_FOLDER_DEPTH = "error.400.docs_folder_depth"
 ERR_400_FOLDER_CYCLE = "error.400.docs_folder_cycle"
 ERR_400_DUPLICATE_NAME = "error.400.docs_duplicate_name"
@@ -52,6 +53,7 @@ STAPEL_DOCS_ERRORS = {
     ERR_400_UNKNOWN_TYPE: "Unknown document type",
     ERR_400_TYPE_NOT_EDITABLE: "This document type has no editable body",
     ERR_400_UPDATES_NOT_CRDT: "Update journal writes are only legal for crdt-discipline types",
+    ERR_400_INVALID_CRDT_PAYLOAD: "The payload is not a valid CRDT update for this document type",
     ERR_400_FOLDER_DEPTH: "Folder tree depth limit exceeded",
     ERR_400_FOLDER_CYCLE: "A folder cannot be moved under itself",
     ERR_400_DUPLICATE_NAME: "An item with this name already exists here",

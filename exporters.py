@@ -248,6 +248,21 @@ def _sanitize_html(html: str) -> str:
     return parser.html
 
 
+def _readable_text(body: bytes, spec) -> str:
+    """The human-readable text of *body* under *spec*'s own rules.
+
+    A crdt type's stored body is its binary state, and only the type's
+    ``text_extractor`` may parse a body (verdict §6) — so crdt bodies go
+    through the extractor and everything else stays the utf-8 read it
+    always was.
+    """
+    from .doc_types import COLLAB_CRDT
+
+    if getattr(spec, "collab", None) == COLLAB_CRDT and spec.text_extractor is not None:
+        return spec.text_extractor(body)
+    return body.decode("utf-8", errors="replace")
+
+
 class PdfExporter:
     """txt/csv/md -> PDF via fpdf2 (extra ``[pdf]``).
 
@@ -268,16 +283,16 @@ class PdfExporter:
     _ROW_H = 7
 
     def export(self, document, body: bytes, spec) -> tuple[bytes, str]:
-        if spec.slug == "md":
+        if spec.slug in ("md", "ymd"):
             render = self._render_md
-        elif spec.slug == "txt":
+        elif spec.slug in ("txt", "ytxt"):
             render = self._render_text
         elif spec.slug == "csv":
             render = self._render_csv
         else:
             raise ExportUnsupportedType(spec.slug)
         pdf = self._new_pdf(getattr(document, "title", "") or "")
-        render(pdf, body.decode("utf-8", errors="replace"))
+        render(pdf, _readable_text(body, spec))
         return bytes(pdf.output()), "application/pdf"
 
     def _new_pdf(self, title: str):
@@ -410,8 +425,40 @@ class PdfExporter:
         return text + "…"
 
 
+class _TextualExporter:
+    """Serve a document's human-readable text verbatim.
+
+    Exists for the yjs-codec types (0.7.0), whose stored body is binary Y
+    state: "download as markdown" must hand a person markdown, not the
+    CRDT's wire form. Works for any type with a ``text_extractor`` (an
+    ``md`` document round-trips its own body), refuses opaque types with
+    the same 400 the pdf exporter answers. No optional dependency — the
+    extractor is the type's own.
+    """
+
+    formats: tuple = ()
+    mime = "text/plain; charset=utf-8"
+
+    def export(self, document, body: bytes, spec) -> tuple[bytes, str]:
+        if spec is None or spec.text_extractor is None:
+            raise ExportUnsupportedType(getattr(spec, "slug", None))
+        return _readable_text(body, spec).encode("utf-8"), self.mime
+
+
+class MarkdownExporter(_TextualExporter):
+    formats = ("md",)
+    mime = "text/markdown; charset=utf-8"
+
+
+class TextExporter(_TextualExporter):
+    formats = ("txt",)
+    mime = "text/plain; charset=utf-8"
+
+
 BUILTIN_EXPORTERS = {
     "pdf": PdfExporter,
+    "md": MarkdownExporter,
+    "txt": TextExporter,
 }
 
 
@@ -439,6 +486,8 @@ __all__ = [
     "ExportUnsupportedType",
     "ExporterUnavailable",
     "PdfExporter",
+    "MarkdownExporter",
+    "TextExporter",
     "BUILTIN_EXPORTERS",
     "get_exporter",
 ]

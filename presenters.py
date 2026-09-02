@@ -59,6 +59,15 @@ def _spec_of(dao):
     return get_doc_types().get(dao.type)
 
 
+def _socket_path(dao):
+    """``ws/docs/<id>`` when this deployment serves the docs socket, else
+    None — a polling-only host must not advertise an address nothing
+    answers on (the chat canon: the envelope carries its own live path)."""
+    from . import realtime
+
+    return realtime.socket_path(dao.id) if realtime.socket_available() else None
+
+
 class FolderPresenter(Presenter):
     """Presents a Folder row as the API tree node.
 
@@ -124,6 +133,7 @@ class DocumentPresenter(Presenter):
             "editor_hint": "markdown",
             "collab": "snapshot",
             "diffable": true,
+            "socket_path": null,
             "created_at": "2026-08-09T10:00:00+00:00",
             "updated_at": "2026-08-09T10:05:00+00:00",
             "deleted_at": null,
@@ -157,6 +167,15 @@ class DocumentPresenter(Presenter):
             type=bool,
             source=lambda dao: bool(_spec_of(dao).diffable) if _spec_of(dao) else False,
             help_text="Whether line-diff rendering is meaningful for this type.",
+        ),
+        "socket_path": PresenterField(
+            type=Optional[str],
+            source=_socket_path,
+            default=None,
+            help_text="Where to open the document's realtime stream "
+            "(ws/docs/<id>), relative to the deployment's WebSocket prefix; "
+            "null when this deployment serves no socket — clients then poll "
+            "the ?since= feed, which is first-class.",
         ),
         "created_at": PresenterField(type=str, source=lambda dao: dao.created_at.isoformat()),
         "updated_at": PresenterField(type=str, source=lambda dao: dao.updated_at.isoformat()),

@@ -28,6 +28,12 @@ def pytest_configure(config):
                     "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
                 }
             },
+            # In-memory Channels layer so the realtime consumer tests can
+            # exercise group fan-out without a broker (chat-harness pattern).
+            # Read only by channels; inert for the HTTP-only tests.
+            CHANNEL_LAYERS={
+                "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+            },
             # Synchronous in-process comm with schema validation ON, so the
             # committed contracts in schemas/ are enforced by the tests.
             STAPEL_BUS_BACKEND="stapel_core.bus.backends.memory.MemoryBus",

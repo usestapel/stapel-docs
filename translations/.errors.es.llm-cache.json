@@ -19,6 +19,10 @@
     "hash": "f32a1169a0bd8b21",
     "text": "Se ha superado el límite de profundidad del árbol de carpetas"
   },
+  "error.400.docs_invalid_crdt_payload": {
+    "hash": "4d402781c1b44997",
+    "text": "Los datos no son una actualización CRDT válida para este tipo de documento"
+  },
   "error.400.docs_not_trashed": {
     "hash": "aeb8676d075462de",
     "text": "El elemento no está en la papelera"

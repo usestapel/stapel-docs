@@ -20,13 +20,14 @@ from django.db.models import Count, Min, Sum
 from django.utils import timezone
 from stapel_core.django.api.errors import ERR_400_BAD_REQUEST, ERR_404_NOT_FOUND
 
-from . import events
+from . import events, realtime
 from .conf import docs_settings
-from .doc_types import COLLAB_CRDT, get_doc_types
+from .doc_types import CODEC_YJS, COLLAB_CRDT, get_doc_types
 from .errors import (
     ERR_400_DUPLICATE_NAME,
     ERR_400_FOLDER_CYCLE,
     ERR_400_FOLDER_DEPTH,
+    ERR_400_INVALID_CRDT_PAYLOAD,
     ERR_400_NOT_TRASHED,
     ERR_400_SHARE_LEVEL,
     ERR_400_SHARE_MODE_DISABLED,
@@ -121,6 +122,12 @@ def content_mime(document) -> str:
     types, the stored original's mime for ``file``/vanished types."""
     spec = effective_spec(document)
     if spec is not None and spec.slug != "file" and spec.mime_type:
+        if spec.collab == COLLAB_CRDT and spec.codec == CODEC_YJS:
+            # The stored body of a yjs-codec type is the BINARY Y state,
+            # not the type's logical text mime — serving it as text/* would
+            # mis-render in every client that trusts Content-Type. The
+            # human-readable form is the exporters' job.
+            return "application/octet-stream"
         mime = spec.mime_type
         # Editable text bodies are utf-8 by contract; without an explicit
         # charset, HTTP clients default text/* to latin-1 and mis-render.
@@ -231,6 +238,29 @@ def assert_body_mutable(document) -> None:
     spec = effective_spec(document)
     if spec is None or not spec.body_mutable:
         raise DocsError(400, ERR_400_TYPE_NOT_EDITABLE)
+
+
+def assert_crdt_body(document_or_spec, body: bytes) -> None:
+    """Refuse a snapshot body that is not a Y update, for yjs-codec types.
+
+    The snapshot of a crdt document IS the CRDT state: a text body stored
+    as "snapshot" would corrupt the discipline — clients holding older Y
+    docs could never converge on it, because item identity would be gone.
+    Codec-scoped on purpose: snapshot types and host-codec crdt types are
+    untouched, and a yjs-codec type registered on a deployment without
+    pycrdt (a host's own doing) skips the check it cannot run.
+    """
+    spec = document_or_spec
+    if hasattr(spec, "type"):
+        spec = effective_spec(spec)
+    if spec is None or spec.collab != COLLAB_CRDT or spec.codec != CODEC_YJS:
+        return
+    from . import crdt
+
+    if not crdt.available():
+        return
+    if not crdt.is_valid_update(body):
+        raise DocsError(400, ERR_400_INVALID_CRDT_PAYLOAD)
 
 
 def workspace_usage_bytes(workspace_id) -> int:
@@ -527,6 +557,7 @@ def create_document(
         if not spec.body_mutable:
             raise DocsError(400, ERR_400_TYPE_NOT_EDITABLE)
         assert_body_size(body)
+        assert_crdt_body(spec, body)
         assert_quota(workspace_id, len(body))
     metadata = dict(metadata or {})
     # Only the upload flow may mark a document pending.
@@ -578,6 +609,12 @@ def trash_document(document) -> None:
         events.emit_document_deleted(document)
         document.deleted_at = timezone.now()
         document.save(update_fields=["deleted_at", "updated_at"])
+        # An open socket loses the row its access rests on: kick everyone
+        # (best-effort; a reconnect re-enters authorize() and finds a 404).
+        doc_id = document.pk
+        transaction.on_commit(
+            lambda: realtime.revoke_document(doc_id, reason="document_trashed")
+        )
 
 
 def restore_document(document) -> Document:
@@ -643,7 +680,37 @@ def _save_snapshot(
     restore, all types). Caller holds the row lock (or just created the row)
     and owns the surrounding storage transaction.
     Returns the minted auto Revision or None."""
-    new_seq = document.head_seq + 1
+    return _write_snapshot(
+        document,
+        body,
+        storage_tx=storage_tx,
+        seq=document.head_seq + 1,
+        advance_head=True,
+        user=user,
+        force_revision=force_revision,
+        emit_updated=emit_updated,
+    )
+
+
+def _write_snapshot(
+    document,
+    body: bytes,
+    *,
+    storage_tx: StorageTransaction,
+    seq: int,
+    advance_head: bool,
+    user=None,
+    force_revision=False,
+    emit_updated=True,
+):
+    """Store *body* as the snapshot at *seq* — the shared core of
+    :func:`_save_snapshot` (a SAVE: ``seq = head_seq + 1``, head advances)
+    and :func:`assemble_crdt_snapshot` (a MATERIALIZATION of journal rows
+    the head already counts: ``seq`` is an existing journal position and
+    the head does not move). Everything else — content-addressed put,
+    auto-revision minting, orphan cleanup, compaction, emits — is one code
+    path so the two writers can never disagree about the storage rules.
+    Returns the minted auto Revision or None."""
     key = snapshot_key(document.workspace_id, document.id, content_hash(body))
     prev_key, prev_size = document.snapshot_key, document.size_bytes
 
@@ -658,18 +725,19 @@ def _save_snapshot(
     # stapel_core.comm.mutate_and_emit's documented nesting guarantee) and
     # makes this helper self-sufficient for emit-check's lexical scan.
     with transaction.atomic():
-        document.head_seq = new_seq
-        document.snapshot_seq = new_seq
+        fields = ["snapshot_seq", "snapshot_key", "size_bytes", "updated_at"]
+        if advance_head:
+            document.head_seq = seq
+            fields.insert(0, "head_seq")
+        document.snapshot_seq = seq
         document.snapshot_key = key
         document.size_bytes = len(body)
-        document.save(
-            update_fields=["head_seq", "snapshot_seq", "snapshot_key", "size_bytes", "updated_at"]
-        )
+        document.save(update_fields=fields)
 
         if force_revision or _auto_revision_due(document):
             revision = Revision.objects.create(
                 document=document,
-                seq=new_seq,
+                seq=seq,
                 kind=Revision.KIND_AUTO,
                 storage_key=key,
                 created_by=user,
@@ -735,6 +803,10 @@ def save_content(
             raise DocsError(404, ERR_404_DOCUMENT)
         if require_mutable_type:
             assert_body_mutable(document)
+            # A client save into a yjs-codec type must be a Y state; bytes
+            # this service already stored (revision restore) passed the
+            # check when first accepted.
+            assert_crdt_body(document, body)
         assert_quota(document.workspace_id, len(body) - document.size_bytes)
         if expected_seq is not None and expected_seq != document.head_seq:
             saved_by, saved_at = _winning_save(document)
@@ -756,8 +828,17 @@ def save_content(
 
 def append_updates(document_id, updates: list[bytes], *, client_id="", client_seq=None, principal=None) -> int:
     """Append a batch of opaque commutative updates at ++head_seq each.
-    Journal appends do NOT emit document.updated (bus economy, design §6).
-    Returns the new head_seq."""
+    Journal appends do NOT emit document.updated (bus economy, design §6) —
+    the snapshot assembly is the debounce point that announces the document.
+    Returns the new head_seq.
+
+    Store-first delivery (0.7.0): AFTER the commit, one realtime frame per
+    journal row goes out on ``docs:doc:<id>`` — best-effort, because the
+    row is the durable thing and a subscriber that misses a frame replays
+    it (``?since=`` or the socket's resume). And when the journal outruns
+    ``CRDT_ASSEMBLE_UPDATE_INTERVAL``, the commit also triggers a server
+    snapshot assembly for yjs-codec types (inline, the repo's
+    opportunistic-work canon — the same posture as recents trimming)."""
     batch_limit = resource_limit("MAX_UPDATES_PER_REQUEST")
     if batch_limit and len(updates) > batch_limit:
         raise DocsError(400, ERR_400_TOO_MANY_UPDATES, {"limit": batch_limit})
@@ -777,6 +858,12 @@ def append_updates(document_id, updates: list[bytes], *, client_id="", client_se
         spec = effective_spec(document)
         if spec is None or spec.collab != COLLAB_CRDT:
             raise DocsError(400, ERR_400_UPDATES_NOT_CRDT)
+        if spec.codec == CODEC_YJS:
+            # Apply-validate at the boundary: a corrupt payload accepted
+            # here would be a 400 turned into an assembly that can never
+            # complete. Host-codec crdt types stay fully opaque.
+            for payload in updates:
+                assert_crdt_body(spec, payload)
         # Retry hygiene: a batch the client already delivered is a no-op.
         if (
             client_id
@@ -787,6 +874,7 @@ def append_updates(document_id, updates: list[bytes], *, client_id="", client_se
         ):
             return document.head_seq
         author_id = principal.user_id if principal is not None else None
+        frames = []
         for payload in updates:
             document.head_seq += 1
             DocumentUpdate.objects.create(
@@ -797,8 +885,35 @@ def append_updates(document_id, updates: list[bytes], *, client_id="", client_se
                 client_id=client_id or "",
                 client_seq=client_seq,
             )
+            frames.append(
+                (
+                    document.head_seq,
+                    realtime.update_payload(payload, author_id, client_id or ""),
+                )
+            )
         document.save(update_fields=["head_seq", "updated_at"])
+
+        doc_id = document.pk
+        transaction.on_commit(lambda: realtime.broadcast_updates(doc_id, frames))
+
+        interval = int(docs_settings.CRDT_ASSEMBLE_UPDATE_INTERVAL)
+        if (
+            spec.codec == CODEC_YJS
+            and interval > 0
+            and document.head_seq - document.snapshot_seq >= interval
+        ):
+            transaction.on_commit(lambda: _assemble_after_commit(doc_id))
         return document.head_seq
+
+
+def _assemble_after_commit(document_id) -> None:
+    """Opportunistic assembly, after the append committed. Never raises:
+    the journal rows are durable and the idle sweep retries what a failed
+    assembly leaves behind."""
+    try:
+        assemble_crdt_snapshot(document_id)
+    except Exception:  # noqa: BLE001 — opportunistic work must not 500 a write
+        logger.exception("docs: opportunistic crdt assembly failed for %s", document_id)
 
 
 def read_updates(document, since: int):
@@ -818,6 +933,66 @@ def read_updates(document, since: int):
     if oldest > since + 1:
         return "resync", None
     return "updates", list(rows_qs.filter(seq__gt=since).order_by("seq"))
+
+
+def assemble_crdt_snapshot(document_id):
+    """Materialize the update journal into the snapshot (yjs-codec types).
+
+    A MATERIALIZATION, not a mutation: the folded state contains exactly
+    the operations the journal already counts, so no seq is minted —
+    ``head_seq`` never moves, ``snapshot_seq`` catches up to it, and the
+    invariant "snapshot == fold of updates 1..snapshot_seq" holds by
+    construction. Storage rules (content-addressed put, auto revision,
+    orphan cleanup, compaction, emits) are :func:`_write_snapshot`'s — the
+    same path every snapshot save takes. ``document.updated`` is emitted
+    HERE and not per append: assembly is the debounce point the design
+    wanted (§6 bus economy).
+
+    No quota check on purpose: the folded bytes were each accepted through
+    the update ceilings already, and refusing the materialization would
+    only leave the same bytes in the journal, uncompactable, forever.
+
+    Returns the new ``snapshot_seq``, or None when there was nothing to do
+    (missing/trashed document, non-yjs type, journal already folded).
+    """
+    from . import crdt
+
+    with storage_transaction() as stx, transaction.atomic():
+        document = (
+            Document.objects.select_for_update()
+            .filter(pk=document_id, deleted_at__isnull=True)
+            .first()
+        )
+        if document is None:
+            return None
+        spec = effective_spec(document)
+        if (
+            spec is None
+            or spec.collab != COLLAB_CRDT
+            or spec.codec != CODEC_YJS
+            or not crdt.available()
+        ):
+            return None
+        rows = list(
+            DocumentUpdate.objects.filter(
+                document=document, seq__gt=document.snapshot_seq
+            ).order_by("seq")
+        )
+        if not rows:
+            return None
+        base = (
+            get_storage().get_bytes(document.snapshot_key)
+            if document.snapshot_key
+            else crdt.EMPTY_STATE
+        )
+        state = crdt.fold(base, [bytes(row.payload) for row in rows])
+        # The newest journal row, not head_seq read separately: under the
+        # row lock they are equal, and the row is what the fold covered.
+        target_seq = rows[-1].seq
+        _write_snapshot(
+            document, state, storage_tx=stx, seq=target_seq, advance_head=False
+        )
+        return target_seq
 
 
 # ── Revisions ────────────────────────────────────────────────────────
@@ -918,9 +1093,13 @@ def purge_document(document) -> None:
         document.revisions.all().delete()
         total = sum(key_sizes.values())
         workspace_id = document.workspace_id
+        doc_id = document.pk
         document.delete()
         if total:
             events.emit_storage_changed(workspace_id, -total)
+        transaction.on_commit(
+            lambda: realtime.revoke_document(doc_id, reason="document_purged")
+        )
 
 
 def purge_folder(folder) -> tuple[int, int]:
@@ -1723,11 +1902,29 @@ def get_access(document, access_id):
 def revoke_access(document, access_id) -> None:
     """Delete one grant. Revocation works while the mode is OFF too: an
     operator must always be able to take access away, whatever the axis
-    currently says about giving it."""
+    currently says about giving it.
+
+    A user-subject revocation also kicks that user's open sockets on the
+    document's stream (chat's revoke-to-kick pattern): the socket's cached
+    authorize verdict must not outlive the row it rested on. Ref-subject
+    grants name a container, not a user — there is nobody to kick by name,
+    and the authorize cache TTL is the honest bound there (MODULE.md)."""
+    from .models import DocumentAccess
+
     row = get_access(document, access_id)
     with transaction.atomic():
         events.emit_share_revoked(row)
+        subject_user_id = (
+            row.user_id if row.subject_kind == DocumentAccess.SUBJECT_USER else None
+        )
         row.delete()
+        if subject_user_id is not None:
+            doc_id = document.pk
+            transaction.on_commit(
+                lambda: realtime.revoke_document(
+                    doc_id, user_id=subject_user_id, reason="access_revoked"
+                )
+            )
 
 
 def list_links(document):

@@ -75,6 +75,9 @@ _MACHINE_RU = {
     "error.400.docs_updates_not_crdt":
         "Запись в журнал обновлений допустима только для типов с "
         "CRDT-дисциплиной",
+    "error.400.docs_invalid_crdt_payload":
+        "Данные не являются корректным CRDT-обновлением для этого типа "
+        "документа",
     "error.400.docs_bad_since":
         "Некорректный номер последовательности в параметре ?since=",
     # Tree operations.
@@ -163,6 +166,9 @@ _MACHINE_ES = {
     "error.400.docs_updates_not_crdt":
         "El diario de actualizaciones solo admite escrituras para tipos con "
         "disciplina CRDT",
+    "error.400.docs_invalid_crdt_payload":
+        "Los datos no son una actualización CRDT válida para este tipo de "
+        "documento",
     "error.400.docs_bad_since":
         "El número de secuencia del parámetro ?since= no es válido",
     # Tree operations.

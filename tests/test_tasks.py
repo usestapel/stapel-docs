@@ -64,10 +64,10 @@ def test_beat_schedule_points_at_the_task_on_the_configured_cadence(monkeypatch)
     import sys
     import types
 
-    captured = {}
+    captured = []
 
     def crontab(**kwargs):
-        captured.update(kwargs)
+        captured.append(kwargs)
         return ("crontab", kwargs)
 
     stub = types.ModuleType("celery.schedules")
@@ -75,14 +75,17 @@ def test_beat_schedule_points_at_the_task_on_the_configured_cadence(monkeypatch)
     monkeypatch.setitem(sys.modules, "celery", types.ModuleType("celery"))
     monkeypatch.setitem(sys.modules, "celery.schedules", stub)
 
-    from stapel_docs.tasks import get_docs_beat_schedule
+    from stapel_docs.tasks import ASSEMBLE_TASK_NAME, get_docs_beat_schedule
 
     with override_settings(STAPEL_DOCS={"TRASH_PURGE_SCHEDULE": {"hour": 2, "minute": 5}}):
         schedule = get_docs_beat_schedule()
 
     entry = schedule["docs-trash-retention-purge"]
     assert entry["task"] == PURGE_TASK_NAME
-    assert captured == {"hour": 2, "minute": 5}
+    assert {"hour": 2, "minute": 5} in captured
+    # The 0.7.0 sweep rides the same builder on its own cadence.
+    assert schedule["docs-crdt-idle-assembly"]["task"] == ASSEMBLE_TASK_NAME
+    assert {"minute": "*/5"} in captured
 
 
 def test_unscheduled_retention_is_reported_by_a_system_check():
