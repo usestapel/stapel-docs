@@ -10,6 +10,15 @@ carries the user's typed characters, which stay as workspace content),
 destroyed. Content destruction happens only through trash purge /
 retention, never through this provider.
 
+The sharing axis is the exception that proves the policy (axis §6): a
+grant is not co-produced content, it is a standing permission ABOUT one
+person, so the rows naming the erased user as SUBJECT are deleted outright
+and the bearer links they sponsored are revoked. Leaving either behind
+would keep an erased account's access alive — the link most of all, since
+it works in hands nobody can name. Their *provenance* (``granted_by``,
+``created_by``) is anonymized like any other authorship: the grant somebody
+else still holds keeps existing, made by "somebody, no longer known".
+
 Registered as a provider (monolith mode, ``apps.py:ready()``) and driven
 by the ``@on_action("user.deleted")`` consumer (``actions.py``).
 """
@@ -57,7 +66,8 @@ class DocsGDPRProvider(GDPRProvider):
         return self.anonymize(user_id)
 
     def anonymize(self, user_id) -> dict:
-        """Null every authorship reference, DELETE the per-user state, and
+        """Null every authorship reference, DELETE the per-user state and the
+        subject's own share grants, revoke the links they sponsored, and
         return how many rows changed.
 
         The two policies are different on purpose. Authorship is workspace
@@ -77,8 +87,12 @@ class DocsGDPRProvider(GDPRProvider):
         :class:`GDPRProvider` ignores a return value, so the orchestrator's
         in-process path is unaffected.
         """
+        from django.utils import timezone
+
         from .models import (
             Document,
+            DocumentAccess,
+            DocumentLink,
             DocumentUpdate,
             Folder,
             RecentEntry,
@@ -89,9 +103,28 @@ class DocsGDPRProvider(GDPRProvider):
 
         stars_deleted, _ = Star.objects.filter(user_id=user_id).delete()
         recents_deleted, _ = RecentEntry.objects.filter(user_id=user_id).delete()
+        # The subject's own access, gone — not anonymized: an ACL row whose
+        # subject is nulled would grant to nobody and read as a live share.
+        access_deleted, _ = DocumentAccess.objects.filter(
+            subject_kind=DocumentAccess.SUBJECT_USER, user_id=user_id
+        ).delete()
+        # Their links die with them, sponsor-first: authorize() already
+        # refuses a link whose creator lost the capability, and this makes
+        # the row say so instead of relying on a live check forever.
+        links_revoked = DocumentLink.objects.filter(
+            created_by_id=user_id, revoked_at__isnull=True
+        ).update(revoked_at=timezone.now())
         return {
             "stars_deleted": stars_deleted,
             "recents_deleted": recents_deleted,
+            "access_deleted": access_deleted,
+            "links_revoked": links_revoked,
+            "access_anonymized": DocumentAccess.objects.filter(
+                granted_by_id=user_id
+            ).update(granted_by=None),
+            "links_anonymized": DocumentLink.objects.filter(
+                created_by_id=user_id
+            ).update(created_by=None),
             "updates_anonymized": DocumentUpdate.objects.filter(
                 author_id=user_id
             ).update(author_id=None),

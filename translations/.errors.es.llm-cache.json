@@ -23,6 +23,22 @@
     "hash": "aeb8676d075462de",
     "text": "El elemento no está en la papelera"
   },
+  "error.400.docs_share_level": {
+    "hash": "0b2c2ad6b1c8b0c8",
+    "text": "Ese nivel de acceso no puede concederse aquí"
+  },
+  "error.400.docs_share_mode_disabled": {
+    "hash": "e6b210c6c4ff3a2f",
+    "text": "Esta forma de compartir está desactivada en esta instalación"
+  },
+  "error.400.docs_share_ref_kind": {
+    "hash": "3b8f6b14a894f890",
+    "text": "No hay ningún resolutor registrado para este tipo de referencia"
+  },
+  "error.400.docs_share_subject": {
+    "hash": "d60d2af579fee111",
+    "text": "Una concesión de acceso nombra exactamente a un sujeto"
+  },
   "error.400.docs_thumbnail_tier": {
     "hash": "daabb2ffd3846d81",
     "text": "Tamaño de miniatura desconocido"
@@ -71,6 +87,10 @@
     "hash": "c95db10a3df9b7f2",
     "text": "No se ha podido determinar el tamaño del objeto subido"
   },
+  "error.401.docs_share_auth_required": {
+    "hash": "8dc59c6229031941",
+    "text": "Inicia sesión para abrir este documento compartido"
+  },
   "error.403.docs_forbidden": {
     "hash": "589a70cd095f43d7",
     "text": "No tienes acceso a este documento"
@@ -79,6 +99,10 @@
     "hash": "8cc4fc76f0601f20",
     "text": "Solo el usuario que abrió esta subida puede finalizarla"
   },
+  "error.404.docs_access_not_found": {
+    "hash": "a2ec0dfe41fcc877",
+    "text": "Concesión de acceso no encontrada"
+  },
   "error.404.docs_document_not_found": {
     "hash": "2717993aecde6b43",
     "text": "Documento no encontrado"
@@ -86,6 +110,10 @@
   "error.404.docs_folder_not_found": {
     "hash": "05d0e5f0e341070f",
     "text": "Carpeta no encontrada"
+  },
+  "error.404.docs_link_not_found": {
+    "hash": "7393671ee2a04caa",
+    "text": "Enlace de acceso no encontrado"
   },
   "error.404.docs_revision_not_found": {
     "hash": "668704818e735b18",

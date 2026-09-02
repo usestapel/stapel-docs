@@ -23,12 +23,19 @@ ERR_400_TOO_MANY_UPDATES = "error.400.docs_too_many_updates"
 ERR_400_TOO_MANY_UPLOADS = "error.400.docs_too_many_uploads"
 ERR_400_THUMBNAIL_TIER = "error.400.docs_thumbnail_tier"
 ERR_400_THUMBNAIL_UNSUPPORTED = "error.400.docs_thumbnail_unsupported"
+ERR_400_SHARE_MODE_DISABLED = "error.400.docs_share_mode_disabled"
+ERR_400_SHARE_LEVEL = "error.400.docs_share_level"
+ERR_400_SHARE_SUBJECT = "error.400.docs_share_subject"
+ERR_400_SHARE_REF_KIND = "error.400.docs_share_ref_kind"
+ERR_401_SHARE_AUTH = "error.401.docs_share_auth_required"
 ERR_403_FORBIDDEN = "error.403.docs_forbidden"
 ERR_403_UPLOAD_OWNER = "error.403.docs_upload_owner"
 ERR_404_DOCUMENT = "error.404.docs_document_not_found"
 ERR_404_FOLDER = "error.404.docs_folder_not_found"
 ERR_404_REVISION = "error.404.docs_revision_not_found"
 ERR_404_UPLOAD = "error.404.docs_upload_not_found"
+ERR_404_SHARE_ACCESS = "error.404.docs_access_not_found"
+ERR_404_SHARE_LINK = "error.404.docs_link_not_found"
 ERR_409_SEQ_CONFLICT = "error.409.docs_seq_conflict"
 ERR_412_MISSING_IF_MATCH = "error.412.docs_missing_if_match"
 ERR_413_BODY_TOO_LARGE = "error.413.docs_body_too_large"
@@ -60,12 +67,19 @@ STAPEL_DOCS_ERRORS = {
     ERR_400_TOO_MANY_UPLOADS: "Too many upload sessions are already open in this workspace",
     ERR_400_THUMBNAIL_TIER: "Unknown thumbnail size",
     ERR_400_THUMBNAIL_UNSUPPORTED: "This document has no image preview",
+    ERR_400_SHARE_MODE_DISABLED: "This way of sharing is switched off for this deployment",
+    ERR_400_SHARE_LEVEL: "That access level may not be granted here",
+    ERR_400_SHARE_SUBJECT: "A share grant names exactly one subject",
+    ERR_400_SHARE_REF_KIND: "No resolver is registered for this kind of reference",
+    ERR_401_SHARE_AUTH: "Sign in to open this shared document",
     ERR_403_FORBIDDEN: "You do not have access to this document",
     ERR_403_UPLOAD_OWNER: "Only the user who opened this upload may finalize it",
     ERR_404_DOCUMENT: "Document not found",
     ERR_404_FOLDER: "Folder not found",
     ERR_404_REVISION: "Revision not found",
     ERR_404_UPLOAD: "Upload session not found",
+    ERR_404_SHARE_ACCESS: "Share grant not found",
+    ERR_404_SHARE_LINK: "Share link not found",
     ERR_409_SEQ_CONFLICT: "A newer version was saved by someone else",
     ERR_412_MISSING_IF_MATCH: "Snapshot saves require an If-Match sequence",
     ERR_413_BODY_TOO_LARGE: "The document body exceeds the size limit",

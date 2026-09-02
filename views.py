@@ -26,14 +26,28 @@ from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
 from stapel_core.django.api.permissions import IsNotAnonymousUser
 
 from . import services
-from .authz import DENY, UNAVAILABLE, Principal, authorize
+from .authz import (
+    ALLOW,
+    CAP_SHARE_LINK,
+    CAP_SHARE_WHITELIST,
+    DENY,
+    LEVEL_VIEW,
+    UNAVAILABLE,
+    Principal,
+    authorize,
+    check_share_capability,
+    granted_level,
+    link_settings,
+)
 from .errors import (
     ERR_400_BAD_SINCE,
     ERR_400_EXPORT_FORMAT,
     ERR_400_THUMBNAIL_TIER,
     ERR_400_TYPE_NOT_EDITABLE,
+    ERR_401_SHARE_AUTH,
     ERR_403_FORBIDDEN,
     ERR_403_UPLOAD_OWNER,
+    ERR_404_DOCUMENT,
     ERR_412_MISSING_IF_MATCH,
     ERR_413_EXPORT_TOO_LARGE,
     ERR_503_EXPORTER,
@@ -46,8 +60,10 @@ from .exporters import (
     get_exporter,
 )
 from .presenters import (
+    get_access_presenter,
     get_document_presenter,
     get_folder_presenter,
+    get_link_presenter,
     get_revision_presenter,
     present_append_result,
     present_download_url,
@@ -55,26 +71,32 @@ from .presenters import (
     present_resync,
     present_save_result,
     present_search_hits,
+    present_shared_document,
     present_updates_feed,
     present_upload_ticket,
 )
 from .thumbnails import THUMBNAIL_TIERS
 from .serializers import (
+    AccessGrantSerializer,
     AppendResultSerializer,
+    DocumentAccessSerializer,
     DocumentCreateSerializer,
     DocumentListQuerySerializer,
+    DocumentLinkSerializer,
     DocumentPatchSerializer,
     DocumentSerializer,
     DownloadUrlSerializer,
     FolderCreateSerializer,
     FolderPatchSerializer,
     FolderSerializer,
+    LinkCreateSerializer,
     NamedRevisionSerializer,
     ResyncSerializer,
     RevisionSerializer,
     SaveResultSerializer,
     SearchHitSerializer,
     SearchQuerySerializer,
+    SharedDocumentSerializer,
     ThumbnailQuerySerializer,
     TrashEmptySerializer,
     TrashPurgeResultSerializer,
@@ -1109,4 +1131,305 @@ class UploadFinalizeView(SerializerSeamMixin, APIView):
         presenter = get_document_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(document))
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Sharing — the share sheet (sharing-axis-design §4) and the bearer path
+# ─────────────────────────────────────────────────────────────────────
+
+
+def _share_error(request, workspace_id, capability):
+    """Gate a share-administration action on its workspace capability.
+
+    Who may GIVE access is a mandate question, not a level on the document
+    (axis §4): a person shared into a document holds ``view``/``edit`` on
+    it and no power to widen the circle, which is the anti-escalation
+    invariant the whole axis rests on. Outage answers 503 here too.
+    """
+    verdict = check_share_capability(
+        workspace_id=workspace_id,
+        principal=Principal.from_request(request),
+        capability=capability,
+    )
+    if verdict == DENY:
+        return StapelErrorResponse(403, ERR_403_FORBIDDEN)
+    if verdict == UNAVAILABLE:
+        return StapelErrorResponse(503, ERR_503_WORKSPACES)
+    return None
+
+
+def _revoke_error(request, workspace_id, capability):
+    """Revocation is open to the sharer OR to ``docs.manage`` (axis §6).
+
+    Deliberately wider than minting: taking access away must never be the
+    thing nobody in the room is allowed to do — the admin who finds a link
+    they did not mint is exactly the person who should be able to kill it.
+    """
+    principal = Principal.from_request(request)
+    outage = False
+    for verdict in (
+        check_share_capability(
+            workspace_id=workspace_id, principal=principal, capability=capability
+        ),
+        authorize(workspace_id=workspace_id, principal=principal, action="manage"),
+    ):
+        if verdict == ALLOW:
+            return None
+        outage = outage or verdict == UNAVAILABLE
+    if outage:
+        return StapelErrorResponse(503, ERR_503_WORKSPACES)
+    return StapelErrorResponse(403, ERR_403_FORBIDDEN)
+
+
+@extend_schema(tags=["Docs / sharing"])
+class DocumentAccessView(SerializerSeamMixin, APIView):
+    """The whitelist half of the share sheet: who has access, and grant one.
+
+    Both methods are gated on ``docs.share.whitelist`` — the sheet lists
+    other people, so seeing it is itself a sharing-administration act, not
+    a document read.
+    """
+
+    permission_classes = [IsNotAnonymousUser]
+    request_serializer_class = AccessGrantSerializer
+    response_serializer_class = DocumentAccessSerializer
+
+    @extend_schema(responses={200: DocumentAccessSerializer(many=True)})
+    @_maps_docs_errors
+    def get(self, request, document_id):
+        document = services.get_live_document(document_id)
+        denied = _share_error(request, document.workspace_id, CAP_SHARE_WHITELIST)
+        if denied:
+            return denied
+        rows = services.list_access(document)
+        presenter = get_access_presenter()
+        return StapelResponse(
+            self.get_response_serializer_class()(presenter.present_many(rows), many=True)
+        )
+
+    @extend_schema(request=AccessGrantSerializer, responses={201: DocumentAccessSerializer})
+    @_maps_docs_errors
+    def post(self, request, document_id):
+        document = services.get_live_document(document_id)
+        req = self.get_request_serializer_class()(data=request.data)
+        req.is_valid(raise_exception=True)
+        data = req.validated_data
+        denied = _share_error(request, document.workspace_id, CAP_SHARE_WHITELIST)
+        if denied:
+            return denied
+        if data["level"] != LEVEL_VIEW:
+            # Never grant above your own level (axis §2.1). Asked through
+            # the choke point rather than re-derived, so the answer is the
+            # same one the guest's own request will get.
+            denied = _access_error(request, document.workspace_id, data["level"])
+            if denied:
+                return denied
+        row = services.grant_access(
+            document,
+            subject_kind=data["subject_kind"],
+            user_id=data.get("user_id"),
+            ref=data.get("ref") or "",
+            level=data["level"],
+            granted_by=_acting_user(request),
+        )
+        services.mark_sharing_suspended([row], "whitelist", document.workspace_id)
+        presenter = get_access_presenter()
+        return StapelResponse(
+            self.get_response_serializer_class()(presenter.present(row)), status=201
+        )
+
+
+@extend_schema(tags=["Docs / sharing"])
+class DocumentAccessDetailView(SerializerSeamMixin, APIView):
+    """Revoke one whitelist grant."""
+
+    permission_classes = [IsNotAnonymousUser]
+
+    @extend_schema(responses={204: None})
+    @_maps_docs_errors
+    def delete(self, request, document_id, access_id):
+        document = services.get_live_document(document_id)
+        denied = _revoke_error(request, document.workspace_id, CAP_SHARE_WHITELIST)
+        if denied:
+            return denied
+        services.revoke_access(document, access_id)
+        return StapelResponse(status=204)
+
+
+@extend_schema(tags=["Docs / sharing"])
+class DocumentLinkView(SerializerSeamMixin, APIView):
+    """The bearer-link half of the share sheet: list links, mint one.
+
+    The listing carries live tokens (a sheet that cannot re-show the link it
+    minted makes people mint a second one), which is precisely why GET is
+    gated on ``docs.share.link`` and not on document view.
+    """
+
+    permission_classes = [IsNotAnonymousUser]
+    request_serializer_class = LinkCreateSerializer
+    response_serializer_class = DocumentLinkSerializer
+
+    @extend_schema(responses={200: DocumentLinkSerializer(many=True)})
+    @_maps_docs_errors
+    def get(self, request, document_id):
+        document = services.get_live_document(document_id)
+        denied = _share_error(request, document.workspace_id, CAP_SHARE_LINK)
+        if denied:
+            return denied
+        rows = services.list_links(document)
+        presenter = get_link_presenter()
+        return StapelResponse(
+            self.get_response_serializer_class()(presenter.present_many(rows), many=True)
+        )
+
+    @extend_schema(request=LinkCreateSerializer, responses={201: DocumentLinkSerializer})
+    @_maps_docs_errors
+    def post(self, request, document_id):
+        document = services.get_live_document(document_id)
+        req = self.get_request_serializer_class()(data=request.data)
+        req.is_valid(raise_exception=True)
+        data = req.validated_data
+        denied = _share_error(request, document.workspace_id, CAP_SHARE_LINK)
+        if denied:
+            return denied
+        if data["level"] != LEVEL_VIEW:
+            denied = _access_error(request, document.workspace_id, data["level"])
+            if denied:
+                return denied
+        link = services.create_link(
+            document, level=data["level"], created_by=_acting_user(request)
+        )
+        services.mark_sharing_suspended([link], "link", document.workspace_id)
+        presenter = get_link_presenter()
+        return StapelResponse(
+            self.get_response_serializer_class()(presenter.present(link)), status=201
+        )
+
+
+@extend_schema(tags=["Docs / sharing"])
+class DocumentLinkDetailView(SerializerSeamMixin, APIView):
+    """Revoke one bearer link (terminal — a revoked link never revives)."""
+
+    permission_classes = [IsNotAnonymousUser]
+
+    @extend_schema(responses={204: None})
+    @_maps_docs_errors
+    def delete(self, request, document_id, link_id):
+        document = services.get_live_document(document_id)
+        denied = _revoke_error(request, document.workspace_id, CAP_SHARE_LINK)
+        if denied:
+            return denied
+        services.revoke_link(document, link_id)
+        return StapelResponse(status=204)
+
+
+class _BearerViewBase(SerializerSeamMixin, APIView):
+    """Shared machinery of the ``/shared/<token>`` read path.
+
+    No DRF permission class: the anonymity axis is a per-request decision
+    (``LINK["ANONYMOUS"]``), and a class attribute cannot read settings at
+    request time. With anonymous redemption off — the shipped default — an
+    unauthenticated presenter is answered 401 ("sign in"), which is a
+    different fact from 403 ("this is not yours") and the only one that
+    tells the holder of a good link what to do next.
+
+    Every refusal AFTER that is 404, never 403: a dead token that answers
+    differently from a nonexistent one is an oracle a guesser can grind.
+    """
+
+    permission_classes = []
+
+    def _resolve(self, request, token):
+        """``((document, link, level), None)`` or ``(None, error_response)``."""
+        user = getattr(request, "user", None)
+        authenticated = bool(user is not None and getattr(user, "is_authenticated", False))
+        if not authenticated and not link_settings().get("ANONYMOUS"):
+            return None, StapelErrorResponse(401, ERR_401_SHARE_AUTH)
+
+        document, link = services.get_link_by_token(token)
+        principal = Principal.from_request(request, link_token=token)
+        verdict = authorize(
+            workspace_id=document.workspace_id,
+            principal=principal,
+            action="view",
+            document=document,
+        )
+        if verdict == UNAVAILABLE:
+            return None, StapelErrorResponse(503, ERR_503_WORKSPACES)
+        if verdict != ALLOW:
+            return None, StapelErrorResponse(404, ERR_404_DOCUMENT)
+
+        level, _ = granted_level(
+            workspace_id=document.workspace_id, principal=principal, document=document
+        )
+        if link.is_live:
+            # Stamped only for a live link: a member who happens to open a
+            # revoked one was let in by their membership, not by the link,
+            # and recording that as a redemption would forge the audit.
+            services.redeem_link(link)
+        return (document, link, level or LEVEL_VIEW), None
+
+
+@extend_schema(tags=["Docs / sharing"])
+class SharedDocumentView(_BearerViewBase):
+    """The bearer's view of a document — stripped (axis §6).
+
+    Title, type and shape; no tree, no workspace, no owner, no revisions. A
+    link grants a document, not a seat, and history is withheld besides:
+    an old revision can hold text that was deleted on purpose since.
+    """
+
+    response_serializer_class = SharedDocumentSerializer
+
+    @extend_schema(responses={200: SharedDocumentSerializer})
+    @_maps_docs_errors
+    def get(self, request, token):
+        resolved, denied = self._resolve(request, token)
+        if denied:
+            return denied
+        document, _link, level = resolved
+        return StapelResponse(
+            self.get_response_serializer_class()(present_shared_document(document, level))
+        )
+
+
+@extend_schema(tags=["Docs / sharing"])
+class SharedContentView(_BearerViewBase):
+    """The bearer's read of the current body. Read-only by construction:
+    there is no PUT here, and an anonymous presenter could not write through
+    one anyway (axis §6)."""
+
+    @extend_schema(responses={200: None})
+    @_maps_docs_errors
+    def get(self, request, token):
+        resolved, denied = self._resolve(request, token)
+        if denied:
+            return denied
+        document, _link, _level = resolved
+        # No user is passed on purpose: a bearer is not a member, and a
+        # document they opened must not surface in anybody's recents.
+        body, mime, head_seq = services.read_content(document)
+        response = HttpResponse(body, content_type=mime)
+        response["ETag"] = f'"{head_seq}"'
+        response["X-Docs-Head-Seq"] = str(head_seq)
+        return response
+
+
+@extend_schema(tags=["Docs / sharing"])
+class SharedDownloadView(_BearerViewBase):
+    """Presigned GET URL for the bearer's copy of the current body."""
+
+    response_serializer_class = DownloadUrlSerializer
+
+    @extend_schema(responses={200: DownloadUrlSerializer})
+    @_maps_docs_errors
+    def get(self, request, token):
+        resolved, denied = self._resolve(request, token)
+        if denied:
+            return denied
+        document, _link, _level = resolved
+        url = services.document_download_url(document)
+        return StapelResponse(
+            self.get_response_serializer_class()(present_download_url(url))
         )

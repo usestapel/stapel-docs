@@ -309,6 +309,8 @@ class TestWorkspaceSubject:
             "storage_objects": 0,
             "stars": 0,
             "recents": 0,
+            "access_grants": 0,
+            "links": 0,
         }
 
 

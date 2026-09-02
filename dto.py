@@ -109,3 +109,31 @@ class SearchHitDTO:
     type: Optional[str] = None
     is_starred: Optional[bool] = None
     breadcrumb: List[BreadcrumbNodeDTO] = field(default_factory=list)
+
+
+@dataclass
+class SharedDocumentDTO:
+    """What a link BEARER sees: the document, and nothing around it.
+
+    The stripped envelope of axis §6 — no workspace, no folder, no owner,
+    no star state, no revision history. A link grants a document, not a
+    seat: anything that would let the holder infer the shape of the
+    workspace (its tree, who is in it, what else it contains) is deliberately
+    absent, and history is absent besides, because an old revision can hold
+    text that was deleted on purpose since.
+
+    ``level`` is what the presenter may DO with it, so a client can render
+    a read-only editor without guessing from a 403 it has not hit yet.
+    """
+
+    id: str
+    type: str
+    title: str
+    head_seq: int
+    size_bytes: int
+    mime_type: str
+    editor_hint: str
+    collab: str
+    diffable: bool
+    level: str
+    updated_at: str

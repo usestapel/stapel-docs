@@ -25,6 +25,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from stapel_core.access.declaration import access
 
 
 class Folder(models.Model):
@@ -346,3 +347,189 @@ class Thumbnail(models.Model):
 
     def __str__(self):
         return f"{self.document_id}@{self.tier}"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Sharing axis (tasks/sharing-axis-design.md) — grant SOURCES over the
+# immutable workspace baseline. Both tables are additive: a row can only
+# ever grant, never revoke, so no ordering between them is observable and
+# turning a mode off leaves its rows inert rather than deleted (§3).
+# ─────────────────────────────────────────────────────────────────────
+
+#: Grantable levels. ``manage`` is deliberately absent: no share source
+#: ever grants it (anti-escalation invariant, axis §2.2) — it is mandate
+#: only. Kept here as the DB-facing vocabulary; ``authz`` owns the rule.
+SHARE_LEVEL_VIEW = "view"
+SHARE_LEVEL_EDIT = "edit"
+SHARE_LEVEL_CHOICES = (
+    (SHARE_LEVEL_VIEW, "view"),
+    (SHARE_LEVEL_EDIT, "edit"),
+)
+
+
+class DocumentAccess(models.Model):
+    """One whitelist grant on one document — the Google-Docs share row.
+
+    Two subject kinds, one table (axis §2.1), because both are the same
+    admission semantics — named principals, no bearer secret — differing
+    only in how membership is computed:
+
+    * ``user`` — exactly this authenticated account, matched by id;
+    * ``ref`` — an EXTERNAL container ("chat:conversation:<id>") whose
+      membership is answered by a host-registered resolver
+      (``SHARING["RESOLVERS"]``, point-query, fail-closed). docs never
+      copies another module's membership and never imports it.
+
+    ``user_id`` is a bare UUID, not an FK: it names a subject of the
+    platform's auth domain, which this module does not own, and the row
+    must survive the local user projection being absent. Erasure deletes
+    these rows explicitly (``gdpr.py``) instead of leaning on a cascade.
+
+    ``granted_by`` IS an FK (SET_NULL): it is provenance about somebody
+    acting in THIS service, the same shape ``WorkspaceInvitation.
+    invited_by`` uses — an erased granter reads as "somebody, no longer
+    known" rather than deleting the grant they made.
+    """
+
+    SUBJECT_USER = "user"
+    SUBJECT_REF = "ref"
+    SUBJECT_CHOICES = ((SUBJECT_USER, "user"), (SUBJECT_REF, "ref"))
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(
+        Document, on_delete=models.CASCADE, related_name="access_grants"
+    )
+    #: Denormalized so the share sheet and the authorization rule scope
+    #: without joining the document table (Star precedent).
+    workspace_id = models.UUIDField(db_index=True)
+    subject_kind = models.CharField(max_length=8, choices=SUBJECT_CHOICES)
+    user_id = models.UUIDField(null=True, blank=True, db_index=True)
+    #: "<kind>:<id>" — everything before the LAST colon is the ref kind and
+    #: must be a registered resolver at mint time (axis §11.3).
+    ref = models.CharField(max_length=255, blank=True, default="")
+    level = models.CharField(
+        max_length=8, choices=SHARE_LEVEL_CHOICES, default=SHARE_LEVEL_VIEW
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "docs_access"
+        constraints = [
+            # Exactly one subject, stated to the database: a row with both
+            # (or neither) grants to nobody any reader could name, and a
+            # half-filled ACL row is the shape an escalation hides in.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(subject_kind="user", user_id__isnull=False, ref="")
+                    | (
+                        models.Q(subject_kind="ref", user_id__isnull=True)
+                        & ~models.Q(ref="")
+                    )
+                ),
+                name="docs_access_one_subject",
+            ),
+            # One grant per subject per document — a second row for the same
+            # subject is two answers to one question, and "max level wins"
+            # would quietly make the lower one unrevokable. Both uniques are
+            # partial by subject kind, because ``ref`` is "" on user rows and
+            # "" does equal "" in SQL (unlike NULL).
+            models.UniqueConstraint(
+                fields=["document", "user_id"],
+                condition=models.Q(subject_kind="user"),
+                name="docs_access_doc_user",
+            ),
+            models.UniqueConstraint(
+                fields=["document", "ref"],
+                condition=models.Q(subject_kind="ref"),
+                name="docs_access_doc_ref",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["workspace_id", "user_id"], name="docs_access_ws_user"),
+        ]
+
+    def __str__(self):
+        return f"{self.document_id} → {self.user_id or self.ref} ({self.level})"
+
+    @property
+    def subject(self) -> str:
+        """The subject as one string, for envelopes and logs."""
+        return str(self.user_id) if self.subject_kind == self.SUBJECT_USER else self.ref
+
+
+@access.secret  # bearer share token: superuser-only, token masked in admin
+class DocumentLink(models.Model):
+    """A bearer link to one document — the ``WorkspaceInvitation`` canon,
+    copied in shape rather than reinvented (axis §6).
+
+    Same bones as an invitation: a unique unguessable token, a MANDATORY
+    ``expires_at``, terminal timestamps, and a derived :attr:`status` whose
+    precedence is "revoked beats expired beats active".
+
+    One difference in substance: **a link is not a mandate**. It is never
+    "accepted", it creates no membership, and it grants nothing by itself —
+    every presentation re-enters ``authorize()``, where the level, the
+    anonymity axis and the creator's CURRENT ``docs.share.link`` capability
+    are checked afresh. ``first_redeemed_at`` is therefore an audit stamp,
+    not a state transition: the link stays usable after it.
+    """
+
+    STATUS_ACTIVE = "active"
+    STATUS_EXPIRED = "expired"
+    STATUS_REVOKED = "revoked"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(
+        Document, on_delete=models.CASCADE, related_name="links"
+    )
+    workspace_id = models.UUIDField(db_index=True)
+    #: ``secrets.token_urlsafe(32)`` — the invitation's generator, unchanged.
+    token = models.CharField(max_length=64, unique=True)
+    level = models.CharField(
+        max_length=8, choices=SHARE_LEVEL_CHOICES, default=SHARE_LEVEL_VIEW
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    #: NOT NULL: a bearer secret without a deadline is a permanent one, and
+    #: the invitation canon has no nullable expiry either. A host that set
+    #: ``LINK["TTL_DAYS"] = None`` gets a deadline a century out instead of
+    #: an absent one — "perpetual" said as a date every reader can render,
+    #: rather than as a null every reader must special-case.
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    #: When this link was FIRST presented successfully — stamped once and
+    #: never again, because "somebody opened it" is the auditable fact and a
+    #: per-hit counter here would be a request log in the wrong table.
+    first_redeemed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "docs_link"
+        indexes = [
+            models.Index(fields=["document", "revoked_at"], name="docs_link_doc_live"),
+        ]
+
+    def __str__(self):
+        return f"{self.document_id} link ({self.status})"
+
+    @property
+    def status(self) -> str:
+        """Derived state label: a stored terminal timestamp always wins over
+        mere passage of time (invitation canon — revoked beats the TTL)."""
+        from django.utils import timezone
+
+        if self.revoked_at:
+            return self.STATUS_REVOKED
+        if self.expires_at and self.expires_at <= timezone.now():
+            return self.STATUS_EXPIRED
+        return self.STATUS_ACTIVE
+
+    @property
+    def is_live(self) -> bool:
+        return self.status == self.STATUS_ACTIVE

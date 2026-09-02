@@ -24,6 +24,22 @@
       "hash": "aeb8676d075462de",
       "origin": "llm"
     },
+    "error.400.docs_share_level": {
+      "hash": "0b2c2ad6b1c8b0c8",
+      "origin": "llm"
+    },
+    "error.400.docs_share_mode_disabled": {
+      "hash": "e6b210c6c4ff3a2f",
+      "origin": "llm"
+    },
+    "error.400.docs_share_ref_kind": {
+      "hash": "3b8f6b14a894f890",
+      "origin": "llm"
+    },
+    "error.400.docs_share_subject": {
+      "hash": "d60d2af579fee111",
+      "origin": "llm"
+    },
     "error.400.docs_thumbnail_tier": {
       "hash": "daabb2ffd3846d81",
       "origin": "llm"
@@ -72,6 +88,10 @@
       "hash": "c95db10a3df9b7f2",
       "origin": "llm"
     },
+    "error.401.docs_share_auth_required": {
+      "hash": "8dc59c6229031941",
+      "origin": "llm"
+    },
     "error.403.docs_forbidden": {
       "hash": "589a70cd095f43d7",
       "origin": "llm"
@@ -80,12 +100,20 @@
       "hash": "8cc4fc76f0601f20",
       "origin": "llm"
     },
+    "error.404.docs_access_not_found": {
+      "hash": "a2ec0dfe41fcc877",
+      "origin": "llm"
+    },
     "error.404.docs_document_not_found": {
       "hash": "2717993aecde6b43",
       "origin": "llm"
     },
     "error.404.docs_folder_not_found": {
       "hash": "05d0e5f0e341070f",
+      "origin": "llm"
+    },
+    "error.404.docs_link_not_found": {
+      "hash": "7393671ee2a04caa",
       "origin": "llm"
     },
     "error.404.docs_revision_not_found": {
@@ -166,6 +194,22 @@
       "hash": "aeb8676d075462de",
       "origin": "llm"
     },
+    "error.400.docs_share_level": {
+      "hash": "0b2c2ad6b1c8b0c8",
+      "origin": "llm"
+    },
+    "error.400.docs_share_mode_disabled": {
+      "hash": "e6b210c6c4ff3a2f",
+      "origin": "llm"
+    },
+    "error.400.docs_share_ref_kind": {
+      "hash": "3b8f6b14a894f890",
+      "origin": "llm"
+    },
+    "error.400.docs_share_subject": {
+      "hash": "d60d2af579fee111",
+      "origin": "llm"
+    },
     "error.400.docs_thumbnail_tier": {
       "hash": "daabb2ffd3846d81",
       "origin": "llm"
@@ -214,6 +258,10 @@
       "hash": "c95db10a3df9b7f2",
       "origin": "llm"
     },
+    "error.401.docs_share_auth_required": {
+      "hash": "8dc59c6229031941",
+      "origin": "llm"
+    },
     "error.403.docs_forbidden": {
       "hash": "589a70cd095f43d7",
       "origin": "llm"
@@ -222,12 +270,20 @@
       "hash": "8cc4fc76f0601f20",
       "origin": "llm"
     },
+    "error.404.docs_access_not_found": {
+      "hash": "a2ec0dfe41fcc877",
+      "origin": "llm"
+    },
     "error.404.docs_document_not_found": {
       "hash": "2717993aecde6b43",
       "origin": "llm"
     },
     "error.404.docs_folder_not_found": {
       "hash": "05d0e5f0e341070f",
+      "origin": "llm"
+    },
+    "error.404.docs_link_not_found": {
+      "hash": "7393671ee2a04caa",
       "origin": "llm"
     },
     "error.404.docs_revision_not_found": {

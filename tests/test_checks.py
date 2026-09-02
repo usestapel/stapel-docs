@@ -20,8 +20,20 @@ class TestSharingAxisGuards:
     def test_closed_defaults_are_clean(self):
         assert check_sharing_axis(None) == []
 
+    @override_settings(STAPEL_DOCS={"SHARING": {"MODES": ["whitelist", "link"]}})
+    def test_implemented_modes_are_clean(self):
+        """0.6.0 ships both grant sources — E011 no longer fires for them."""
+        assert check_sharing_axis(None) == []
+
     @override_settings(STAPEL_DOCS={"SHARING": {"MODES": ["whitelist"]}})
-    def test_unimplemented_mode_is_an_error(self):
+    def test_unimplemented_mode_is_an_error(self, monkeypatch):
+        """The guard for the NEXT mode somebody configures before it exists.
+
+        Exercised against a shrunk IMPLEMENTED list rather than deleted with
+        the modes it used to catch: a check that can no longer fail is a
+        check nobody will notice is broken when the third mode lands.
+        """
+        monkeypatch.setattr("stapel_docs.checks.IMPLEMENTED_SHARING_MODES", ())
         assert _ids(check_sharing_axis(None)) == ["stapel_docs.E011"]
 
     @override_settings(STAPEL_DOCS={"SHARING": {"MODES": ["bogus"]}})

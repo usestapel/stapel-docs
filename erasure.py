@@ -14,7 +14,11 @@ Three subjects, two different policies — deliberately:
   purge_document``), which is O(document) and idempotent. Trash state is
   irrelevant — an erasure is not a trash operation, so live and trashed
   rows die alike, and the retention window is not waited out.
-- ``account`` is **anonymized**, not deleted (storage-verdict §3): a
+- ``account`` is **anonymized**, not deleted (storage-verdict §3) — with
+  one deliberate exception, the sharing axis: the grants naming the erased
+  user as subject are DELETED and the links they sponsored are revoked
+  (see ``gdpr.py``), because a standing permission about a person is not
+  co-produced content and must not outlive them. Otherwise: a
   document is co-produced workspace content, not a private user artifact,
   so a member's erasure nulls their authorship and leaves the workspace's
   documents readable. Destroying them would erase other people's data
@@ -144,6 +148,12 @@ def _zero_counts() -> dict:
         # bookmark rows a purge destroyed under-reports what left.
         "stars": 0,
         "recents": 0,
+        # Sharing rows die with the document they are about (FK CASCADE).
+        # Counted, not assumed: a receipt that omits the grants and bearer
+        # links a purge destroyed under-reports the ACCESS that left, which
+        # is the part of an erasure somebody actually has to trust.
+        "access_grants": 0,
+        "links": 0,
     }
 
 
@@ -156,7 +166,7 @@ def _purge_one(document) -> dict:
     """Purge one document through the module's own purge path and report
     what that removed. Counted BEFORE the purge — afterwards there is
     nothing left to count."""
-    from .models import DocumentUpdate, RecentEntry, Star
+    from .models import DocumentAccess, DocumentLink, DocumentUpdate, RecentEntry, Star
     from .services import purge_document
 
     keys = {
@@ -178,6 +188,8 @@ def _purge_one(document) -> dict:
         "storage_objects": len(keys),
         "stars": Star.objects.filter(document=document).count(),
         "recents": RecentEntry.objects.filter(document=document).count(),
+        "access_grants": DocumentAccess.objects.filter(document=document).count(),
+        "links": DocumentLink.objects.filter(document=document).count(),
     }
     purge_document(document)
     return removed

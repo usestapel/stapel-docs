@@ -150,6 +150,17 @@ def handle_user_merged(event):
     * :class:`~stapel_docs.models.UploadSession` ``created_by``, so an
       in-flight upload can still be finalized by the account that now holds
       the ticket;
+    * :class:`~stapel_docs.models.DocumentAccess` ``granted_by`` and
+      :class:`~stapel_docs.models.DocumentLink` ``created_by`` — who shared,
+      and therefore whose capability keeps every bearer link alive
+      (``authorize`` asks the CURRENT holder, so re-parenting a link is what
+      stops a merge from silently killing links the survivor still sponsors);
+    * :class:`~stapel_docs.models.DocumentAccess` rows where the guest was
+      the SUBJECT — the access they were given follows them into the
+      surviving account, with COLLISION FOLDING to the HIGHER level: two
+      grants on one document for what turns out to be one person is one
+      grant, and the person can do the most either of them allowed. Folding
+      down would silently revoke access nobody asked to revoke;
     * :class:`~stapel_docs.models.Star` and
       :class:`~stapel_docs.models.RecentEntry` — the guest's own view of the
       corpus, re-parented with COLLISION FOLDING, because both tables are
@@ -180,6 +191,8 @@ def handle_user_merged(event):
 
     from .models import (
         Document,
+        DocumentAccess,
+        DocumentLink,
         DocumentUpdate,
         Folder,
         RecentEntry,
@@ -205,6 +218,8 @@ def handle_user_merged(event):
         (Revision, "created_by_id"),
         (DocumentUpdate, "author_id"),
         (UploadSession, "created_by_id"),
+        (DocumentAccess, "granted_by_id"),
+        (DocumentLink, "created_by_id"),
     )
     #: Per-user state, unique per (user, target) — these fold rather than
     #: move (see the docstring).
@@ -221,7 +236,9 @@ def handle_user_merged(event):
             ) or any(
                 model.objects.filter(user_id=from_user_id).exists()
                 for model in per_user
-            )
+            ) or DocumentAccess.objects.filter(
+                subject_kind=DocumentAccess.SUBJECT_USER, user_id=from_user_id
+            ).exists()
             # The survivor probe is read here, under the same guard, because a
             # malformed *into* id must not escape as a poison pill either.
             survivor_exists = (
@@ -250,6 +267,7 @@ def handle_user_merged(event):
             )
             for model, column in owned
         }
+        moved["DocumentAccess.subject"] = _fold_access(from_user_id, into_user_id)
         moved["Star"] = _fold_stars(from_user_id, into_user_id)
         moved["RecentEntry"] = _fold_recents(from_user_id, into_user_id)
 
@@ -257,6 +275,44 @@ def handle_user_merged(event):
         "user.merged %s -> %s: docs authorship and per-user state carried over (%s)",
         from_user_id, into_user_id, moved,
     )
+
+
+def _fold_access(from_user_id, into_user_id) -> int:
+    """Re-parent the guest's whitelist grants, keeping the HIGHER level.
+
+    Unlike a star, a grant carries a power, so a collision is not "drop
+    one": the merged person may do whatever either identity could, and
+    keeping the lower level would revoke access as a side effect of a
+    merge — a silent, invisible loss on exactly the table where losing
+    access is hardest to diagnose.
+    """
+    from .authz import LEVEL_ORDER
+    from .models import DocumentAccess
+
+    guest_rows = DocumentAccess.objects.filter(
+        subject_kind=DocumentAccess.SUBJECT_USER, user_id=from_user_id
+    )
+    survivor = {
+        row["document_id"]: row["level"]
+        for row in DocumentAccess.objects.filter(
+            subject_kind=DocumentAccess.SUBJECT_USER, user_id=into_user_id
+        ).values("document_id", "level")
+    }
+    moved = 0
+    for row in list(guest_rows):
+        existing = survivor.get(row.document_id)
+        if existing is None:
+            DocumentAccess.objects.filter(pk=row.pk).update(user_id=into_user_id)
+            moved += 1
+            continue
+        if LEVEL_ORDER[row.level] > LEVEL_ORDER[existing]:
+            DocumentAccess.objects.filter(
+                subject_kind=DocumentAccess.SUBJECT_USER,
+                user_id=into_user_id,
+                document_id=row.document_id,
+            ).update(level=row.level)
+        row.delete()
+    return moved
 
 
 def _fold_stars(from_user_id, into_user_id) -> int:

@@ -23,6 +23,22 @@
     "hash": "aeb8676d075462de",
     "text": "Элемент не находится в корзине"
   },
+  "error.400.docs_share_level": {
+    "hash": "0b2c2ad6b1c8b0c8",
+    "text": "Такой уровень доступа здесь выдавать нельзя"
+  },
+  "error.400.docs_share_mode_disabled": {
+    "hash": "e6b210c6c4ff3a2f",
+    "text": "Этот способ предоставления доступа отключён в этой инсталляции"
+  },
+  "error.400.docs_share_ref_kind": {
+    "hash": "3b8f6b14a894f890",
+    "text": "Для ссылок такого вида не зарегистрирован резолвер"
+  },
+  "error.400.docs_share_subject": {
+    "hash": "d60d2af579fee111",
+    "text": "У правила доступа должен быть ровно один субъект"
+  },
   "error.400.docs_thumbnail_tier": {
     "hash": "daabb2ffd3846d81",
     "text": "Неизвестный размер миниатюры"
@@ -71,6 +87,10 @@
     "hash": "c95db10a3df9b7f2",
     "text": "Не удалось определить размер загруженного объекта"
   },
+  "error.401.docs_share_auth_required": {
+    "hash": "8dc59c6229031941",
+    "text": "Войдите, чтобы открыть документ по ссылке"
+  },
   "error.403.docs_forbidden": {
     "hash": "589a70cd095f43d7",
     "text": "У вас нет доступа к этому документу"
@@ -79,6 +99,10 @@
     "hash": "8cc4fc76f0601f20",
     "text": "Завершить загрузку может только пользователь, который её начал"
   },
+  "error.404.docs_access_not_found": {
+    "hash": "a2ec0dfe41fcc877",
+    "text": "Правило доступа не найдено"
+  },
   "error.404.docs_document_not_found": {
     "hash": "2717993aecde6b43",
     "text": "Документ не найден"
@@ -86,6 +110,10 @@
   "error.404.docs_folder_not_found": {
     "hash": "05d0e5f0e341070f",
     "text": "Папка не найдена"
+  },
+  "error.404.docs_link_not_found": {
+    "hash": "7393671ee2a04caa",
+    "text": "Ссылка доступа не найдена"
   },
   "error.404.docs_revision_not_found": {
     "hash": "668704818e735b18",

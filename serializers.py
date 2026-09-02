@@ -22,19 +22,24 @@ from .dto import (
     ResyncDTO,
     SaveResultDTO,
     SearchHitDTO,
+    SharedDocumentDTO,
     TrashPurgeResultDTO,
     UpdatesFeedDTO,
     UploadTicketDTO,
 )
 from .presenters import (
+    get_access_presenter,
     get_document_presenter,
     get_folder_presenter,
+    get_link_presenter,
     get_revision_presenter,
 )
 
 FolderSerializer = get_folder_presenter().serializer_class()
 DocumentSerializer = get_document_presenter().serializer_class()
 RevisionSerializer = get_revision_presenter().serializer_class()
+DocumentAccessSerializer = get_access_presenter().serializer_class()
+DocumentLinkSerializer = get_link_presenter().serializer_class()
 
 
 # ── Envelope responses ───────────────────────────────────────────────
@@ -78,6 +83,11 @@ class TrashPurgeResultSerializer(StapelDataclassSerializer):
 class SearchHitSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SearchHitDTO
+
+
+class SharedDocumentSerializer(StapelDataclassSerializer):
+    class Meta:
+        dataclass = SharedDocumentDTO
 
 
 # ── Query-parameter envelopes ────────────────────────────────────────
@@ -202,3 +212,29 @@ class UploadCreateSerializer(serializers.Serializer):
     checksum = serializers.RegexField(
         r"^[0-9a-fA-F]{64}$", required=False, allow_blank=True
     )
+
+
+# ── Sharing requests (sharing-axis-design §2) ────────────────────────
+
+
+class AccessGrantSerializer(serializers.Serializer):
+    """``POST /documents/<id>/access`` — exactly one subject, one level.
+
+    ``subject_kind`` is explicit rather than inferred from which field is
+    present: an ACL write that guesses its own meaning is one typo away
+    from granting to a subject the caller did not name.
+    """
+
+    subject_kind = serializers.ChoiceField(choices=["user", "ref"])
+    user_id = serializers.UUIDField(required=False, allow_null=True)
+    ref = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    # `manage` is absent from the choices on purpose: no share source ever
+    # grants it (axis §2.2), so it is not a value this endpoint can be asked
+    # for and then have to refuse.
+    level = serializers.ChoiceField(choices=["view", "edit"], default="view")
+
+
+class LinkCreateSerializer(serializers.Serializer):
+    """``POST /documents/<id>/links`` — the level, capped by LINK.MAX_LEVEL."""
+
+    level = serializers.ChoiceField(choices=["view", "edit"], default="view")

@@ -6,13 +6,20 @@ service cannot run with; W-level for entries that degrade lazily.
 The sharing-axis guards implement the "configured but not implemented"
 canon (sharing-axis-design §11): every deferred capability has a live
 config key with a closed default, and opening it before the mechanism
-exists is a LOUD error here — never a silent no-op.
+exists is a LOUD error here — never a silent no-op. 0.6.0 implements both
+grant sources, so E011 no longer fires for them; E012/E013 keep firing,
+because the owner's §10 verdict (no anonymous links, links view-only)
+governs what a DEPLOYMENT may switch on, not what the rule can express.
 """
 from django.core import checks
 
-#: Modes the axis will ever accept (sharing-axis §2.1). v1 implements none.
-KNOWN_SHARING_MODES = ("whitelist", "link")
-IMPLEMENTED_SHARING_MODES = ()
+from .authz import IMPLEMENTED_SHARING_MODES, KNOWN_SHARING_MODES  # noqa: F401
+
+#: Re-exported from ``authz`` so the rule and the check read ONE list.
+#: ``KNOWN_SHARING_MODES`` is what the axis will ever accept (§2.1);
+#: ``IMPLEMENTED_SHARING_MODES`` is what this version can actually enforce.
+#: They are equal since 0.6.0 (both grant sources ship) — E011 exists for
+#: the next mode somebody configures before it is built.
 
 
 @checks.register(checks.Tags.compatibility)
@@ -59,7 +66,14 @@ def check_doc_types(app_configs, **kwargs):
 
 @checks.register(checks.Tags.compatibility)
 def check_sharing_axis(app_configs, **kwargs):
-    """E010-E013: closed-by-default sharing axis guards (v1)."""
+    """E010-E014: sharing-axis configuration guards.
+
+    E010 unknown mode, E011 known-but-unimplemented mode, E012 anonymous
+    link redemption, E013 a link ceiling above ``view``, E014 a broken
+    resolver path. The axis still ships closed (``MODES: []``) — these
+    guard what opening it would mean, and a broken configuration fails the
+    deploy rather than degrading into "open".
+    """
     from .conf import DEFAULT_SHARING, docs_settings
 
     errors = []
@@ -75,21 +89,27 @@ def check_sharing_axis(app_configs, **kwargs):
         elif mode not in IMPLEMENTED_SHARING_MODES:
             errors.append(checks.Error(
                 f"Sharing mode {mode!r} is configured but not implemented in this "
-                "version — the axis ships closed (MODES=[]); remove it or upgrade",
+                "version; remove it or upgrade — a mode nothing enforces must "
+                "not read as an enabled one",
                 id="stapel_docs.E011",
             ))
 
     link = {**DEFAULT_SHARING["LINK"], **(sharing.get("LINK") or {})}
     if link.get("ANONYMOUS"):
         errors.append(checks.Error(
-            "STAPEL_DOCS['SHARING']['LINK']['ANONYMOUS']=True is configured but "
-            "not implemented in this version (sharing-axis §11.1)",
+            "STAPEL_DOCS['SHARING']['LINK']['ANONYMOUS']=True is not sanctioned "
+            "in this version (sharing-axis §10 verdict 1, §11.1). The rule "
+            "carries the branch and it is covered by tests, but no deployment "
+            "opens the fleet's leakiest door on a config key alone: shipping it "
+            "needs an owner decision, not an override.",
             id="stapel_docs.E012",
         ))
     if link.get("MAX_LEVEL", "view") != "view":
         errors.append(checks.Error(
-            "STAPEL_DOCS['SHARING']['LINK']['MAX_LEVEL'] above 'view' is "
-            "configured but not implemented in this version (sharing-axis §11.2)",
+            "STAPEL_DOCS['SHARING']['LINK']['MAX_LEVEL'] above 'view' is not "
+            "sanctioned in this version (sharing-axis §10 verdict 2, §11.2). "
+            "The ceiling is enforced generically and edit-level grants work "
+            "through the whitelist; edit-BY-LINK needs an owner decision.",
             id="stapel_docs.E013",
         ))
 

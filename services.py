@@ -28,6 +28,10 @@ from .errors import (
     ERR_400_FOLDER_CYCLE,
     ERR_400_FOLDER_DEPTH,
     ERR_400_NOT_TRASHED,
+    ERR_400_SHARE_LEVEL,
+    ERR_400_SHARE_MODE_DISABLED,
+    ERR_400_SHARE_REF_KIND,
+    ERR_400_SHARE_SUBJECT,
     ERR_400_THUMBNAIL_TIER,
     ERR_400_THUMBNAIL_UNSUPPORTED,
     ERR_400_TOO_MANY_UPDATES,
@@ -44,6 +48,8 @@ from .errors import (
     ERR_404_DOCUMENT,
     ERR_404_FOLDER,
     ERR_404_REVISION,
+    ERR_404_SHARE_ACCESS,
+    ERR_404_SHARE_LINK,
     ERR_404_UPLOAD,
     ERR_409_SEQ_CONFLICT,
     ERR_413_BODY_TOO_LARGE,
@@ -1599,3 +1605,256 @@ def document_download_url(document, *, user=None) -> str:
     url = download_url(document.snapshot_key)
     touch_recent(document, user)
     return url
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Sharing axis — grant rows, links, redemption (sharing-axis-design)
+# ─────────────────────────────────────────────────────────────────────
+
+
+def _sharing_mode_or_refuse(mode: str, workspace_id) -> None:
+    """Refuse to MINT into a disabled mode.
+
+    The kill-switch makes existing rows inert, not deleted (axis §3) — but
+    writing a NEW row nothing will ever read is worse than refusing: the
+    admin sees a grant in the sheet, the guest sees a 403, and the two
+    never meet. Reading and revoking stay possible while the mode is off,
+    which is what makes the suspended state operable.
+    """
+    from .authz import mode_enabled
+
+    if not mode_enabled(mode, workspace_id):
+        raise DocsError(400, ERR_400_SHARE_MODE_DISABLED, {"mode": mode})
+
+
+def mark_sharing_suspended(rows, mode: str, workspace_id):
+    """Stamp ``is_suspended`` on share-sheet rows of *mode*.
+
+    An inert grant is SHOWN, never hidden (axis §3): an admin who cannot
+    see a row believes it was revoked, and re-enabling the mode then
+    restores access nobody remembers granting.
+    """
+    from .authz import mode_enabled
+
+    suspended = not mode_enabled(mode, workspace_id)
+    materialized = list(rows)
+    for row in materialized:
+        row.is_suspended = suspended
+    return materialized
+
+
+def list_access(document):
+    """Whitelist rows of one document, newest first, marked suspended when
+    the mode is off."""
+    from .models import DocumentAccess
+
+    rows = DocumentAccess.objects.filter(document=document).order_by("-created_at")
+    return mark_sharing_suspended(rows, "whitelist", document.workspace_id)
+
+
+def grant_access(
+    document, *, subject_kind: str, user_id=None, ref: str = "", level: str, granted_by
+):
+    """Create (or raise the level of) one whitelist grant.
+
+    Upsert, not insert: re-granting to the same subject is the share sheet's
+    ordinary gesture ("make them an editor"), and answering it with a
+    uniqueness error would make the UI carry a special case for a
+    conflict-free operation. The unique constraint stays — it is what makes
+    one subject have exactly one answer.
+
+    Fail-closed at the WRITE boundary too (axis §11.3): a ref whose kind has
+    no registered resolver is refused here, so a row that could only ever
+    deny never gets stored.
+    """
+    from .authz import LEVEL_ORDER, get_ref_resolver, ref_kind
+    from .models import DocumentAccess
+
+    _sharing_mode_or_refuse("whitelist", document.workspace_id)
+    if level not in LEVEL_ORDER:
+        raise DocsError(400, ERR_400_SHARE_LEVEL, {"level": level})
+
+    if subject_kind == DocumentAccess.SUBJECT_USER:
+        if not user_id or ref:
+            raise DocsError(400, ERR_400_SHARE_SUBJECT)
+        lookup = {"user_id": user_id, "ref": ""}
+    elif subject_kind == DocumentAccess.SUBJECT_REF:
+        if not ref or user_id:
+            raise DocsError(400, ERR_400_SHARE_SUBJECT)
+        kind = ref_kind(ref)
+        if get_ref_resolver(kind) is None:
+            raise DocsError(400, ERR_400_SHARE_REF_KIND, {"kind": kind})
+        lookup = {"user_id": None, "ref": ref}
+    else:
+        raise DocsError(400, ERR_400_SHARE_SUBJECT)
+
+    with transaction.atomic():
+        row, created = DocumentAccess.objects.get_or_create(
+            document=document,
+            subject_kind=subject_kind,
+            defaults={
+                "workspace_id": document.workspace_id,
+                "level": level,
+                "granted_by": granted_by,
+            },
+            **lookup,
+        )
+        if not created and row.level != level:
+            row.level = level
+            row.granted_by = granted_by
+            row.save(update_fields=["level", "granted_by"])
+        elif not created:
+            return row
+        events.emit_share_granted(row)
+    return row
+
+
+def get_access(document, access_id):
+    """One grant of this document, or 404 — scoped by document so an id
+    from another workspace addresses nothing."""
+    from .models import DocumentAccess
+
+    row = DocumentAccess.objects.filter(document=document, id=access_id).first()
+    if row is None:
+        raise DocsError(404, ERR_404_SHARE_ACCESS)
+    return row
+
+
+def revoke_access(document, access_id) -> None:
+    """Delete one grant. Revocation works while the mode is OFF too: an
+    operator must always be able to take access away, whatever the axis
+    currently says about giving it."""
+    row = get_access(document, access_id)
+    with transaction.atomic():
+        events.emit_share_revoked(row)
+        row.delete()
+
+
+def list_links(document):
+    """Bearer links of one document, newest first, marked suspended when the
+    link mode is off."""
+    from .models import DocumentLink
+
+    rows = DocumentLink.objects.filter(document=document).order_by("-created_at")
+    return mark_sharing_suspended(rows, "link", document.workspace_id)
+
+
+def link_expiry(now=None):
+    """The deadline a link minted now would carry (``LINK["TTL_DAYS"]``).
+
+    ``TTL_DAYS=None`` is the host saying "perpetual"; it becomes a century,
+    not a null, because the column is NOT NULL by the invitation canon and
+    because a deadline every reader can render beats an absence every
+    reader must special-case.
+    """
+    from .authz import link_settings
+
+    now = now or timezone.now()
+    days = link_settings().get("TTL_DAYS")
+    if days is None:
+        return now + timedelta(days=365 * 100)
+    return now + timedelta(days=int(days))
+
+
+def create_link(document, *, level: str, created_by):
+    """Mint one bearer link.
+
+    The level is capped by ``LINK["MAX_LEVEL"]`` — a ceiling the DEPLOYMENT
+    owns, refused loudly rather than clamped silently, because a client
+    that asked for edit and got view without being told will show the wrong
+    thing to the person it hands the link to. The second cap (never above
+    the granter's own level) is applied by the caller through
+    ``authorize()`` — the choke point, not a second membership check here.
+    """
+    from secrets import token_urlsafe
+
+    from .authz import LEVEL_ORDER, link_settings
+    from .models import DocumentLink
+
+    _sharing_mode_or_refuse("link", document.workspace_id)
+    ceiling = link_settings().get("MAX_LEVEL") or "view"
+    if level not in LEVEL_ORDER or ceiling not in LEVEL_ORDER:
+        raise DocsError(400, ERR_400_SHARE_LEVEL, {"level": level})
+    if LEVEL_ORDER[level] > LEVEL_ORDER[ceiling]:
+        raise DocsError(400, ERR_400_SHARE_LEVEL, {"level": level, "max_level": ceiling})
+
+    with transaction.atomic():
+        link = DocumentLink.objects.create(
+            document=document,
+            workspace_id=document.workspace_id,
+            token=token_urlsafe(32),
+            level=level,
+            created_by=created_by,
+            expires_at=link_expiry(),
+        )
+        events.emit_link_created(link)
+    return link
+
+
+def get_link(document, link_id):
+    """One link of this document, or 404."""
+    from .models import DocumentLink
+
+    link = DocumentLink.objects.filter(document=document, id=link_id).first()
+    if link is None:
+        raise DocsError(404, ERR_404_SHARE_LINK)
+    return link
+
+
+def revoke_link(document, link_id):
+    """Withdraw a link. Idempotent: an already-revoked link keeps its first
+    ``revoked_at`` and emits nothing a second time."""
+    link = get_link(document, link_id)
+    if link.revoked_at is not None:
+        return link
+    with transaction.atomic():
+        link.revoked_at = timezone.now()
+        link.save(update_fields=["revoked_at"])
+        events.emit_link_revoked(link)
+    return link
+
+
+def get_link_by_token(token: str):
+    """Resolve a presented token to ``(document, link)``, or 404.
+
+    404 for a token that names nothing and for a trashed document. A token
+    that names a DEAD link (expired, revoked, sponsor gone) resolves here
+    and is refused by ``authorize()`` — the bearer views render that refusal
+    as 404 as well, so the endpoint is never an oracle telling a guesser
+    that a token was real. Liveness and LEVEL are decided by ``authorize()``,
+    never here: one rule, one place.
+    """
+    from .models import DocumentLink
+
+    link = (
+        DocumentLink.objects.select_related("document")
+        .filter(token=token)
+        .first()
+    )
+    if link is None or link.document.deleted_at is not None:
+        raise DocsError(404, ERR_404_DOCUMENT)
+    return link.document, link
+
+
+def redeem_link(link):
+    """Stamp the first successful presentation and announce it once.
+
+    Called only after ``authorize()`` allowed the request — the stamp is
+    evidence that somebody got in, so it must not be written by a
+    presentation that was refused. Guarded by a conditional UPDATE, so two
+    simultaneous first openings still emit exactly one event.
+    """
+    from .models import DocumentLink
+
+    if link.first_redeemed_at is not None:
+        return link
+    now = timezone.now()
+    with transaction.atomic():
+        stamped = DocumentLink.objects.filter(
+            pk=link.pk, first_redeemed_at__isnull=True
+        ).update(first_redeemed_at=now)
+        if not stamped:
+            return link
+        link.first_redeemed_at = now
+        events.emit_link_redeemed(link)
+    return link

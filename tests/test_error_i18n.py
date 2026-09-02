@@ -140,6 +140,19 @@ _MACHINE_RU = {
     "error.400.docs_thumbnail_tier": "Неизвестный размер миниатюры",
     "error.400.docs_thumbnail_unsupported":
         "У этого документа нет изображения для предпросмотра",
+    # Sharing axis (0.6.0).
+    "error.400.docs_share_mode_disabled":
+        "Этот способ предоставления доступа отключён в этой инсталляции",
+    "error.400.docs_share_level":
+        "Такой уровень доступа здесь выдавать нельзя",
+    "error.400.docs_share_subject":
+        "У правила доступа должен быть ровно один субъект",
+    "error.400.docs_share_ref_kind":
+        "Для ссылок такого вида не зарегистрирован резолвер",
+    "error.401.docs_share_auth_required":
+        "Войдите, чтобы открыть документ по ссылке",
+    "error.404.docs_access_not_found": "Правило доступа не найдено",
+    "error.404.docs_link_not_found": "Ссылка доступа не найдена",
 }
 
 _MACHINE_ES = {
@@ -214,6 +227,19 @@ _MACHINE_ES = {
     "error.400.docs_thumbnail_tier": "Tamaño de miniatura desconocido",
     "error.400.docs_thumbnail_unsupported":
         "Este documento no tiene vista previa de imagen",
+    # Sharing axis (0.6.0).
+    "error.400.docs_share_mode_disabled":
+        "Esta forma de compartir está desactivada en esta instalación",
+    "error.400.docs_share_level":
+        "Ese nivel de acceso no puede concederse aquí",
+    "error.400.docs_share_subject":
+        "Una concesión de acceso nombra exactamente a un sujeto",
+    "error.400.docs_share_ref_kind":
+        "No hay ningún resolutor registrado para este tipo de referencia",
+    "error.401.docs_share_auth_required":
+        "Inicia sesión para abrir este documento compartido",
+    "error.404.docs_access_not_found": "Concesión de acceso no encontrada",
+    "error.404.docs_link_not_found": "Enlace de acceso no encontrado",
 }
 
 #: language -> machine-translation table, consulted for the keys the curated
