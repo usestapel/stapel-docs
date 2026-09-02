@@ -57,7 +57,17 @@ class DocsGDPRProvider(GDPRProvider):
         return self.anonymize(user_id)
 
     def anonymize(self, user_id) -> dict:
-        """Null every authorship reference; return how many rows changed.
+        """Null every authorship reference, DELETE the per-user state, and
+        return how many rows changed.
+
+        The two policies are different on purpose. Authorship is workspace
+        content and survives anonymized (see the module docstring). Stars
+        and recents are not content at all — they are one person's private
+        view of the corpus, they mean nothing without that person, and an
+        anonymized star would be a bookmark nobody can reach and nobody can
+        clear. So they die with the account (drive-spec §3.1/§3.2); the
+        CASCADE on the user FK does the same thing when the auth row itself
+        goes, and doing it here keeps the receipt honest about what left.
 
         Idempotent (a nulled row nulls to itself), so at-least-once
         redelivery is harmless — and the second delivery reports zeros,
@@ -67,9 +77,21 @@ class DocsGDPRProvider(GDPRProvider):
         :class:`GDPRProvider` ignores a return value, so the orchestrator's
         in-process path is unaffected.
         """
-        from .models import Document, DocumentUpdate, Folder, Revision, UploadSession
+        from .models import (
+            Document,
+            DocumentUpdate,
+            Folder,
+            RecentEntry,
+            Revision,
+            Star,
+            UploadSession,
+        )
 
+        stars_deleted, _ = Star.objects.filter(user_id=user_id).delete()
+        recents_deleted, _ = RecentEntry.objects.filter(user_id=user_id).delete()
         return {
+            "stars_deleted": stars_deleted,
+            "recents_deleted": recents_deleted,
             "updates_anonymized": DocumentUpdate.objects.filter(
                 author_id=user_id
             ).update(author_id=None),

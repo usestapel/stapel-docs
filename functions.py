@@ -5,10 +5,18 @@ with ``VALIDATE_SCHEMAS`` on, so a payload drifting from its schema fails
 loudly. Registration happens on import from ``apps.py:ready()``; re-imports
 are no-ops.
 
-Provided: ``docs.create_document`` — the main ingest seam (design §6):
-ironmemo dumps transcripts/summaries through it. The event-driven variant
-is the ``STAPEL_DOCS["INGEST"]`` registry (``actions.py``). Emitted actions
-live in ``events.py``.
+Provided:
+
+- ``docs.create_document`` — the main ingest seam (design §6): ironmemo
+  dumps transcripts/summaries through it. The event-driven variant is the
+  ``STAPEL_DOCS["INGEST"]`` registry (``actions.py``);
+- ``docs.usage`` — the metering surface billing composes with (drive-spec
+  §3.4). Read-only, and gated by the SAME caller authority as the write
+  seam: how full a workspace is, and of what, is workspace data. A read
+  that skipped the gate because "it only reads" would let any bus
+  participant enumerate every workspace's corpus size and type mix by id.
+
+Emitted actions live in ``events.py``.
 
 Authority on this surface (security audit DOCS-02): a comm call has no
 session, so the payload must carry the authority. ``actor_id`` is
@@ -22,13 +30,16 @@ is a caller, not an exemption.
 from stapel_core.comm import function
 
 
-def _authorized_actor(payload):
+def _authorized_actor(payload, *, action: str = "edit"):
     """Bind the call to an authorized actor; returns the actor user or None.
 
     Refusals are loud: :class:`~stapel_docs.services.CallerNotAuthorized`
-    for a caller that may not write here, a 503-mapped ``DocsError`` when
+    for a caller that may not act here, a 503-mapped ``DocsError`` when
     the workspaces service rendered no verdict (fail-closed — an outage is
     never an allow).
+
+    ``action`` is the capability the call needs in the target workspace:
+    ``edit`` to write a document, ``view`` to read an aggregate over them.
     """
     from django.contrib.auth import get_user_model
 
@@ -45,7 +56,7 @@ def _authorized_actor(payload):
         verdict = authorize(
             workspace_id=workspace_id,
             principal=Principal(user_id=actor_id),
-            action="edit",
+            action=action,
         )
         if verdict == UNAVAILABLE:
             raise DocsError(503, ERR_503_WORKSPACES)
@@ -133,3 +144,32 @@ def create_document(payload):
         owner=owner,
     )
     return {"document_id": str(document.id)}
+
+
+@function("docs.usage")
+def usage(payload):
+    """Stored-byte and item metering for one workspace (drive-spec §3.4).
+
+    Output::
+
+        {"bytes_live": int, "bytes_trash": int, "bytes_total": int,
+         "documents": int, "folders": int,
+         "by_type": {slug: {"documents": int, "bytes": int}}}
+
+    ``bytes_total`` is the SAME sum the 507 quota refuses against
+    (``services.workspace_usage_bytes``) — one number, so a meter and a
+    refusal can never tell an operator two different stories about the same
+    workspace. Composing an entitlement ceiling out of it
+    (``billing.check_entitlement``) is the HOST's glue: docs owns the
+    measurement, never the price.
+
+    Authority: identical to ``docs.create_document`` except that the
+    capability asked for is ``docs.view`` rather than ``docs.edit`` — an
+    ``actor_id`` authorized through the same choke point, or a
+    ``caller_service`` the host listed in ``INTERNAL_TRUSTED_SERVICES``.
+    """
+    _authorized_actor(payload, action="view")
+
+    from . import services  # lazy: the comm surface must import alone
+
+    return services.workspace_usage(payload["workspace_id"])

@@ -55,6 +55,20 @@ nested dict key; its sub-keys are listed as `SHARING.<KEY>` rows below.
 | FOLDER_MAX_DEPTH | env | folder tree depth ceiling (create/move/ingest-path all enforce it). | no | 10 |
 | TRASH_RETENTION_DAYS | env | soft-deleted items become purgeable by `docs_purge_expired` after this many days; purge is irreversible. | no | 30 |
 
+### Drive surfaces — starred / recents / search (source: env)
+
+| Key | Source | Purpose | Required | Default |
+|-----|--------|---------|----------|---------|
+| RECENTS_MAX_PER_USER | env | newest N documents kept per user in the recents table, trimmed oldest-first on write (0 disables the cap — the table then grows with the corpus, per user). | no | 100 |
+| SEARCH_MAX_RESULTS | env | ceiling on hits returned by `GET /search` and by the starred listing. A ceiling, not a page size: this module's listings are capped arrays, not paginated envelopes. | no | 50 |
+
+Image thumbnail tiers are deliberately NOT configurable: the tier is part of
+the URL contract a client caches against, and every extra rung is another
+rendered copy of every image in the bucket. The ladder is the fixed
+`stapel_docs.thumbnails.THUMBNAIL_TIERS` = (160, 480), and rendering needs
+the optional `stapel-docs[thumbnails]` extra (absent → 503, never a silently
+missing preview).
+
 ### Resource limits & quota (hard invariants; 0 disables one ceiling) (source: env)
 
 | Key | Source | Purpose | Required | Default |

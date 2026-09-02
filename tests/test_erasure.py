@@ -11,7 +11,15 @@ import pytest
 from django.test import override_settings
 from stapel_core.comm import emit, subscribe_action
 
-from stapel_docs.models import Document, DocumentUpdate, Folder, Revision, UploadSession
+from stapel_docs.models import (
+    Document,
+    DocumentUpdate,
+    Folder,
+    RecentEntry,
+    Revision,
+    Star,
+    UploadSession,
+)
 from stapel_docs.storage import get_storage
 
 pytestmark = pytest.mark.django_db
@@ -193,6 +201,41 @@ class TestDocumentSubject:
         assert second["counts"]["documents"] == 0
 
 
+class TestPerUserStateCascade:
+    """A document/workspace erasure destroys the objects, so the per-user
+    rows pointing at them go too — and the receipt says how many, because a
+    receipt that omits them under-reports what left."""
+
+    def test_document_erasure_takes_its_stars_and_recents(self, actor, user,
+                                                          workspace_id):
+        doc = _create_doc(actor, workspace_id)
+        actor.post(f"{API}/documents/{doc['id']}/star")
+        actor.get(f"{API}/documents/{doc['id']}/content")
+
+        _request_erasure("document", doc["id"], workspace_id=str(workspace_id))
+
+        assert Star.objects.count() == 0
+        assert RecentEntry.objects.count() == 0
+        (receipt,) = _RECEIPTS
+        assert receipt["counts"]["stars"] == 1
+        assert receipt["counts"]["recents"] == 1
+
+    def test_workspace_erasure_takes_folder_stars_too(self, actor, user,
+                                                      workspace_id):
+        folder = actor.post(
+            f"{API}/folders",
+            {"workspace_id": str(workspace_id), "name": "f"},
+            format="json",
+        ).json()
+        actor.post(f"{API}/folders/{folder['id']}/star")
+
+        _request_erasure("workspace", workspace_id)
+
+        assert Star.objects.count() == 0
+        (receipt,) = _RECEIPTS
+        assert receipt["counts"]["stars"] == 1
+
+
 class TestWorkspaceSubject:
     def test_destroys_the_whole_corpus(
         self, actor, user, workspace_id, django_capture_on_commit_callbacks
@@ -232,6 +275,10 @@ class TestWorkspaceSubject:
         assert counts["folders"] == 1
         assert counts["upload_sessions"] == 1
         assert counts["storage_objects"] == len(keys)
+        assert counts["stars"] == 0
+        # The content PUT above made `first` recent for its author; the
+        # workspace erasure takes that row with the document.
+        assert counts["recents"] == 1
 
     def test_a_neighbouring_workspace_is_untouched(self, actor, api_client, user,
                                                    grant_capabilities, workspace_id):
@@ -260,6 +307,8 @@ class TestWorkspaceSubject:
             "folders": 0,
             "upload_sessions": 0,
             "storage_objects": 0,
+            "stars": 0,
+            "recents": 0,
         }
 
 
@@ -287,6 +336,49 @@ class TestAccountSubject:
         assert receipt["counts"]["folders_anonymized"] == 1
         assert receipt["counts"]["revisions_anonymized"] == 1
 
+    def test_per_user_state_is_deleted_not_anonymized(self, actor, user,
+                                                      workspace_id):
+        """Stars and recents are one person's private view of the corpus.
+        They mean nothing without that person, and an anonymized star is a
+        bookmark nobody can reach and nobody can clear — so unlike
+        authorship, they die with the account (drive-spec §3.1/§3.2)."""
+        doc = _create_doc(actor, workspace_id)
+        folder = Folder.objects.create(workspace_id=workspace_id, name="owned")
+        assert actor.post(f"{API}/documents/{doc['id']}/star").status_code == 204
+        assert actor.post(f"{API}/folders/{folder.id}/star").status_code == 204
+        assert actor.get(f"{API}/documents/{doc['id']}/content").status_code == 200
+        assert Star.objects.filter(user=user).count() == 2
+        assert RecentEntry.objects.filter(user=user).count() == 1
+
+        _request_erasure("account", user.pk)
+
+        assert Star.objects.filter(user=user).count() == 0
+        assert RecentEntry.objects.filter(user=user).count() == 0
+        # The documents themselves survive: erasing one member's bookmarks
+        # is not erasing the workspace's content.
+        assert Document.objects.filter(pk=doc["id"]).exists()
+
+        (receipt,) = _RECEIPTS
+        assert receipt["counts"]["stars_deleted"] == 2
+        assert receipt["counts"]["recents_deleted"] == 1
+
+    def test_another_members_stars_are_untouched(self, actor, api_client, user,
+                                                 workspace_id, grant_capabilities):
+        from django.contrib.auth import get_user_model
+
+        doc = _create_doc(actor, workspace_id)
+        actor.post(f"{API}/documents/{doc['id']}/star")
+
+        other = get_user_model().objects.create(username=f"o-{uuid.uuid4().hex[:8]}")
+        api_client.force_authenticate(user=other)
+        grant_capabilities(workspace_id, other.pk)
+        api_client.post(f"{API}/documents/{doc['id']}/star")
+
+        _request_erasure("account", user.pk)
+
+        assert Star.objects.filter(user=user).count() == 0
+        assert Star.objects.filter(user=other).count() == 1
+
     def test_redelivery_receipts_zeros(self, actor, user, workspace_id):
         _create_doc(actor, workspace_id)
 
@@ -296,6 +388,8 @@ class TestAccountSubject:
         first, second = _RECEIPTS
         assert first["counts"]["documents_anonymized"] == 1
         assert second["counts"]["documents_anonymized"] == 0
+        assert second["counts"]["stars_deleted"] == 0
+        assert second["counts"]["recents_deleted"] == 0
 
     def test_user_deleted_still_erases_and_stays_silent(self, actor, user, workspace_id):
         """The deprecated event keeps working for one minor and routes

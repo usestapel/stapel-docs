@@ -198,6 +198,16 @@ DEFAULTS = {
         # Named revisions are always minted on request.
         "AUTO_REVISION_INTERVAL_SECONDS": 300,
 
+        # ── Drive surfaces (starred / recents / search) ──────────────
+        # Recents are a position, not a log: the newest N documents a user
+        # reached, trimmed on write. 0 disables the cap (an explicit host
+        # decision — the table then grows with the corpus, per user).
+        "RECENTS_MAX_PER_USER": 100,
+        # Hits returned by GET /search (folders + documents combined) and by
+        # the starred/recents listings. A ceiling, not a page size: the
+        # module's listings are capped arrays, not paginated envelopes.
+        "SEARCH_MAX_RESULTS": 50,
+
         # ── Tree / trash ─────────────────────────────────────────────
         "FOLDER_MAX_DEPTH": 10,
         # Soft-deleted items become purgeable after this many days; purge

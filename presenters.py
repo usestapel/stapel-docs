@@ -22,10 +22,12 @@ from stapel_core.django.swappable import declare_swap, get_presenter
 from .doc_types import COLLAB_SNAPSHOT, get_doc_types
 from .dto import (
     AppendResultDTO,
+    BreadcrumbNodeDTO,
     DownloadUrlDTO,
     JournalUpdateDTO,
     ResyncDTO,
     SaveResultDTO,
+    SearchHitDTO,
     TrashPurgeResultDTO,
     UpdatesFeedDTO,
     UploadTicketDTO,
@@ -61,7 +63,8 @@ class FolderPresenter(Presenter):
             "name": "Meetings",
             "created_at": "2026-08-09T10:00:00+00:00",
             "updated_at": "2026-08-09T10:00:00+00:00",
-            "deleted_at": null
+            "deleted_at": null,
+            "is_starred": false
         }
     """
 
@@ -83,6 +86,13 @@ class FolderPresenter(Presenter):
             source=lambda dao: dao.deleted_at.isoformat() if dao.deleted_at else None,
             default=None,
             help_text="Set while the folder sits in the trash.",
+        ),
+        "is_starred": PresenterField(
+            type=Optional[bool],
+            source=lambda dao: getattr(dao, "is_starred", None),
+            default=None,
+            help_text="Whether the requesting user starred this; null when "
+            "the request carries no user (not applicable is not false).",
         ),
     }
 
@@ -109,7 +119,8 @@ class DocumentPresenter(Presenter):
             "diffable": true,
             "created_at": "2026-08-09T10:00:00+00:00",
             "updated_at": "2026-08-09T10:05:00+00:00",
-            "deleted_at": null
+            "deleted_at": null,
+            "is_starred": false
         }
     """
 
@@ -147,6 +158,13 @@ class DocumentPresenter(Presenter):
             source=lambda dao: dao.deleted_at.isoformat() if dao.deleted_at else None,
             default=None,
             help_text="Set while the document sits in the trash.",
+        ),
+        "is_starred": PresenterField(
+            type=Optional[bool],
+            source=lambda dao: getattr(dao, "is_starred", None),
+            default=None,
+            help_text="Whether the requesting user starred this; null when "
+            "the request carries no user (not applicable is not false).",
         ),
     }
 
@@ -249,6 +267,39 @@ def present_purge_result(folders: int, documents: int) -> TrashPurgeResultDTO:
     return TrashPurgeResultDTO(folders=folders, documents=documents)
 
 
+def present_search_hits(hits) -> list[SearchHitDTO]:
+    """Build the mixed folder/document hit list of ``GET /search``.
+
+    A hit is not a folder envelope and not a document envelope — it is the
+    shape a result row needs (kind + name + where it lives), so it gets its
+    own DTO rather than a union that is half-null either way.
+    """
+    built = []
+    for kind, row, breadcrumb in hits:
+        built.append(
+            SearchHitDTO(
+                kind=kind,
+                id=str(row.id),
+                workspace_id=str(row.workspace_id),
+                name=row.name if kind == "folder" else row.title,
+                parent_id=(
+                    str(row.parent_id)
+                    if kind == "folder" and row.parent_id
+                    else str(row.folder_id)
+                    if kind == "document" and row.folder_id
+                    else None
+                ),
+                type=None if kind == "folder" else row.type,
+                is_starred=getattr(row, "is_starred", None),
+                breadcrumb=[
+                    BreadcrumbNodeDTO(id=str(node_id), name=name)
+                    for node_id, name in breadcrumb
+                ],
+            )
+        )
+    return built
+
+
 __all__ = [
     "FOLDER_PRESENTER_KEY",
     "DOCUMENT_PRESENTER_KEY",
@@ -269,4 +320,5 @@ __all__ = [
     "present_download_url",
     "present_upload_ticket",
     "present_purge_result",
+    "present_search_hits",
 ]

@@ -30,6 +30,7 @@ from .authz import DENY, UNAVAILABLE, Principal, authorize
 from .errors import (
     ERR_400_BAD_SINCE,
     ERR_400_EXPORT_FORMAT,
+    ERR_400_THUMBNAIL_TIER,
     ERR_400_TYPE_NOT_EDITABLE,
     ERR_403_FORBIDDEN,
     ERR_403_UPLOAD_OWNER,
@@ -53,9 +54,11 @@ from .presenters import (
     present_purge_result,
     present_resync,
     present_save_result,
+    present_search_hits,
     present_updates_feed,
     present_upload_ticket,
 )
+from .thumbnails import THUMBNAIL_TIERS
 from .serializers import (
     AppendResultSerializer,
     DocumentCreateSerializer,
@@ -70,6 +73,9 @@ from .serializers import (
     ResyncSerializer,
     RevisionSerializer,
     SaveResultSerializer,
+    SearchHitSerializer,
+    SearchQuerySerializer,
+    ThumbnailQuerySerializer,
     TrashEmptySerializer,
     TrashPurgeResultSerializer,
     UpdatesAppendSerializer,
@@ -203,7 +209,9 @@ class FolderListCreateView(SerializerSeamMixin, APIView):
                     parent_id = uuid_module.UUID(raw)
                 except ValueError:
                     raise drf_serializers.ValidationError({"parent_id": "invalid uuid"})
-        rows = services.list_folders(workspace_id, parent_id=parent_id)
+        rows = services.list_folders(
+            workspace_id, parent_id=parent_id, user=_acting_user(request)
+        )
         presenter = get_folder_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present_many(rows), many=True)
@@ -224,6 +232,7 @@ class FolderListCreateView(SerializerSeamMixin, APIView):
             parent_id=data.get("parent_id"),
             user=_acting_user(request),
         )
+        services.attach_star(folder, _acting_user(request), target="folder")
         presenter = get_folder_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(folder)), status=201
@@ -246,6 +255,7 @@ class FolderDetailView(SerializerSeamMixin, APIView):
         denied = _access_error(request, folder.workspace_id, "view")
         if denied:
             return denied
+        services.attach_star(folder, _acting_user(request), target="folder")
         presenter = get_folder_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(folder))
@@ -270,6 +280,7 @@ class FolderDetailView(SerializerSeamMixin, APIView):
             folder = services.rename_folder(folder, data["name"])
         if "parent_id" in data:
             folder = services.move_folder(folder, data["parent_id"])
+        services.attach_star(folder, _acting_user(request), target="folder")
         presenter = get_folder_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(folder))
@@ -301,6 +312,7 @@ class FolderRestoreView(SerializerSeamMixin, APIView):
         if denied:
             return denied
         folder = services.restore_folder(folder)
+        services.attach_star(folder, _acting_user(request), target="folder")
         presenter = get_folder_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(folder))
@@ -346,6 +358,7 @@ class DocumentListCreateView(SerializerSeamMixin, APIView):
             folder_id=data.get("folder_id"),
             type=data.get("type"),
             q=data.get("q"),
+            user=_acting_user(request),
         )
         presenter = get_document_presenter()
         return StapelResponse(
@@ -370,6 +383,7 @@ class DocumentListCreateView(SerializerSeamMixin, APIView):
             body=data.get("body"),
             user=_acting_user(request),
         )
+        services.attach_star(document, _acting_user(request), target="document")
         presenter = get_document_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(document)), status=201
@@ -392,6 +406,7 @@ class DocumentDetailView(SerializerSeamMixin, APIView):
         denied = _access_error(request, document.workspace_id, "view")
         if denied:
             return denied
+        services.attach_star(document, _acting_user(request), target="document")
         presenter = get_document_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(document))
@@ -418,6 +433,7 @@ class DocumentDetailView(SerializerSeamMixin, APIView):
             )
         if "folder_id" in data:
             document = services.move_document(document, data["folder_id"])
+        services.attach_star(document, _acting_user(request), target="document")
         presenter = get_document_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(document))
@@ -449,6 +465,7 @@ class DocumentRestoreView(SerializerSeamMixin, APIView):
         if denied:
             return denied
         document = services.restore_document(document)
+        services.attach_star(document, _acting_user(request), target="document")
         presenter = get_document_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(document))
@@ -476,7 +493,9 @@ class DocumentContentView(SerializerSeamMixin, APIView):
         denied = _access_error(request, document.workspace_id, "view")
         if denied:
             return denied
-        body, mime, head_seq = services.read_content(document)
+        body, mime, head_seq = services.read_content(
+            document, user=_acting_user(request)
+        )
         response = HttpResponse(body, content_type=mime)
         response["ETag"] = f'"{head_seq}"'
         response["X-Docs-Head-Seq"] = str(head_seq)
@@ -523,7 +542,7 @@ class DocumentDownloadView(SerializerSeamMixin, APIView):
         denied = _access_error(request, document.workspace_id, "view")
         if denied:
             return denied
-        url = services.download_url(document.snapshot_key)
+        url = services.document_download_url(document, user=_acting_user(request))
         return StapelResponse(
             self.get_response_serializer_class()(present_download_url(url))
         )
@@ -743,6 +762,213 @@ class RevisionRestoreView(SerializerSeamMixin, APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Drive surfaces: starred, recents, search, thumbnails
+# ─────────────────────────────────────────────────────────────────────
+#
+# All four are per-user views over the corpus the workspace baseline
+# already shows. A star is a bookmark, so starring takes `docs.view` and
+# not `docs.edit`: a member who may read a document may remember it, and
+# requiring edit would make "keep this handy" an act of authorship.
+
+
+class _StarViewBase(SerializerSeamMixin, APIView):
+    """POST = star, DELETE = unstar. Both answer 204 whatever the previous
+    state was: an idempotent verb that reports "already done" as a failure
+    forces every client to read before writing."""
+
+    permission_classes = [IsNotAnonymousUser]
+    #: "document" | "folder"
+    target = ""
+
+    def _fetch(self, target_id):
+        raise NotImplementedError
+
+    def _apply(self, request, target_id, starred: bool):
+        row = self._fetch(target_id)
+        denied = _access_error(request, row.workspace_id, "view")
+        if denied:
+            return denied
+        services.set_star(
+            **{self.target: row}, user=_acting_user(request), starred=starred
+        )
+        return StapelResponse(status=204)
+
+    @extend_schema(request=None, responses={204: None})
+    @_maps_docs_errors
+    def post(self, request, **kwargs):
+        return self._apply(request, next(iter(kwargs.values())), True)
+
+    @extend_schema(responses={204: None})
+    @_maps_docs_errors
+    def delete(self, request, **kwargs):
+        return self._apply(request, next(iter(kwargs.values())), False)
+
+
+@extend_schema(tags=["Docs / starred"])
+class DocumentStarView(_StarViewBase):
+    """Star or unstar one document for the requesting user."""
+
+    target = "document"
+
+    def _fetch(self, target_id):
+        return services.get_live_document(target_id)
+
+
+@extend_schema(tags=["Docs / starred"])
+class FolderStarView(_StarViewBase):
+    """Star or unstar one folder for the requesting user."""
+
+    target = "folder"
+
+    def _fetch(self, target_id):
+        return services.get_live_folder(target_id)
+
+
+@extend_schema(tags=["Docs / starred"])
+class StarredView(SerializerSeamMixin, APIView):
+    """Everything the requesting user starred in one workspace.
+
+    Live rows only. A trashed item drops out of the listing but keeps its
+    star until purge, so restoring it brings the bookmark back."""
+
+    permission_classes = [IsNotAnonymousUser]
+
+    @extend_schema(parameters=[_WORKSPACE_PARAM], responses={200: None})
+    @_maps_docs_errors
+    def get(self, request):
+        query = WorkspaceQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        workspace_id = query.validated_data["workspace_id"]
+        denied = _access_error(request, workspace_id, "view")
+        if denied:
+            return denied
+        folders, documents = services.starred_listing(
+            workspace_id, _acting_user(request)
+        )
+        folder_presenter = get_folder_presenter()
+        document_presenter = get_document_presenter()
+        return StapelResponse(
+            {
+                "folders": FolderSerializer(
+                    folder_presenter.present_many(folders), many=True
+                ).data,
+                "documents": DocumentSerializer(
+                    document_presenter.present_many(documents), many=True
+                ).data,
+            }
+        )
+
+
+@extend_schema(tags=["Docs / recents"])
+class RecentsView(SerializerSeamMixin, APIView):
+    """Documents the requesting user reached most recently (newest first).
+
+    Written by the service layer on content read, download-URL issuance and
+    accepted save — never by this endpoint, which only reads."""
+
+    permission_classes = [IsNotAnonymousUser]
+    response_serializer_class = DocumentSerializer
+
+    @extend_schema(
+        parameters=[_WORKSPACE_PARAM], responses={200: DocumentSerializer(many=True)}
+    )
+    @_maps_docs_errors
+    def get(self, request):
+        query = WorkspaceQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        workspace_id = query.validated_data["workspace_id"]
+        denied = _access_error(request, workspace_id, "view")
+        if denied:
+            return denied
+        rows = services.recent_documents(workspace_id, _acting_user(request))
+        presenter = get_document_presenter()
+        return StapelResponse(
+            self.get_response_serializer_class()(presenter.present_many(rows), many=True)
+        )
+
+
+@extend_schema(tags=["Docs / search"])
+class SearchView(SerializerSeamMixin, APIView):
+    """Workspace-scoped name search over live folders and documents."""
+
+    permission_classes = [IsNotAnonymousUser]
+    response_serializer_class = SearchHitSerializer
+
+    @extend_schema(
+        parameters=[
+            _WORKSPACE_PARAM,
+            OpenApiParameter(
+                name="q", type=str, location=OpenApiParameter.QUERY, required=True,
+                description="Case-insensitive substring of a folder name or "
+                "document title. Mandatory: an absent query is a 400, never "
+                "the whole workspace.",
+            ),
+            OpenApiParameter(
+                name="limit", type=int, location=OpenApiParameter.QUERY, required=False,
+                description="Ceiling on returned hits (default SEARCH_MAX_RESULTS).",
+            ),
+        ],
+        responses={200: SearchHitSerializer(many=True)},
+    )
+    @_maps_docs_errors
+    def get(self, request):
+        query = SearchQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        data = query.validated_data
+        denied = _access_error(request, data["workspace_id"], "view")
+        if denied:
+            return denied
+        hits = services.search(
+            data["workspace_id"],
+            data["q"],
+            user=_acting_user(request),
+            limit=data.get("limit") or 0,
+        )
+        return StapelResponse(
+            self.get_response_serializer_class()(present_search_hits(hits), many=True)
+        )
+
+
+@extend_schema(tags=["Docs / content"])
+class DocumentThumbnailView(SerializerSeamMixin, APIView):
+    """Serve a cached image thumbnail of a ``type=file`` image document.
+
+    Same authorization and the same storage seam as the content endpoint —
+    a preview is the document, smaller. Missing Pillow answers 503 (the
+    ExporterUnavailable convention: a frontend falls back to a type icon);
+    a non-image, a non-file or an unknown tier answers 400."""
+
+    permission_classes = [IsNotAnonymousUser]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="tier", type=int, location=OpenApiParameter.QUERY, required=True,
+                description="Longest-edge pixel tier; the ladder is fixed (160, 480).",
+            )
+        ],
+        responses={200: None},
+    )
+    @_maps_docs_errors
+    def get(self, request, document_id):
+        document = services.get_live_document(document_id)
+        denied = _access_error(request, document.workspace_id, "view")
+        if denied:
+            return denied
+        query = ThumbnailQuerySerializer(data=request.query_params)
+        if not query.is_valid():
+            return StapelErrorResponse(
+                400, ERR_400_THUMBNAIL_TIER, {"tiers": list(THUMBNAIL_TIERS)}
+            )
+        image, mime = services.get_thumbnail(document, query.validated_data["tier"])
+        response = HttpResponse(image, content_type=mime)
+        # Cheap and correct: the key already carries head_seq, so a saved
+        # document addresses a different image instead of a stale cache.
+        response["ETag"] = f'"{document.head_seq}-{query.validated_data["tier"]}"'
+        return response
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Trash
 # ─────────────────────────────────────────────────────────────────────
 
@@ -762,7 +988,9 @@ class TrashView(SerializerSeamMixin, APIView):
         denied = _access_error(request, workspace_id, "manage")
         if denied:
             return denied
-        folders, documents = services.trash_listing(workspace_id)
+        folders, documents = services.trash_listing(
+            workspace_id, user=_acting_user(request)
+        )
         folder_presenter = get_folder_presenter()
         document_presenter = get_document_presenter()
         return StapelResponse(
@@ -877,6 +1105,7 @@ class UploadFinalizeView(SerializerSeamMixin, APIView):
             if verdict == DENY:
                 return StapelErrorResponse(403, ERR_403_UPLOAD_OWNER)
         document = services.finalize_upload(session)
+        services.attach_star(document, _acting_user(request), target="document")
         presenter = get_document_presenter()
         return StapelResponse(
             self.get_response_serializer_class()(presenter.present(document))

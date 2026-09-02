@@ -12,17 +12,22 @@ Pinned here: the rows move, a redelivery moves nothing further, every
 malformed payload is ACKed instead of poisoning the bus, and an event naming
 users this deployment has no rows for does nothing.
 """
+import datetime
 import uuid
 from types import SimpleNamespace
 
 import pytest
+
+from django.utils import timezone
 
 from stapel_docs.actions import MergeTargetNotReady, handle_user_merged
 from stapel_docs.models import (
     Document,
     DocumentUpdate,
     Folder,
+    RecentEntry,
     Revision,
+    Star,
     UploadSession,
 )
 
@@ -205,6 +210,129 @@ class TestUnknownUsers:
 
         doc.refresh_from_db()
         assert doc.owner_id == guest.pk
+
+
+class TestPerUserStateFolding:
+    """Stars and recents are unique per (user, target), so re-parenting them
+    is a FOLD, not an update: a blind UPDATE violates the constraint the
+    moment the survivor already starred or opened the same document — which
+    is the common case, not the corner one, since a guest and their real
+    account tend to look at the same things."""
+
+    def test_stars_move_when_there_is_no_collision(self, guest, survivor):
+        doc, folder, *_ = _corpus(guest)
+        Star.objects.create(user=guest, workspace_id=doc.workspace_id, document=doc)
+        Star.objects.create(user=guest, workspace_id=doc.workspace_id, folder=folder)
+
+        handle_user_merged(_event(from_user_id=guest.pk, into_user_id=survivor.pk))
+
+        assert Star.objects.filter(user=guest).count() == 0
+        assert Star.objects.filter(user=survivor).count() == 2
+
+    def test_a_star_collision_folds_to_one_row(self, guest, survivor):
+        doc, folder, *_ = _corpus(guest)
+        for target in ({"document": doc}, {"folder": folder}):
+            Star.objects.create(user=guest, workspace_id=doc.workspace_id, **target)
+            Star.objects.create(user=survivor, workspace_id=doc.workspace_id, **target)
+
+        handle_user_merged(_event(from_user_id=guest.pk, into_user_id=survivor.pk))
+
+        # Still starred, once — the item does not become double-starred and
+        # does not become un-starred.
+        assert Star.objects.filter(user=guest).count() == 0
+        assert Star.objects.filter(user=survivor, document=doc).count() == 1
+        assert Star.objects.filter(user=survivor, folder=folder).count() == 1
+
+    def test_recents_move_when_there_is_no_collision(self, guest, survivor):
+        doc, *_ = _corpus(guest)
+        RecentEntry.objects.create(
+            user=guest,
+            document=doc,
+            workspace_id=doc.workspace_id,
+            accessed_at=timezone.now(),
+        )
+
+        handle_user_merged(_event(from_user_id=guest.pk, into_user_id=survivor.pk))
+
+        assert RecentEntry.objects.filter(user=guest).count() == 0
+        assert RecentEntry.objects.filter(user=survivor, document=doc).count() == 1
+
+    def test_a_recent_collision_keeps_the_newer_timestamp(self, guest, survivor):
+        """One person, one answer to "when did I last reach this" — the later
+        one. Keeping the survivor's older stamp silently reorders the list."""
+        doc, *_ = _corpus(guest)
+        older = timezone.now() - datetime.timedelta(days=2)
+        newer = timezone.now()
+        RecentEntry.objects.create(
+            user=survivor, document=doc, workspace_id=doc.workspace_id,
+            accessed_at=older,
+        )
+        RecentEntry.objects.create(
+            user=guest, document=doc, workspace_id=doc.workspace_id,
+            accessed_at=newer,
+        )
+
+        handle_user_merged(_event(from_user_id=guest.pk, into_user_id=survivor.pk))
+
+        row = RecentEntry.objects.get()
+        assert row.user_id == survivor.pk
+        assert abs((row.accessed_at - newer).total_seconds()) < 1
+
+    def test_a_recent_collision_keeps_the_survivors_newer_timestamp(
+        self, guest, survivor
+    ):
+        doc, *_ = _corpus(guest)
+        newer = timezone.now()
+        older = timezone.now() - datetime.timedelta(days=2)
+        RecentEntry.objects.create(
+            user=survivor, document=doc, workspace_id=doc.workspace_id,
+            accessed_at=newer,
+        )
+        RecentEntry.objects.create(
+            user=guest, document=doc, workspace_id=doc.workspace_id,
+            accessed_at=older,
+        )
+
+        handle_user_merged(_event(from_user_id=guest.pk, into_user_id=survivor.pk))
+
+        row = RecentEntry.objects.get()
+        assert row.user_id == survivor.pk
+        assert abs((row.accessed_at - newer).total_seconds()) < 1
+
+    def test_a_guest_with_only_stars_still_needs_the_survivor(self, guest):
+        """Per-user state is rows to carry, so its presence alone must arm
+        the MergeTargetNotReady retry — otherwise a guest whose only trace is
+        a bookmark is silently ACKed and the bookmark is stranded."""
+        ws = uuid.uuid4()
+        doc = Document.objects.create(workspace_id=ws, type="md", title="D")
+        Star.objects.create(user=guest, workspace_id=ws, document=doc)
+
+        with pytest.raises(MergeTargetNotReady):
+            handle_user_merged(
+                _event(from_user_id=guest.pk, into_user_id=str(uuid.uuid4()))
+            )
+        assert Star.objects.filter(user=guest).count() == 1
+
+    def test_redelivery_moves_nothing_further(self, guest, survivor):
+        doc, folder, *_ = _corpus(guest)
+        Star.objects.create(user=guest, workspace_id=doc.workspace_id, document=doc)
+        RecentEntry.objects.create(
+            user=guest, document=doc, workspace_id=doc.workspace_id,
+            accessed_at=timezone.now(),
+        )
+
+        event = _event(from_user_id=guest.pk, into_user_id=survivor.pk)
+        handle_user_merged(event)
+        before = (
+            sorted(Star.objects.values_list("id", "user_id")),
+            sorted(RecentEntry.objects.values_list("id", "user_id")),
+        )
+        handle_user_merged(event)
+        after = (
+            sorted(Star.objects.values_list("id", "user_id")),
+            sorted(RecentEntry.objects.values_list("id", "user_id")),
+        )
+        assert before == after
 
 
 class TestLifecycleCheck:

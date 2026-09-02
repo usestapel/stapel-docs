@@ -21,6 +21,7 @@ from .dto import (
     DownloadUrlDTO,
     ResyncDTO,
     SaveResultDTO,
+    SearchHitDTO,
     TrashPurgeResultDTO,
     UpdatesFeedDTO,
     UploadTicketDTO,
@@ -74,6 +75,11 @@ class TrashPurgeResultSerializer(StapelDataclassSerializer):
         dataclass = TrashPurgeResultDTO
 
 
+class SearchHitSerializer(StapelDataclassSerializer):
+    class Meta:
+        dataclass = SearchHitDTO
+
+
 # ── Query-parameter envelopes ────────────────────────────────────────
 
 
@@ -87,6 +93,26 @@ class DocumentListQuerySerializer(WorkspaceQuerySerializer):
     folder_id = serializers.UUIDField(required=False, allow_null=True)
     type = serializers.CharField(max_length=32, required=False)
     q = serializers.CharField(max_length=512, required=False)
+
+
+class SearchQuerySerializer(WorkspaceQuerySerializer):
+    """``GET /search`` — ``q`` is mandatory and non-blank.
+
+    A search endpoint that answers an absent query with the whole workspace
+    is a listing endpoint wearing a search name (and the most expensive
+    accidental scan a client can trigger), so a missing or blank ``q`` is a
+    400 here, not a default.
+    """
+
+    q = serializers.CharField(max_length=512, min_length=1, allow_blank=False)
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=200)
+
+
+class ThumbnailQuerySerializer(serializers.Serializer):
+    """``GET /documents/<id>/thumbnail?tier=`` — the tier ladder is fixed
+    (``thumbnails.THUMBNAIL_TIERS``); the service refuses anything else."""
+
+    tier = serializers.IntegerField()
 
 
 # ── Folder requests ──────────────────────────────────────────────────

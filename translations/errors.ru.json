@@ -5,6 +5,8 @@
   "error.400.docs_folder_cycle": "Папку нельзя переместить внутрь самой себя",
   "error.400.docs_folder_depth": "Превышена предельная глубина дерева папок",
   "error.400.docs_not_trashed": "Элемент не находится в корзине",
+  "error.400.docs_thumbnail_tier": "Неизвестный размер миниатюры",
+  "error.400.docs_thumbnail_unsupported": "У этого документа нет изображения для предпросмотра",
   "error.400.docs_too_many_updates": "Слишком много обновлений в одном запросе",
   "error.400.docs_too_many_uploads": "В этом рабочем пространстве уже открыто слишком много сессий загрузки",
   "error.400.docs_type_not_editable": "У этого типа документа нет редактируемого содержимого",
@@ -29,6 +31,7 @@
   "error.413.docs_upload_too_large": "Загрузка превышает предельный размер",
   "error.503.docs_download_url_unavailable": "При такой конфигурации хранилища ссылки для скачивания недоступны",
   "error.503.docs_exporter_unavailable": "Бэкенд экспорта не установлен",
+  "error.503.docs_thumbnails_unavailable": "Генератор миниатюр не установлен",
   "error.503.docs_workspaces_unavailable": "Сервис участников рабочего пространства недоступен",
   "error.507.docs_workspace_quota": "Квота хранилища рабочего пространства исчерпана"
 }

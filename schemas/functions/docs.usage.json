@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "docs.usage",
+  "description": "Stored-byte and item metering for one workspace (the surface billing can consume). Returns {bytes_live, bytes_trash, bytes_total, documents, folders, by_type: {slug: {documents, bytes}}}. `bytes_total` is the same sum the 507 workspace quota refuses against (document heads + revision snapshots), so a meter and a refusal never disagree; `documents`/`folders`/`by_type` count the LIVE corpus, while trashed rows keep being charged in `bytes_trash` (trash is not a discount). Read-only, but workspace data all the same: authority travels in the payload exactly as for docs.create_document — `actor_id` is authorized through the same choke point (docs.view in the workspace), or `caller_service` must be listed in STAPEL_DOCS['INTERNAL_TRUSTED_SERVICES'].",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workspace_id"],
+  "properties": {
+    "workspace_id": {"type": "string", "format": "uuid"},
+    "actor_id": {"type": ["string", "null"], "description": "User the call acts for; authorized for docs.view in this workspace."},
+    "caller_service": {"type": ["string", "null"], "description": "Name of a service acting without a user actor; accepted only when the host trusts it explicitly."}
+  }
+}

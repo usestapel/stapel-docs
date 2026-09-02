@@ -134,6 +134,12 @@ _MACHINE_RU = {
         "Бэкенд экспорта не установлен",
     "error.503.docs_download_url_unavailable":
         "При такой конфигурации хранилища ссылки для скачивания недоступны",
+    "error.503.docs_thumbnails_unavailable":
+        "Генератор миниатюр не установлен",
+    # Previews.
+    "error.400.docs_thumbnail_tier": "Неизвестный размер миниатюры",
+    "error.400.docs_thumbnail_unsupported":
+        "У этого документа нет изображения для предпросмотра",
 }
 
 _MACHINE_ES = {
@@ -202,6 +208,12 @@ _MACHINE_ES = {
     "error.503.docs_download_url_unavailable":
         "Los enlaces de descarga no están disponibles con esta configuración "
         "de almacenamiento",
+    "error.503.docs_thumbnails_unavailable":
+        "El generador de miniaturas no está instalado",
+    # Previews.
+    "error.400.docs_thumbnail_tier": "Tamaño de miniatura desconocido",
+    "error.400.docs_thumbnail_unsupported":
+        "Este documento no tiene vista previa de imagen",
 }
 
 #: language -> machine-translation table, consulted for the keys the curated

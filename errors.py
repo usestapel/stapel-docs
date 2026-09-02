@@ -21,6 +21,8 @@ ERR_400_UPLOAD_EXPIRED = "error.400.docs_upload_expired"
 ERR_400_UPLOAD_UNMEASURABLE = "error.400.docs_upload_unmeasurable"
 ERR_400_TOO_MANY_UPDATES = "error.400.docs_too_many_updates"
 ERR_400_TOO_MANY_UPLOADS = "error.400.docs_too_many_uploads"
+ERR_400_THUMBNAIL_TIER = "error.400.docs_thumbnail_tier"
+ERR_400_THUMBNAIL_UNSUPPORTED = "error.400.docs_thumbnail_unsupported"
 ERR_403_FORBIDDEN = "error.403.docs_forbidden"
 ERR_403_UPLOAD_OWNER = "error.403.docs_upload_owner"
 ERR_404_DOCUMENT = "error.404.docs_document_not_found"
@@ -37,6 +39,7 @@ ERR_507_WORKSPACE_QUOTA = "error.507.docs_workspace_quota"
 ERR_503_WORKSPACES = "error.503.docs_workspaces_unavailable"
 ERR_503_EXPORTER = "error.503.docs_exporter_unavailable"
 ERR_503_DOWNLOAD_URL = "error.503.docs_download_url_unavailable"
+ERR_503_THUMBNAILS = "error.503.docs_thumbnails_unavailable"
 
 STAPEL_DOCS_ERRORS = {
     ERR_400_UNKNOWN_TYPE: "Unknown document type",
@@ -55,6 +58,8 @@ STAPEL_DOCS_ERRORS = {
     ERR_400_UPLOAD_UNMEASURABLE: "The size of the uploaded object could not be determined",
     ERR_400_TOO_MANY_UPDATES: "Too many updates in one request",
     ERR_400_TOO_MANY_UPLOADS: "Too many upload sessions are already open in this workspace",
+    ERR_400_THUMBNAIL_TIER: "Unknown thumbnail size",
+    ERR_400_THUMBNAIL_UNSUPPORTED: "This document has no image preview",
     ERR_403_FORBIDDEN: "You do not have access to this document",
     ERR_403_UPLOAD_OWNER: "Only the user who opened this upload may finalize it",
     ERR_404_DOCUMENT: "Document not found",
@@ -71,6 +76,7 @@ STAPEL_DOCS_ERRORS = {
     ERR_503_WORKSPACES: "Workspace membership service is unavailable",
     ERR_503_EXPORTER: "The export backend is not installed",
     ERR_503_DOWNLOAD_URL: "Download links are not available with this storage configuration",
+    ERR_503_THUMBNAILS: "The thumbnail renderer is not installed",
 }
 
 register_service_errors(STAPEL_DOCS_ERRORS)

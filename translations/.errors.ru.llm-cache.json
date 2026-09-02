@@ -23,6 +23,14 @@
     "hash": "aeb8676d075462de",
     "text": "Элемент не находится в корзине"
   },
+  "error.400.docs_thumbnail_tier": {
+    "hash": "daabb2ffd3846d81",
+    "text": "Неизвестный размер миниатюры"
+  },
+  "error.400.docs_thumbnail_unsupported": {
+    "hash": "bd899bcf6f0a0cf9",
+    "text": "У этого документа нет изображения для предпросмотра"
+  },
   "error.400.docs_too_many_updates": {
     "hash": "1eefbc668cb5398b",
     "text": "Слишком много обновлений в одном запросе"
@@ -118,6 +126,10 @@
   "error.503.docs_exporter_unavailable": {
     "hash": "5e2eaca9d0b0a47e",
     "text": "Бэкенд экспорта не установлен"
+  },
+  "error.503.docs_thumbnails_unavailable": {
+    "hash": "d708adfd1e80a9ca",
+    "text": "Генератор миниатюр не установлен"
   },
   "error.503.docs_workspaces_unavailable": {
     "hash": "955a6b8b68652447",

@@ -89,10 +89,11 @@ def erase_workspace(workspace_id) -> dict:
 
     with transaction.atomic():
         # Documents are already gone and `Document.folder` is SET_NULL, so the
-        # only rows this cascade reaches are child folders — the count is
-        # folders, nothing else.
+        # only rows this cascade reaches are child folders and the stars
+        # pointing at them.
         _, per_model = Folder.objects.filter(workspace_id=workspace_id).delete()
     counts["folders"] += int(per_model.get("docs.Folder", 0))
+    counts["stars"] += int(per_model.get("docs.Star", 0))
     logger.info("docs: workspace %s erased (%s)", workspace_id, counts)
     return counts
 
@@ -138,6 +139,11 @@ def _zero_counts() -> dict:
         "folders": 0,
         "upload_sessions": 0,
         "storage_objects": 0,
+        # Per-user state that cascades off the erased objects (drive-spec
+        # §3.1/§3.2). Counted rather than assumed: a receipt that omits the
+        # bookmark rows a purge destroyed under-reports what left.
+        "stars": 0,
+        "recents": 0,
     }
 
 
@@ -150,7 +156,7 @@ def _purge_one(document) -> dict:
     """Purge one document through the module's own purge path and report
     what that removed. Counted BEFORE the purge — afterwards there is
     nothing left to count."""
-    from .models import DocumentUpdate
+    from .models import DocumentUpdate, RecentEntry, Star
     from .services import purge_document
 
     keys = {
@@ -160,11 +166,18 @@ def _purge_one(document) -> dict:
     }
     if document.snapshot_key:
         keys.add(document.snapshot_key)
+    # Cached thumbnails are derived objects under the same prefix; purge
+    # deletes them by enumeration, so the receipt counts them the same way.
+    keys.update(
+        key for key in document.thumbnails.values_list("storage_key", flat=True) if key
+    )
     removed = {
         "documents": 1,
         "revisions": document.revisions.count(),
         "updates": DocumentUpdate.objects.filter(document=document).count(),
         "storage_objects": len(keys),
+        "stars": Star.objects.filter(document=document).count(),
+        "recents": RecentEntry.objects.filter(document=document).count(),
     }
     purge_document(document)
     return removed

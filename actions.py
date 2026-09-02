@@ -149,7 +149,15 @@ def handle_user_merged(event):
       journal's attributed writes (a bare UUID column, deliberately FK-less);
     * :class:`~stapel_docs.models.UploadSession` ``created_by``, so an
       in-flight upload can still be finalized by the account that now holds
-      the ticket.
+      the ticket;
+    * :class:`~stapel_docs.models.Star` and
+      :class:`~stapel_docs.models.RecentEntry` — the guest's own view of the
+      corpus, re-parented with COLLISION FOLDING, because both tables are
+      unique per (user, target) and a blind update would violate that the
+      moment the survivor had already starred or opened the same document.
+      A star folds to "still starred" (drop the guest's duplicate); a recent
+      folds to the NEWER timestamp, since "when did I last reach this" has
+      one answer for one person and it is the later one.
 
     The opposite instruction to ``user.deleted``, which *anonymizes* the same
     columns: an account erasure means "nobody wrote this any more", a merge
@@ -170,7 +178,15 @@ def handle_user_merged(event):
     from django.contrib.auth import get_user_model
     from django.db import transaction
 
-    from .models import Document, DocumentUpdate, Folder, Revision, UploadSession
+    from .models import (
+        Document,
+        DocumentUpdate,
+        Folder,
+        RecentEntry,
+        Revision,
+        Star,
+        UploadSession,
+    )
 
     payload = event.payload or {}
     from_user_id = payload.get("from_user_id")
@@ -181,7 +197,8 @@ def handle_user_merged(event):
     if str(from_user_id) == str(into_user_id):
         return
 
-    #: model -> the column naming a user on it.
+    #: model -> the column naming a user on it. Straight re-parenting: no
+    #: uniqueness constrains these columns, so an UPDATE is the whole move.
     owned = (
         (Document, "owner_id"),
         (Folder, "created_by_id"),
@@ -189,6 +206,9 @@ def handle_user_merged(event):
         (DocumentUpdate, "author_id"),
         (UploadSession, "created_by_id"),
     )
+    #: Per-user state, unique per (user, target) — these fold rather than
+    #: move (see the docstring).
+    per_user = (Star, RecentEntry)
 
     with transaction.atomic():
         # Both reads and the decision they feed happen inside the transaction
@@ -198,6 +218,9 @@ def handle_user_merged(event):
             owns_something = any(
                 model.objects.filter(**{column: from_user_id}).exists()
                 for model, column in owned
+            ) or any(
+                model.objects.filter(user_id=from_user_id).exists()
+                for model in per_user
             )
             # The survivor probe is read here, under the same guard, because a
             # malformed *into* id must not escape as a poison pill either.
@@ -227,11 +250,69 @@ def handle_user_merged(event):
             )
             for model, column in owned
         }
+        moved["Star"] = _fold_stars(from_user_id, into_user_id)
+        moved["RecentEntry"] = _fold_recents(from_user_id, into_user_id)
 
     logger.info(
-        "user.merged %s -> %s: docs authorship carried over (%s)",
+        "user.merged %s -> %s: docs authorship and per-user state carried over (%s)",
         from_user_id, into_user_id, moved,
     )
+
+
+def _fold_stars(from_user_id, into_user_id) -> int:
+    """Re-parent the guest's stars, dropping the ones the survivor already has.
+
+    A star is a boolean fact about (person, item), so a collision has an
+    obvious right answer — the item stays starred, once. Deleting the
+    guest's duplicate FIRST is what keeps the following UPDATE from hitting
+    ``docs_star_user_document`` / ``docs_star_user_folder``.
+    """
+    from .models import Star
+
+    survivor = Star.objects.filter(user_id=into_user_id)
+    Star.objects.filter(
+        user_id=from_user_id,
+        document_id__in=list(
+            survivor.exclude(document__isnull=True).values_list("document_id", flat=True)
+        ),
+    ).delete()
+    Star.objects.filter(
+        user_id=from_user_id,
+        folder_id__in=list(
+            survivor.exclude(folder__isnull=True).values_list("folder_id", flat=True)
+        ),
+    ).delete()
+    return Star.objects.filter(user_id=from_user_id).update(user_id=into_user_id)
+
+
+def _fold_recents(from_user_id, into_user_id) -> int:
+    """Re-parent the guest's recents, keeping the NEWER timestamp on a clash.
+
+    Unlike a star, a recent carries a value, so folding is not "drop one":
+    the merged person reached that document at whichever moment is later,
+    and keeping the survivor's older stamp would quietly reorder their list.
+    """
+    from .models import RecentEntry
+
+    survivor = {
+        row["document_id"]: row["accessed_at"]
+        for row in RecentEntry.objects.filter(user_id=into_user_id).values(
+            "document_id", "accessed_at"
+        )
+    }
+    moved = 0
+    for entry in RecentEntry.objects.filter(user_id=from_user_id):
+        existing = survivor.get(entry.document_id)
+        if existing is None:
+            RecentEntry.objects.filter(pk=entry.pk).update(user_id=into_user_id)
+            moved += 1
+            continue
+        if entry.accessed_at > existing:
+            RecentEntry.objects.filter(
+                user_id=into_user_id, document_id=entry.document_id
+            ).update(accessed_at=entry.accessed_at)
+        entry.delete()
+    return moved
 
 
 # ─── INGEST seam ─────────────────────────────────────────────────────

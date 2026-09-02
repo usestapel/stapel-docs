@@ -222,3 +222,127 @@ class UploadSession(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.state})"
+
+
+class Star(models.Model):
+    """A user's bookmark on one document OR one folder (drive-spec §3.1).
+
+    Per-user state, so the FK to the user CASCADEs — a star dies with the
+    account that placed it (listings ``Favorite`` precedent). The target is
+    exactly one of the two FKs, enforced in SQL rather than in service code,
+    because a row with both (or neither) has no meaning any reader could
+    render. ``workspace_id`` is denormalized so the starred listing scopes
+    without joining the target's table twice.
+
+    NULL never equals NULL in SQL, so ``(user, document)`` unique does not
+    constrain folder stars, and vice versa — the pair of partial-by-nature
+    uniques is what makes "star twice" a no-op on both target kinds.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="docs_stars"
+    )
+    document = models.ForeignKey(
+        Document, null=True, blank=True, on_delete=models.CASCADE, related_name="stars"
+    )
+    folder = models.ForeignKey(
+        Folder, null=True, blank=True, on_delete=models.CASCADE, related_name="stars"
+    )
+    workspace_id = models.UUIDField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "docs_star"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(document__isnull=False, folder__isnull=True)
+                    | models.Q(document__isnull=True, folder__isnull=False)
+                ),
+                name="docs_star_one_target",
+            ),
+            models.UniqueConstraint(
+                fields=["user", "document"], name="docs_star_user_document"
+            ),
+            models.UniqueConstraint(
+                fields=["user", "folder"], name="docs_star_user_folder"
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "workspace_id"], name="docs_star_user_ws"),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} ★ {self.document_id or self.folder_id}"
+
+
+class RecentEntry(models.Model):
+    """One row per (user, document) carrying when that user last reached it
+    (drive-spec §3.2). Folders are not recents — Drive parity.
+
+    Upserted, never appended: recents are a *position*, not a log, so there
+    is nothing here to audit and nothing to keep. The per-user cap
+    (``RECENTS_MAX_PER_USER``) is trimmed on write, oldest first.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="docs_recents"
+    )
+    document = models.ForeignKey(
+        Document, on_delete=models.CASCADE, related_name="recents"
+    )
+    workspace_id = models.UUIDField(db_index=True)
+    accessed_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = "docs_recent"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "document"], name="docs_recent_user_document"
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "-accessed_at"], name="docs_recent_user_seen"),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} @ {self.document_id}"
+
+
+class Thumbnail(models.Model):
+    """A cached server-side image thumbnail of a ``type=file`` document
+    (drive-spec §3.6) — derived bytes, never a source of truth.
+
+    The row exists so that invariant I2 (storage closure) survives derived
+    objects: ``services.purge_document`` deletes ENUMERATED keys, not a key
+    prefix, so a thumbnail nobody registered would outlive the document it
+    depicts. ``source_seq`` pins the version the cached image was rendered
+    from — a document saved since then re-renders instead of serving a
+    picture of content that no longer exists.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(
+        Document, on_delete=models.CASCADE, related_name="thumbnails"
+    )
+    #: Longest-edge pixel tier (``thumbnails.THUMBNAIL_TIERS``).
+    tier = models.IntegerField()
+    #: ``Document.head_seq`` the cached image was rendered from.
+    source_seq = models.BigIntegerField(default=0)
+    storage_key = models.CharField(max_length=512)
+    size_bytes = models.BigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "docs_thumbnail"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["document", "tier"], name="docs_thumb_doc_tier"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.document_id}@{self.tier}"

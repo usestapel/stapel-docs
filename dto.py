@@ -82,3 +82,30 @@ class TrashPurgeResultDTO:
 
     folders: int
     documents: int
+
+
+@dataclass
+class BreadcrumbNodeDTO:
+    """One ancestor folder on a search hit's path."""
+
+    id: str
+    name: str
+
+
+@dataclass
+class SearchHitDTO:
+    """One name-search hit (drive-spec §3.3).
+
+    ``kind`` dispatches the client's rendering; ``breadcrumb`` is the
+    root-first ancestor chain of the hit's CONTAINER (empty at the workspace
+    root), materialized server-side so a result list costs one request.
+    """
+
+    kind: str
+    id: str
+    workspace_id: str
+    name: str
+    parent_id: Optional[str] = None
+    type: Optional[str] = None
+    is_starred: Optional[bool] = None
+    breadcrumb: List[BreadcrumbNodeDTO] = field(default_factory=list)

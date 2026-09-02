@@ -23,6 +23,14 @@
     "hash": "aeb8676d075462de",
     "text": "El elemento no está en la papelera"
   },
+  "error.400.docs_thumbnail_tier": {
+    "hash": "daabb2ffd3846d81",
+    "text": "Tamaño de miniatura desconocido"
+  },
+  "error.400.docs_thumbnail_unsupported": {
+    "hash": "bd899bcf6f0a0cf9",
+    "text": "Este documento no tiene vista previa de imagen"
+  },
   "error.400.docs_too_many_updates": {
     "hash": "1eefbc668cb5398b",
     "text": "Demasiadas actualizaciones en una sola solicitud"
@@ -118,6 +126,10 @@
   "error.503.docs_exporter_unavailable": {
     "hash": "5e2eaca9d0b0a47e",
     "text": "El backend de exportación no está instalado"
+  },
+  "error.503.docs_thumbnails_unavailable": {
+    "hash": "d708adfd1e80a9ca",
+    "text": "El generador de miniaturas no está instalado"
   },
   "error.503.docs_workspaces_unavailable": {
     "hash": "955a6b8b68652447",

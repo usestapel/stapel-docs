@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Min, Sum
+from django.db.models import Count, Min, Sum
 from django.utils import timezone
 from stapel_core.django.api.errors import ERR_400_BAD_REQUEST, ERR_404_NOT_FOUND
 
@@ -28,6 +28,8 @@ from .errors import (
     ERR_400_FOLDER_CYCLE,
     ERR_400_FOLDER_DEPTH,
     ERR_400_NOT_TRASHED,
+    ERR_400_THUMBNAIL_TIER,
+    ERR_400_THUMBNAIL_UNSUPPORTED,
     ERR_400_TOO_MANY_UPDATES,
     ERR_400_TOO_MANY_UPLOADS,
     ERR_400_TYPE_NOT_EDITABLE,
@@ -48,9 +50,19 @@ from .errors import (
     ERR_413_UPDATE_TOO_LARGE,
     ERR_413_UPLOAD_TOO_LARGE,
     ERR_503_DOWNLOAD_URL,
+    ERR_503_THUMBNAILS,
     ERR_507_WORKSPACE_QUOTA,
 )
-from .models import Document, DocumentUpdate, Folder, Revision, UploadSession
+from .models import (
+    Document,
+    DocumentUpdate,
+    Folder,
+    RecentEntry,
+    Revision,
+    Star,
+    Thumbnail,
+    UploadSession,
+)
 from .storage import content_hash, document_prefix, get_storage, snapshot_key
 
 logger = logging.getLogger(__name__)
@@ -359,13 +371,13 @@ def _assert_sibling_name_free(workspace_id, parent, name, exclude_pk=None):
         raise DocsError(400, ERR_400_DUPLICATE_NAME)
 
 
-def list_folders(workspace_id, parent_id=..., limit: int = 200):
+def list_folders(workspace_id, parent_id=..., limit: int = 200, *, user=None):
     qs = Folder.objects.filter(workspace_id=workspace_id, deleted_at__isnull=True)
     if parent_id is None:
         qs = qs.filter(parent__isnull=True)
     elif parent_id is not ...:
         qs = qs.filter(parent_id=parent_id)
-    return qs.order_by("name")[:limit]
+    return with_stars(qs.order_by("name"), user, target="folder")[:limit]
 
 
 def create_folder(*, workspace_id, name, parent_id=None, user=None) -> Folder:
@@ -442,7 +454,9 @@ def restore_folder(folder) -> Folder:
 # ── Documents ────────────────────────────────────────────────────────
 
 
-def list_documents(workspace_id, *, folder_id=None, type=None, q=None, limit: int = 200):
+def list_documents(
+    workspace_id, *, folder_id=None, type=None, q=None, limit: int = 200, user=None
+):
     qs = Document.objects.filter(
         workspace_id=workspace_id, deleted_at__isnull=True
     ).exclude(metadata__has_key=UPLOAD_PENDING_KEY)
@@ -452,7 +466,7 @@ def list_documents(workspace_id, *, folder_id=None, type=None, q=None, limit: in
         qs = qs.filter(type=type)
     if q:
         qs = qs.filter(title__icontains=q)
-    return qs.order_by("-created_at")[:limit]
+    return with_stars(qs.order_by("-created_at"), user, target="document")[:limit]
 
 
 def _ensure_folder_path(workspace_id, path: str, user=None):
@@ -571,14 +585,23 @@ def restore_document(document) -> Document:
 # ── Content (the versioning heart) ───────────────────────────────────
 
 
-def read_content(document) -> tuple[bytes, str, int]:
+def read_content(document, *, user=None) -> tuple[bytes, str, int]:
     """(body bytes, mime, head_seq). No body yet -> the spec's empty body
-    at head_seq 0 (b"" for vanished types)."""
+    at head_seq 0 (b"" for vanished types).
+
+    ``user`` marks the document as recently opened for that user (drive-spec
+    §3.2). The recents upsert lives HERE and not in the view because a
+    document is "recent" when its bytes were served, whichever caller served
+    them — a second read path added later inherits the behavior instead of
+    forgetting it. Callers that read bytes for a machine (export rendering,
+    thumbnails, revision replay) pass no user and leave no trace.
+    """
     if document.snapshot_key:
         body = get_storage().get_bytes(document.snapshot_key)
     else:
         spec = effective_spec(document)
         body = spec.empty_body if spec is not None else b""
+    touch_recent(document, user)
     return body, content_mime(document), document.head_seq
 
 
@@ -715,6 +738,10 @@ def save_content(
         revision = _save_snapshot(
             document, body, storage_tx=stx, user=user, force_revision=force_revision
         )
+    # After the commit, and only for an ACCEPTED save: a rejected write
+    # (conflict, quota, type) never happened, so it never made the document
+    # recent either.
+    touch_recent(document, user)
     return document, revision
 
 
@@ -836,13 +863,21 @@ def restore_revision(document, revision, *, user=None):
 # ── Trash ────────────────────────────────────────────────────────────
 
 
-def trash_listing(workspace_id) -> tuple:
-    folders = Folder.objects.filter(
-        workspace_id=workspace_id, deleted_at__isnull=False
-    ).order_by("name")
-    documents = Document.objects.filter(
-        workspace_id=workspace_id, deleted_at__isnull=False
-    ).order_by("-created_at")
+def trash_listing(workspace_id, *, user=None) -> tuple:
+    folders = with_stars(
+        Folder.objects.filter(
+            workspace_id=workspace_id, deleted_at__isnull=False
+        ).order_by("name"),
+        user,
+        target="folder",
+    )
+    documents = with_stars(
+        Document.objects.filter(
+            workspace_id=workspace_id, deleted_at__isnull=False
+        ).order_by("-created_at"),
+        user,
+        target="document",
+    )
     return folders, documents
 
 
@@ -858,10 +893,19 @@ def purge_document(document) -> None:
             key_sizes.setdefault(storage_key, size)
         if document.snapshot_key:
             key_sizes.setdefault(document.snapshot_key, document.size_bytes)
+        # Derived objects (cached thumbnails) are enumerated separately: they
+        # die with the document — invariant I2 has no exception for pictures
+        # OF the content — but their bytes were never charged to the quota,
+        # so they must not appear in the storage_changed delta either.
+        derived_keys = [
+            key
+            for key in document.thumbnails.values_list("storage_key", flat=True)
+            if key and key not in key_sizes
+        ]
 
         events.emit_document_deleted(document)
 
-        for storage_key in key_sizes:
+        for storage_key in list(key_sizes) + derived_keys:
             stx.delete(storage_key)
 
         DocumentUpdate.objects.filter(document=document).delete()
@@ -942,6 +986,416 @@ def purge_expired() -> tuple[int, int]:
         folders_purged += f_count
         documents_purged += d_count
     return folders_purged, documents_purged
+
+
+# ── Drive surfaces: starred, recents, search (drive-spec §3.1-§3.3) ──
+#
+# Three per-user views over the same corpus. None of them is a second
+# authorization path: each takes a workspace the caller was already
+# authorized for, and shows only rows a baseline `authorize(view)` listing
+# would show — a star on a document is a bookmark, not a grant.
+
+
+def _user_pk(user):
+    """The user's primary key, from a model instance or a bare id.
+
+    ``None`` means "no user in this request" — which is NOT the same as
+    "this user starred nothing" (listings canon), and every caller below
+    keeps the two apart.
+    """
+    if user is None:
+        return None
+    return getattr(user, "pk", user)
+
+
+def with_stars(queryset, user, *, target: str):
+    """Annotate ``is_starred`` on a Folder/Document queryset.
+
+    ``None`` for a principal with no user id: "not applicable" is a third
+    answer, and collapsing it into ``False`` tells an anonymous reader it
+    un-starred something it never could have starred.
+    """
+    from django.db.models import BooleanField, Exists, OuterRef, Value
+
+    user_id = _user_pk(user)
+    if user_id is None:
+        return queryset.annotate(is_starred=Value(None, output_field=BooleanField()))
+    return queryset.annotate(
+        is_starred=Exists(
+            Star.objects.filter(user_id=user_id, **{f"{target}_id": OuterRef("pk")})
+        )
+    )
+
+
+def attach_star(instance, user, *, target: str):
+    """Set ``is_starred`` on a single already-fetched row (detail envelopes).
+
+    The annotation above cannot reach a row somebody else already
+    materialized, and a presenter reading an attribute that is simply absent
+    would answer ``None`` for a member who DID star it.
+    """
+    if instance is None:
+        return instance
+    user_id = _user_pk(user)
+    if user_id is None:
+        instance.is_starred = None
+    else:
+        instance.is_starred = Star.objects.filter(
+            user_id=user_id, **{f"{target}_id": instance.pk}
+        ).exists()
+    return instance
+
+
+def set_star(*, document=None, folder=None, user, starred: bool) -> bool:
+    """Star or unstar one target for one user. Returns whether anything
+    changed — the endpoint answers the same status either way, because an
+    idempotent verb that reports failure on a repeat is not idempotent.
+    """
+    user_id = _user_pk(user)
+    if user_id is None:
+        raise DocsError(403, ERR_403_FORBIDDEN)
+    target = document if document is not None else folder
+    if target is None:
+        raise DocsError(404, ERR_404_NOT_FOUND)
+    lookup = {"user_id": user_id}
+    lookup["document" if document is not None else "folder"] = target
+    if not starred:
+        removed, _ = Star.objects.filter(**lookup).delete()
+        return bool(removed)
+    _, created = Star.objects.get_or_create(
+        **lookup, defaults={"workspace_id": target.workspace_id}
+    )
+    return created
+
+
+def starred_listing(workspace_id, user) -> tuple:
+    """(folders, documents) this user starred in this workspace, live only.
+
+    A trashed item drops out of the listing but KEEPS its star until purge:
+    restoring from the trash brings the bookmark back, which is what a user
+    who trashed something by accident expects.
+    """
+    user_id = _user_pk(user)
+    if user_id is None:
+        return Folder.objects.none(), Document.objects.none()
+    limit = max(int(docs_settings.SEARCH_MAX_RESULTS), 1)
+    folders = with_stars(
+        Folder.objects.filter(
+            workspace_id=workspace_id,
+            deleted_at__isnull=True,
+            stars__user_id=user_id,
+        ).order_by("name"),
+        user,
+        target="folder",
+    )[:limit]
+    documents = with_stars(
+        Document.objects.filter(
+            workspace_id=workspace_id,
+            deleted_at__isnull=True,
+            stars__user_id=user_id,
+        )
+        .exclude(metadata__has_key=UPLOAD_PENDING_KEY)
+        .order_by("-created_at"),
+        user,
+        target="document",
+    )[:limit]
+    return folders, documents
+
+
+def touch_recent(document, user) -> None:
+    """Mark *document* as just reached by *user* (upsert, then trim).
+
+    No event: recents are per-user position, not workspace history, and a
+    bus message per document open would be the noisiest topic in the fleet.
+    """
+    user_id = _user_pk(user)
+    if user_id is None or document is None:
+        return
+    RecentEntry.objects.update_or_create(
+        user_id=user_id,
+        document_id=document.pk,
+        defaults={
+            "workspace_id": document.workspace_id,
+            "accessed_at": timezone.now(),
+        },
+    )
+    _trim_recents(user_id)
+
+
+def _trim_recents(user_id) -> int:
+    """Keep only the newest RECENTS_MAX_PER_USER rows for a user.
+
+    Opportunistic (on write) rather than scheduled: the cap exists so the
+    table cannot grow without bound, and a table that is only ever written
+    through one function needs no second sweeper to enforce it.
+    """
+    cap = int(docs_settings.RECENTS_MAX_PER_USER)
+    if cap <= 0:
+        return 0
+    rows = RecentEntry.objects.filter(user_id=user_id)
+    if rows.count() <= cap:
+        return 0
+    stale = list(
+        rows.order_by("-accessed_at", "-id").values_list("pk", flat=True)[cap:]
+    )
+    if not stale:
+        return 0
+    removed, _ = RecentEntry.objects.filter(pk__in=stale).delete()
+    return removed
+
+
+def recent_documents(workspace_id, user, *, limit: int = 0):
+    """Documents this user reached most recently, newest first, live only."""
+    user_id = _user_pk(user)
+    if user_id is None:
+        return Document.objects.none()
+    limit = limit or int(docs_settings.RECENTS_MAX_PER_USER) or 100
+    return with_stars(
+        Document.objects.filter(
+            workspace_id=workspace_id,
+            deleted_at__isnull=True,
+            recents__user_id=user_id,
+        )
+        .exclude(metadata__has_key=UPLOAD_PENDING_KEY)
+        .order_by("-recents__accessed_at"),
+        user,
+        target="document",
+    )[:limit]
+
+
+def _folder_index(workspace_id) -> dict:
+    """``{folder_id: (name, parent_id)}`` for a whole workspace, in ONE query.
+
+    Breadcrumbs are walked in memory off this map. Resolving each hit's
+    ancestry with its own queries is the N+1 that makes a search endpoint
+    quadratic in tree depth the first time a workspace gets deep.
+    """
+    return {
+        row[0]: (row[1], row[2])
+        for row in Folder.objects.filter(workspace_id=workspace_id).values_list(
+            "id", "name", "parent_id"
+        )
+    }
+
+
+def _breadcrumb(index: dict, folder_id) -> list:
+    """Root-first ``[(id, name), …]`` chain of ancestors, folder_id included.
+
+    Defensive against a cycle the tree guards already forbid: a corrupted
+    parent chain must not hang the request that reads it.
+    """
+    chain = []
+    seen = set()
+    node = folder_id
+    while node is not None and node in index and node not in seen:
+        seen.add(node)
+        name, parent_id = index[node]
+        chain.append((node, name))
+        node = parent_id
+    chain.reverse()
+    return chain
+
+
+def search(workspace_id, q: str, *, user=None, limit: int = 0) -> list:
+    """Name search across one workspace's live tree (drive-spec §3.3).
+
+    Case-insensitive substring over ``Folder.name`` and ``Document.title``,
+    tree-wide. Returns ``[(kind, row, breadcrumb), …]`` — folders first,
+    then documents — where ``breadcrumb`` is the root-first ancestor chain
+    of the hit's CONTAINER (for a folder: its parents; for a document: its
+    folder chain), so a client renders "where is this" without a second call.
+
+    Deliberately not knowledge search: no FTS, no trigram. A workspace holds
+    thousands of names, and ``icontains`` on that is honest — the day a
+    measured workspace says otherwise, the index changes behind this
+    function and its contract does not.
+    """
+    q = (q or "").strip()
+    if not q:
+        return []
+    limit = limit or max(int(docs_settings.SEARCH_MAX_RESULTS), 1)
+    index = _folder_index(workspace_id)
+    folders = with_stars(
+        Folder.objects.filter(
+            workspace_id=workspace_id, deleted_at__isnull=True, name__icontains=q
+        ).order_by("name"),
+        user,
+        target="folder",
+    )[:limit]
+    hits = [
+        ("folder", folder, _breadcrumb(index, folder.parent_id)) for folder in folders
+    ]
+    remaining = limit - len(hits)
+    if remaining > 0:
+        documents = with_stars(
+            Document.objects.filter(
+                workspace_id=workspace_id,
+                deleted_at__isnull=True,
+                title__icontains=q,
+            )
+            .exclude(metadata__has_key=UPLOAD_PENDING_KEY)
+            .order_by("title", "-created_at"),
+            user,
+            target="document",
+        )[:remaining]
+        hits.extend(
+            ("document", document, _breadcrumb(index, document.folder_id))
+            for document in documents
+        )
+    return hits
+
+
+# ── Usage metering (drive-spec §3.4) ─────────────────────────────────
+
+
+def workspace_usage(workspace_id) -> dict:
+    """Everything ``docs.usage`` reports about one workspace.
+
+    Bytes come from the SAME ``size_bytes`` columns the 507 quota sums
+    (invariant I2, one sum): ``bytes_total`` equals
+    :func:`workspace_usage_bytes` by construction, so a billing meter and a
+    quota refusal can never disagree about how full a workspace is.
+
+    ``documents``/``folders`` and ``by_type`` count the LIVE corpus (what a
+    member sees); trashed rows are still charged for their bytes, which is
+    what ``bytes_trash`` is for — trash is not a discount.
+    """
+    live_docs = Document.objects.filter(
+        workspace_id=workspace_id, deleted_at__isnull=True
+    )
+    trashed_docs = Document.objects.filter(
+        workspace_id=workspace_id, deleted_at__isnull=False
+    )
+
+    def _heads(qs) -> int:
+        return int(qs.aggregate(total=Sum("size_bytes"))["total"] or 0)
+
+    def _revisions(deleted: bool) -> int:
+        return int(
+            Revision.objects.filter(
+                document__workspace_id=workspace_id,
+                document__deleted_at__isnull=not deleted,
+            ).aggregate(total=Sum("size_bytes"))["total"]
+            or 0
+        )
+
+    bytes_live = _heads(live_docs) + _revisions(False)
+    bytes_trash = _heads(trashed_docs) + _revisions(True)
+
+    by_type: dict[str, dict] = {}
+    for row in live_docs.values("type").annotate(
+        documents=Count("id"), size=Sum("size_bytes")
+    ):
+        by_type[row["type"]] = {
+            "documents": int(row["documents"]),
+            "bytes": int(row["size"] or 0),
+        }
+    for row in (
+        Revision.objects.filter(
+            document__workspace_id=workspace_id, document__deleted_at__isnull=True
+        )
+        .values("document__type")
+        .annotate(size=Sum("size_bytes"))
+    ):
+        slug = row["document__type"]
+        bucket = by_type.setdefault(slug, {"documents": 0, "bytes": 0})
+        bucket["bytes"] += int(row["size"] or 0)
+
+    return {
+        "bytes_live": bytes_live,
+        "bytes_trash": bytes_trash,
+        "bytes_total": bytes_live + bytes_trash,
+        "documents": live_docs.count(),
+        "folders": Folder.objects.filter(
+            workspace_id=workspace_id, deleted_at__isnull=True
+        ).count(),
+        "by_type": by_type,
+    }
+
+
+# ── Thumbnails (drive-spec §3.6) ─────────────────────────────────────
+
+
+def thumbnail_key(document, tier: int, seq: int) -> str:
+    """Storage key of a cached thumbnail — under the document's OWN prefix.
+
+    The ``seq`` in the key is what makes a stale image unreachable rather
+    than merely unpreferred: a save bumps ``head_seq``, so the next request
+    addresses a key that does not exist yet and re-renders.
+    """
+    return f"{document_prefix(document.workspace_id, document.id)}/thumb.{seq}.{tier}.jpg"
+
+
+def _thumbnailable(document) -> None:
+    """Refuse a document that has no image to render (400, never 500)."""
+    if document.type != "file" or not (document.mime_type or "").lower().startswith(
+        "image/"
+    ):
+        raise DocsError(400, ERR_400_THUMBNAIL_UNSUPPORTED, {"type": document.type})
+    if not document.snapshot_key:
+        # A pending upload: the row exists, the bytes do not.
+        raise DocsError(400, ERR_400_THUMBNAIL_UNSUPPORTED, {"type": document.type})
+
+
+def get_thumbnail(document, tier) -> tuple[bytes, str]:
+    """(image bytes, mime) for *document* at *tier*, rendering + caching once.
+
+    Bytes in and out travel the storage seam and nothing else, so a preview
+    of a private workspace file is exactly as private as the file. The
+    cached object lives under the document's prefix and is registered as a
+    :class:`~stapel_docs.models.Thumbnail` row, so ``purge_document``
+    destroys it with the rest of the document (invariant I2) — purge deletes
+    enumerated keys, and an unregistered derived object would survive its
+    subject.
+    """
+    from .thumbnails import (
+        THUMBNAIL_MIME,
+        THUMBNAIL_TIERS,
+        ThumbnailSourceUnusable,
+        ThumbnailsUnavailable,
+        render,
+    )
+
+    try:
+        tier = int(tier)
+    except (TypeError, ValueError):
+        raise DocsError(400, ERR_400_THUMBNAIL_TIER, {"tiers": list(THUMBNAIL_TIERS)})
+    if tier not in THUMBNAIL_TIERS:
+        raise DocsError(400, ERR_400_THUMBNAIL_TIER, {"tiers": list(THUMBNAIL_TIERS)})
+    _thumbnailable(document)
+
+    storage = get_storage()
+    cached = Thumbnail.objects.filter(document=document, tier=tier).first()
+    if cached is not None and cached.source_seq == document.head_seq:
+        exists, _ = storage.head_object(cached.storage_key)
+        if exists:
+            return storage.get_bytes(cached.storage_key), THUMBNAIL_MIME
+        # The row outlived its object (an operator swept the bucket): fall
+        # through and re-render rather than serving a 500 for a cache miss.
+
+    source = storage.get_bytes(document.snapshot_key)
+    try:
+        image = render(source, tier)
+    except ThumbnailsUnavailable:
+        raise DocsError(503, ERR_503_THUMBNAILS)
+    except ThumbnailSourceUnusable as exc:
+        raise DocsError(400, ERR_400_THUMBNAIL_UNSUPPORTED, {"reason": str(exc)})
+
+    key = thumbnail_key(document, tier, document.head_seq)
+    with storage_transaction() as stx, transaction.atomic():
+        stx.put(key, image, content_type=THUMBNAIL_MIME)
+        if cached is not None and cached.storage_key and cached.storage_key != key:
+            stx.delete(cached.storage_key)
+        Thumbnail.objects.update_or_create(
+            document=document,
+            tier=tier,
+            defaults={
+                "source_seq": document.head_seq,
+                "storage_key": key,
+                "size_bytes": len(image),
+            },
+        )
+    return image, THUMBNAIL_MIME
 
 
 # ── Uploads (type=file via presigned PUT; recordings pattern) ────────
@@ -1130,3 +1584,18 @@ def download_url(storage_key: str) -> str:
     return backend.presigned_get_url(
         storage_key, expires_seconds=int(docs_settings.DOWNLOAD_URL_EXPIRES_SECONDS)
     )
+
+
+def document_download_url(document, *, user=None) -> str:
+    """Mint a download URL for a document's CURRENT body and record the
+    reach (drive-spec §3.2).
+
+    Issuing the URL is the moment the user got the document — the bytes then
+    leave through a signed link this service never sees again — so the
+    recents upsert belongs here, not at some later read that may never come
+    back through the API. A refused URL (503) records nothing: nothing was
+    handed over.
+    """
+    url = download_url(document.snapshot_key)
+    touch_recent(document, user)
+    return url
