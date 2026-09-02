@@ -10,6 +10,11 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ### Fixed — the sharing mechanism existed; the HTTP layer never asked it
 
+> **Operator note: on 0.6.0, `SHARING["MODES"] = ["whitelist"]` grants were
+> inert** — rows minted and listed, but no standard document endpoint honored
+> them. Upgrade to 0.6.1; no data changes, the stored grants simply start
+> working. Link sharing was unaffected.
+
 A whitelist grantee was refused by every standard document endpoint. Found
 by scratch-host verification of the published 0.6.0 wheel, not by this
 module's own suite — which is the whole lesson of the fix.
