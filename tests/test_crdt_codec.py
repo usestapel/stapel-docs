@@ -61,8 +61,20 @@ def test_fold_convergence_is_order_independent():
 
     one = crdt.fold(crdt.EMPTY_STATE, [diff_a, diff_b])
     other = crdt.fold(crdt.EMPTY_STATE, [diff_b, diff_a])
-    assert one == other
-    assert crdt.extract_text(one) == "AAABBBCCC"
+    # Convergence is SEMANTIC, not byte-level: the update encoding may order
+    # its per-client sections differently run to run (client ids are random),
+    # and concurrent same-position inserts tie-break BY client id — so the
+    # text is one of the two interleavings, but the same one in both orders.
+    assert crdt.extract_text(one) == crdt.extract_text(other)
+    assert crdt.extract_text(one) in ("AAABBBCCC", "AAACCCBBB")
+    # And neither side holds an operation the other lacks.
+    doc_one = pycrdt.Doc()
+    doc_one.apply_update(one)
+    doc_other = pycrdt.Doc()
+    doc_other.apply_update(other)
+    assert doc_one.get_update(doc_other.get_state()) == doc_other.get_update(
+        doc_one.get_state()
+    )
 
 
 def test_fold_onto_stored_base_state():
