@@ -46,7 +46,7 @@ jobs:
         # parsed and not printed. Without it those assertions skip, and a
         # skipped assertion is how the verbatim-md defect survived a green
         # suite in the first place.
-        run: pip install pytest pytest-django pytest-cov pypdf "stapel-tools>=0.26.0" "stapel-realtime[testing]>=0.1.2"
+        run: pip install pytest pytest-django pytest-cov pytest-asyncio pypdf "stapel-tools>=0.26.0" "stapel-realtime[testing]>=0.1.2"
 
       - name: Tests with coverage
         run: |
