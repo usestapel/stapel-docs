@@ -82,6 +82,10 @@
     {
       "select": "functions",
       "path": "authz.py"
+    },
+    {
+      "select": "functions",
+      "path": "thumbnails.py"
     }
   ],
   "surface": {
@@ -327,6 +331,58 @@
     "get_exporter": {
       "kind": "factory",
       "intent": "Instantiate the exporter registered for a format (builtins + EXPORTERS overlay) or raise ExportFormatUnknown — the dispatch any custom export endpoint or batch job goes through."
+    },
+    "with_stars": {
+      "kind": "factory",
+      "intent": "Annotate is_starred on a Folder/Document queryset for one user — None (not False) when there is no user, because 'not applicable' and 'not starred' are different answers. Reach for it in any custom listing that presents docs rows; hand-writing the Exists() subquery is how the anonymous case silently becomes False."
+    },
+    "attach_star": {
+      "kind": "factory",
+      "intent": "Set is_starred on a single already-fetched Folder/Document — the detail-envelope counterpart of with_stars, for rows a queryset annotation can no longer reach."
+    },
+    "set_star": {
+      "kind": "factory",
+      "intent": "Star or unstar one document/folder for one user, idempotently; returns whether anything changed. The only supported writer of the Star table — a direct create() skips the exactly-one-target contract the endpoint relies on."
+    },
+    "starred_listing": {
+      "kind": "factory",
+      "intent": "(folders, documents) one user starred in a workspace, live rows only — trashed items drop out of the listing but keep their star until purge, so a restore brings the bookmark back."
+    },
+    "touch_recent": {
+      "kind": "factory",
+      "intent": "Record that a user just reached a document (upsert + per-user trim). Call it from any NEW read path you add over document bytes; the shipped paths (content read, download-URL issuance, accepted save) already do."
+    },
+    "recent_documents": {
+      "kind": "factory",
+      "intent": "Documents one user reached most recently in a workspace, newest first, live only — the read side of the recents surface."
+    },
+    "search": {
+      "kind": "factory",
+      "intent": "Workspace-scoped name search over live folders and documents, returning (kind, row, breadcrumb) triples with ancestor chains resolved in one query. Use it instead of two icontains queries plus a parent walk — the walk is the N+1 this function exists to avoid."
+    },
+    "workspace_usage": {
+      "kind": "factory",
+      "intent": "Everything docs.usage reports for one workspace: live/trash/total bytes, item counts and a per-type breakdown. bytes_total is the same sum the 507 quota refuses against, so a meter and a refusal can never disagree. Host billing composes an entitlement ceiling from it; docs owns the measurement, never the price."
+    },
+    "get_thumbnail": {
+      "kind": "factory",
+      "intent": "(image bytes, mime) for an image file document at a fixed tier — renders once through Pillow, caches under the document's own storage prefix and registers the object so purge takes it along. 503-mapped when Pillow is absent, 400 for a non-image or an unknown tier."
+    },
+    "thumbnail_key": {
+      "kind": "factory",
+      "intent": "Storage key of a cached thumbnail, carrying head_seq so a saved document addresses a different image instead of a stale cache. Read it to reason about the bucket; get_thumbnail is what writes it."
+    },
+    "document_download_url": {
+      "kind": "factory",
+      "intent": "Mint a download URL for a document's current body AND record the reach in recents — the document-level wrapper of download_url, which stays the raw key-level mint for revisions."
+    },
+    "render": {
+      "kind": "factory",
+      "intent": "Resize image bytes so the longest edge fits a tier, as JPEG (alpha composited onto white, never upscaled). Raises ThumbnailsUnavailable without Pillow and ThumbnailSourceUnusable for bytes it cannot decode — a caller's bad input is a 400, not a 500."
+    },
+    "available": {
+      "kind": "factory",
+      "intent": "Is the thumbnail renderer installed? For host diagnostics and system checks that want to say so at deploy time instead of at the first 503."
     }
   }
 }

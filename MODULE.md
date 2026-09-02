@@ -27,10 +27,24 @@
   folders), restore (re-announced), explicit purge (`trash/empty`) and
   retention expiry (`docs_purge_expired`) that destroy rows + journal +
   every historical object, O(document), idempotently.
+- **The drive surfaces** (0.5.0): per-user **starred** documents and
+  folders (`is_starred` rides every envelope — `null`, not `false`, for a
+  principal with no user), per-user **recents** (upserted by the service
+  layer on content read, download-URL issuance and accepted save; capped
+  and trimmed on write), workspace-scoped **name search** with
+  server-materialized breadcrumbs, and authorized image **thumbnails**
+  cached under the document's own storage prefix (invariant I2 — a purge
+  takes the pictures with it).
 - A REST surface (folders / documents / content / updates / revisions /
-  trash / uploads — 27 operations under `/docs/api/v1/`), presenter-
-  canonical and serializer-seamed, with **one authorization choke point**
-  (`authz.authorize`, fail-closed via `workspaces.check_capability`).
+  starred / recents / search / thumbnails / trash / uploads — 35 operations
+  under `/docs/api/v1/`), presenter-canonical and serializer-seamed, with
+  **one authorization choke point** (`authz.authorize`, fail-closed via
+  `workspaces.check_capability`).
+- A **usage surface** (`docs.usage`): stored bytes live/trash/total, item
+  counts and a per-type breakdown for one workspace. `bytes_total` is the
+  same sum the 507 quota refuses against, so a meter and a refusal can
+  never tell an operator two different stories. Billing composes an
+  entitlement ceiling from it; docs owns the measurement, never the price.
 - A **comm ingest seam**: the `docs.create_document` Function (the
   canonical product-glue path) plus the `INGEST` action-mapper registry
   for event-driven ingest, and **subject-scoped erasure** (`erasure.py`,
@@ -48,6 +62,33 @@
 - **Session issuance** — any stapel-core-compatible JWT issuer
   (stapel-auth on the shelf).
 - **Object storage** — all content I/O goes through the `STORAGE` seam.
+
+## Drive surfaces (0.5.0)
+
+Four per-user views over the corpus the workspace baseline already shows.
+None of them is a second authorization path: each takes a workspace the
+caller was authorized for through `authorize()`, and shows only rows a
+baseline `docs.view` listing would show.
+
+| Surface | Endpoints | Notes |
+|---|---|---|
+| **Starred** | `POST`/`DELETE /documents/<id>/star`, `POST`/`DELETE /folders/<id>/star`, `GET /starred?workspace_id=` | `Star` rows carry exactly one of `document`/`folder` (a `CheckConstraint`, not a convention) and are unique per `(user, target)`. Both verbs answer **204 whatever the previous state was** — an idempotent verb that reports "already done" as a failure forces every client to read before writing. Starring takes **`docs.view`**, not `docs.edit`: a star is a bookmark, and requiring edit would make "keep this handy" an act of authorship. The listing is live-only; a trashed item leaves the listing and keeps its star until purge, so a restore brings the bookmark back |
+| **Recents** | `GET /recents?workspace_id=` | `RecentEntry` is upserted by the **service layer**, not by a view, on the three paths that hand a document to a person: `read_content`, `document_download_url` and an accepted `save_content`. A rejected save records nothing (it never happened); a machine read (export, thumbnail rendering, revision replay) passes no user and leaves no trace. Capped by `RECENTS_MAX_PER_USER` (default 100), trimmed oldest-first on write. **No events** — a bus message per document open would be the noisiest topic in the fleet |
+| **Search** | `GET /search?workspace_id=&q=[&limit=]`, plus the existing `?q=` on `GET /documents` | Case-insensitive `icontains` over live `Folder.name` and `Document.title`, tree-wide. Each hit carries `kind` (`folder`\|`document`) and a root-first **breadcrumb** built server-side from ONE folder-index query — resolving each hit's ancestry separately is the N+1 that makes the endpoint quadratic in tree depth. An absent or blank `q` is a **400**, never the whole workspace. Deliberately not knowledge search: no FTS, no trigram (revisit with `pg_trgm` when a measured workspace says otherwise) |
+| **Thumbnails** | `GET /documents/<id>/thumbnail?tier=` | `type=file` documents with an `image/*` mime only; anything else (and a pending upload with no bytes) is a 400. The tier ladder is the fixed constant `thumbnails.THUMBNAIL_TIERS` = `(160, 480)` — **not** a settings key, because the tier is part of the URL contract a client caches against and every rung is another rendered copy of every image in the bucket. Rendering needs the `[thumbnails]` extra; without Pillow the endpoint answers **503** the way a missing exporter dependency does, so a frontend falls back to a type icon instead of guessing at a silent empty answer |
+
+**Where the thumbnails live, and why there is a `Thumbnail` row.** The
+cached image is written through the storage seam under the document's own
+prefix — `{PREFIX}/{workspace}/{document}/thumb.{head_seq}.{tier}.jpg` —
+so invariant I2 (storage closure) holds for derived bytes too. The
+`head_seq` in the key is what makes a stale image *unaddressable* rather
+than merely unpreferred: a save bumps the seq, the next request asks for a
+key that does not exist yet, and the renderer runs. The `Thumbnail` row
+exists because `services.purge_document` deletes **enumerated** keys, not a
+key prefix: an unregistered derived object would outlive the document it
+depicts. Thumbnail bytes are deliberately absent from the
+`document.storage_changed` delta and from the quota sum — they were never
+charged, so removing them must not credit anything back.
 
 ## Extension points (fork-free)
 
@@ -232,6 +273,7 @@ validated in tests (`VALIDATE_SCHEMAS`).
 | Kind | Name | Role | Payload / schema |
 |---|---|---|---|
 | Function (**provides**) | `docs.create_document` | the ingest seam — returns `{"document_id"}`; the payload carries its authority (`actor_id` authorized for `docs.edit`, or a trusted `caller_service`) | `schemas/functions/docs.create_document.json` |
+| Function (**provides**) | `docs.usage` | the metering surface — `{bytes_live, bytes_trash, bytes_total, documents, folders, by_type}` for one workspace. Read-only, but workspace data all the same: the SAME caller gate as `docs.create_document`, one capability lower (`docs.view`). "It only reads" is how per-workspace corpus sizes become enumerable by every participant on the bus | `schemas/functions/docs.usage.json` |
 | Action (emit) | `document.created` | create, restore (re-announce), upload finalize | `schemas/emits/document.created.json` |
 | Action (emit) | `document.updated` | per accepted save / restored revision (journal appends deliberately do NOT emit — bus economy) | `schemas/emits/document.updated.json` |
 | Action (emit) | `document.deleted` | "left the visible corpus" — fires on trash AND purge | `schemas/emits/document.deleted.json` |
@@ -241,7 +283,7 @@ validated in tests (`VALIDATE_SCHEMAS`).
 | Action (consume) | `gdpr.erasure.requested` | subject-scoped erasure — `account` \| `workspace` \| `document` (see **Erasure** below) | `schemas/consumes/gdpr.erasure.requested.json` |
 | Action (consume) | `gdpr.owner.probe` | answered with `gdpr.owner.alive` | `schemas/consumes/gdpr.owner.probe.json` |
 | Action (consume) | `user.deleted` | the pre-0.5.0 account path, routed through the same `erase("account", …)`; deprecated in stapel-gdpr 0.5.0, removed there in 0.6.0 | `schemas/consumes/user.deleted.json` |
-| Action (consume) | `user.merged` | the other half of that life cycle, and the opposite instruction: a guest folded into an existing account has its authorship **re-parented**, not anonymized — `Document.owner`, `Folder.created_by`, `Revision.created_by`, `DocumentUpdate.author_id`, `UploadSession.created_by`. A survivor with no user row here yet raises `MergeTargetNotReady` so the outbox redelivers. Idempotent | `schemas/consumes/user.merged.json` |
+| Action (consume) | `user.merged` | the other half of that life cycle, and the opposite instruction: a guest folded into an existing account has its authorship **re-parented**, not anonymized — `Document.owner`, `Folder.created_by`, `Revision.created_by`, `DocumentUpdate.author_id`, `UploadSession.created_by`. `Star` and `RecentEntry` are re-parented with **collision folding** (both are unique per `(user, target)`): a star folds to "still starred", a recent folds to the newer `accessed_at`. A survivor with no user row here yet raises `MergeTargetNotReady` so the outbox redelivers. Idempotent | `schemas/consumes/user.merged.json` |
 | Action (consume) | configured `INGEST` names | event-driven ingest via host mappers | host-owned |
 | Function (**call**) | `workspaces.check_capability` | every authorization verdict (fail-closed) | provided by **stapel-workspaces** |
 
@@ -262,9 +304,9 @@ STAPEL_GDPR = {"DATA_OWNERS": {"docs": ["account", "workspace", "document"]}}
 
 | Subject | `subject_key` | What is erased | Counts in the receipt |
 |---|---|---|---|
-| `document` | the document id | the row, its update journal, every `Revision` and **every object of its history** — through `services.purge_document`, the same O(document) purge trash uses. Live or trashed alike: an erasure is not a trash operation and does not wait out `TRASH_RETENTION_DAYS`. Upload sessions still pointing at it die with their staging objects | `documents`, `revisions`, `updates`, `upload_sessions`, `storage_objects` |
-| `workspace` | the workspace id | every document of the workspace (live and trashed) as above, then the whole folder tree and every pending upload session with its staging object | same keys, plus `folders` |
-| `account` | the user id | **anonymize, not delete** — `DocumentUpdate.author_id`, `Revision.created_by`, `Document.owner`, `Folder.created_by`, `UploadSession.created_by` are nulled. Documents are co-produced workspace content and survive their authors (storage-verdict §3); destroying them would erase other members' data under the banner of erasing one person's | `documents_anonymized`, `folders_anonymized`, `revisions_anonymized`, `updates_anonymized`, `upload_sessions_anonymized` |
+| `document` | the document id | the row, its update journal, every `Revision`, every cached thumbnail and **every object of its history** — through `services.purge_document`, the same O(document) purge trash uses. Live or trashed alike: an erasure is not a trash operation and does not wait out `TRASH_RETENTION_DAYS`. Upload sessions still pointing at it die with their staging objects; the stars and recents pointing at it cascade | `documents`, `revisions`, `updates`, `upload_sessions`, `storage_objects`, `stars`, `recents` |
+| `workspace` | the workspace id | every document of the workspace (live and trashed) as above, then the whole folder tree (with the stars on it) and every pending upload session with its staging object | same keys, plus `folders` |
+| `account` | the user id | **anonymize** the authorship, **delete** the per-user state. `DocumentUpdate.author_id`, `Revision.created_by`, `Document.owner`, `Folder.created_by`, `UploadSession.created_by` are nulled: documents are co-produced workspace content and survive their authors (storage-verdict §3); destroying them would erase other members' data under the banner of erasing one person's. `Star` and `RecentEntry` rows are DELETED instead — they are one person's private view of the corpus, they mean nothing without that person, and an anonymized star is a bookmark nobody can reach and nobody can clear | `documents_anonymized`, `folders_anonymized`, `revisions_anonymized`, `updates_anonymized`, `upload_sessions_anonymized`, `stars_deleted`, `recents_deleted` |
 
 Rules the subscriber keeps:
 
@@ -297,7 +339,7 @@ This module emits its own machine-readable contract per-module
 (contract-pipeline.md §2): `docs/schema.json` (drf-spectacular OpenAPI,
 canonical `/docs/api/v1` prefix), `docs/flows.json` (`[]` — no
 `@flow_step` annotations), `docs/errors.json`, `docs/capabilities.json`
-(axes + extension points + the 47-entry usage surface, curated in
+(axes + extension points + the 67-entry usage surface, curated in
 `docs/capabilities.meta.json`) and `docs/llms.txt` (budget 5500 — see the
 Makefile for the justification). `README.md` is the sixth artifact,
 assembled from `docs/readme.md` — never hand-edit `README.md`.

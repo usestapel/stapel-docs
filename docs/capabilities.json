@@ -1,6 +1,6 @@
 {
   "module": "stapel-docs",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "provides": "Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).",
   "axes": [
     {
@@ -136,6 +136,12 @@
       "intent": "Refuse a write that would push the workspace past WORKSPACE_QUOTA_BYTES (507). Call it before accepting bytes, not after storing them."
     },
     {
+      "name": "attach_star",
+      "kind": "factory",
+      "path": "stapel_docs.services.attach_star",
+      "intent": "Set is_starred on a single already-fetched Folder/Document — the detail-envelope counterpart of with_stars, for rows a queryset annotation can no longer reach."
+    },
+    {
       "name": "content_mime",
       "kind": "factory",
       "path": "stapel_docs.services.content_mime",
@@ -167,6 +173,12 @@
       "kind": "factory",
       "path": "stapel_docs.services.create_upload",
       "intent": "Open a presigned direct-to-storage upload (type=file): the Document row exists immediately but stays hidden from listings until finalize, and the ticket's key/TTL are what finalize later validates. A bare presigned_put_url gives you the URL and none of that."
+    },
+    {
+      "name": "document_download_url",
+      "kind": "factory",
+      "path": "stapel_docs.services.document_download_url",
+      "intent": "Mint a download URL for a document's current body AND record the reach in recents — the document-level wrapper of download_url, which stays the raw key-level mint for revisions."
     },
     {
       "name": "download_url",
@@ -209,6 +221,12 @@
       "kind": "factory",
       "path": "stapel_docs.services.get_revision",
       "intent": "Fetch one revision of a given document or 404 — scoped through document.revisions so a revision id can never be read across documents."
+    },
+    {
+      "name": "get_thumbnail",
+      "kind": "factory",
+      "path": "stapel_docs.services.get_thumbnail",
+      "intent": "(image bytes, mime) for an image file document at a fixed tier — renders once through Pillow, caches under the document's own storage prefix and registers the object so purge takes it along. 503-mapped when Pillow is absent, 400 for a non-image or an unknown tier."
     },
     {
       "name": "get_trashed_document",
@@ -292,6 +310,12 @@
       "intent": "The replay feed since a sequence number, with honest resync semantics: a since that fell out of the compaction window returns (\"resync\", None) instead of a silently incomplete list."
     },
     {
+      "name": "recent_documents",
+      "kind": "factory",
+      "path": "stapel_docs.services.recent_documents",
+      "intent": "Documents one user reached most recently in a workspace, newest first, live only — the read side of the recents surface."
+    },
+    {
       "name": "rename_folder",
       "kind": "gate_function",
       "path": "stapel_docs.services.rename_folder",
@@ -337,6 +361,24 @@
       ]
     },
     {
+      "name": "search",
+      "kind": "factory",
+      "path": "stapel_docs.services.search",
+      "intent": "Workspace-scoped name search over live folders and documents, returning (kind, row, breadcrumb) triples with ancestor chains resolved in one query. Use it instead of two icontains queries plus a parent walk — the walk is the N+1 this function exists to avoid."
+    },
+    {
+      "name": "set_star",
+      "kind": "factory",
+      "path": "stapel_docs.services.set_star",
+      "intent": "Star or unstar one document/folder for one user, idempotently; returns whether anything changed. The only supported writer of the Star table — a direct create() skips the exactly-one-target contract the endpoint relies on."
+    },
+    {
+      "name": "starred_listing",
+      "kind": "factory",
+      "path": "stapel_docs.services.starred_listing",
+      "intent": "(folders, documents) one user starred in a workspace, live rows only — trashed items drop out of the listing but keep their star until purge, so a restore brings the bookmark back."
+    },
+    {
       "name": "storage_transaction",
       "kind": "gate_function",
       "path": "stapel_docs.services.storage_transaction",
@@ -345,6 +387,18 @@
         "stapel_docs.storage.DocsStorage.put_bytes",
         "stapel_docs.storage.DocsStorage.delete_object"
       ]
+    },
+    {
+      "name": "thumbnail_key",
+      "kind": "factory",
+      "path": "stapel_docs.services.thumbnail_key",
+      "intent": "Storage key of a cached thumbnail, carrying head_seq so a saved document addresses a different image instead of a stale cache. Read it to reason about the bucket; get_thumbnail is what writes it."
+    },
+    {
+      "name": "touch_recent",
+      "kind": "factory",
+      "path": "stapel_docs.services.touch_recent",
+      "intent": "Record that a user just reached a document (upsert + per-user trim). Call it from any NEW read path you add over document bytes; the shipped paths (content read, download-URL issuance, accepted save) already do."
     },
     {
       "name": "trash_document",
@@ -369,6 +423,18 @@
       "kind": "gate_function",
       "path": "stapel_docs.services.update_document",
       "intent": "Patch title/metadata — and strip the reserved upload-pending marker no caller outside the upload flow may set."
+    },
+    {
+      "name": "with_stars",
+      "kind": "factory",
+      "path": "stapel_docs.services.with_stars",
+      "intent": "Annotate is_starred on a Folder/Document queryset for one user — None (not False) when there is no user, because 'not applicable' and 'not starred' are different answers. Reach for it in any custom listing that presents docs rows; hand-writing the Exists() subquery is how the anonymous case silently becomes False."
+    },
+    {
+      "name": "workspace_usage",
+      "kind": "factory",
+      "path": "stapel_docs.services.workspace_usage",
+      "intent": "Everything docs.usage reports for one workspace: live/trash/total bytes, item counts and a per-type breakdown. bytes_total is the same sum the 507 quota refuses against, so a meter and a refusal can never disagree. Host billing composes an entitlement ceiling from it; docs owns the measurement, never the price."
     },
     {
       "name": "workspace_usage_bytes",
@@ -415,9 +481,21 @@
       "kind": "factory",
       "path": "stapel_docs.storage.snapshot_key",
       "intent": "The content-addressed snapshot key for a body hash — identical bodies collapse to one stored object for free."
+    },
+    {
+      "name": "available",
+      "kind": "factory",
+      "path": "stapel_docs.thumbnails.available",
+      "intent": "Is the thumbnail renderer installed? For host diagnostics and system checks that want to say so at deploy time instead of at the first 503."
+    },
+    {
+      "name": "render",
+      "kind": "factory",
+      "path": "stapel_docs.thumbnails.render",
+      "intent": "Resize image bytes so the longest edge fits a tier, as JPEG (alpha composited onto white, never upscaled). Raises ThumbnailsUnavailable without Pillow and ThumbnailSourceUnusable for bytes it cannot decode — a caller's bad input is a 400, not a 500."
     }
   ],
-  "operations_total": 27,
+  "operations_total": 35,
   "requires": [
     {
       "module": "stapel-core",

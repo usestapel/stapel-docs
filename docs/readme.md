@@ -18,10 +18,10 @@ parses a document body, only a type's own `text_extractor` may.
 ## Quick start
 
 The base install rides Django's `default_storage`; add extras for the
-boto3 S3/MinIO backend and the PDF exporter:
+boto3 S3/MinIO backend, the PDF exporter and image thumbnails:
 
 ```bash
-pip install "stapel-docs[s3,pdf]"
+pip install "stapel-docs[s3,pdf,thumbnails]"
 ```
 
 ```python
@@ -83,6 +83,40 @@ call("docs.create_document", {
 `folder_path` materializes folders idempotently; an unknown `type` refuses
 loudly so content never silently lands under a mistyped slug.
 
+## The drive surfaces
+
+Four per-user views over the same corpus, all behind the one authorization
+choke point:
+
+- **Starred** — `POST`/`DELETE /documents/<id>/star` and the folder twin,
+  `GET /starred`. Idempotent both ways (204 whatever the previous state was)
+  and gated by `docs.view`: a star is a bookmark, not an edit. Every folder
+  and document envelope carries `is_starred` — `null`, not `false`, when the
+  request has no user, because "not applicable" is a third answer.
+- **Recents** — `GET /recents`. Written by the service layer on content read,
+  download-URL issuance and accepted save; a rejected save records nothing.
+  Capped by `RECENTS_MAX_PER_USER` and trimmed oldest-first on write.
+- **Search** — `GET /search?workspace_id=&q=`. Workspace-scoped
+  case-insensitive substring over live folder names and document titles, each
+  hit carrying its `kind` and a server-built breadcrumb. A missing `q` is a
+  400, not a free full-workspace listing. `?q=` also filters the documents
+  listing for the in-folder case.
+- **Thumbnails** — `GET /documents/<id>/thumbnail?tier=` for `image/*` file
+  documents, tiers `160` and `480`. Rendered server-side with Pillow and
+  cached under the document's own storage prefix, so a purge takes the
+  previews with it. Without the `[thumbnails]` extra the endpoint answers 503
+  and a client falls back to a type icon.
+
+## Usage metering
+
+`docs.usage` reports `{bytes_live, bytes_trash, bytes_total, documents,
+folders, by_type}` for one workspace. `bytes_total` is the same sum the 507
+quota refuses against, so a meter and a refusal can never disagree. Composing
+an entitlement ceiling out of it (`billing.check_entitlement`) is the host's
+glue — docs owns the measurement, never the price. The call carries its own
+authority exactly like `docs.create_document`, one capability lower
+(`docs.view`).
+
 ## Sharing (v1: closed by default)
 
 The sharing axis (`SHARING`: whitelist / link modes) ships its config surface
@@ -98,16 +132,19 @@ setting, or env var — resolved lazily). Full table in
 seam semantics in
 [MODULE.md](https://github.com/usestapel/stapel-docs/blob/main/MODULE.md).
 Highlights: `STORAGE`, `DOC_TYPES`, `EXPORTERS`, `INGEST`, `REPLAY_WINDOW`,
-`AUTO_REVISION_INTERVAL_SECONDS`, `TRASH_RETENTION_DAYS`, `SHARING`.
+`AUTO_REVISION_INTERVAL_SECONDS`, `TRASH_RETENTION_DAYS`, `RECENTS_MAX_PER_USER`,
+`SEARCH_MAX_RESULTS`, `SHARING`. Thumbnail tiers are deliberately a fixed
+constant, not a setting: the tier is part of a URL clients cache against.
 
 ## comm surface
 
 | Kind | Name | Contract |
 |---|---|---|
 | Function (provides) | `docs.create_document` | `schemas/functions/docs.create_document.json` |
+| Function (provides) | `docs.usage` | `schemas/functions/docs.usage.json` |
 | Action (emit) | `document.created`, `document.updated`, `document.deleted`, `document.storage_changed` | `schemas/emits/*.json` |
 | Action (consume) | `user.deleted` | GDPR anonymize (authorship nulled, content survives) |
-| Action (consume) | `user.merged` | authorship re-parented to the surviving account (the opposite instruction to erasure) |
+| Action (consume) | `user.merged` | authorship re-parented to the surviving account (the opposite instruction to erasure); stars and recents folded on collision |
 | Function (call) | `workspaces.check_capability` | provided by stapel-workspaces |
 
 ## Operations

@@ -78,7 +78,8 @@
                         "diffable": true,
                         "created_at": "2026-08-09T10:00:00+00:00",
                         "updated_at": "2026-08-09T10:05:00+00:00",
-                        "deleted_at": null
+                        "deleted_at": null,
+                        "is_starred": false
                       }
                     ]
                   }
@@ -145,7 +146,8 @@
                       "diffable": true,
                       "created_at": "2026-08-09T10:00:00+00:00",
                       "updated_at": "2026-08-09T10:05:00+00:00",
-                      "deleted_at": null
+                      "deleted_at": null,
+                      "is_starred": false
                     }
                   }
                 }
@@ -204,7 +206,8 @@
                       "diffable": true,
                       "created_at": "2026-08-09T10:00:00+00:00",
                       "updated_at": "2026-08-09T10:05:00+00:00",
-                      "deleted_at": null
+                      "deleted_at": null,
+                      "is_starred": false
                     }
                   }
                 }
@@ -280,7 +283,8 @@
                       "diffable": true,
                       "created_at": "2026-08-09T10:00:00+00:00",
                       "updated_at": "2026-08-09T10:05:00+00:00",
-                      "deleted_at": null
+                      "deleted_at": null,
+                      "is_starred": false
                     }
                   }
                 }
@@ -507,7 +511,8 @@
                       "diffable": true,
                       "created_at": "2026-08-09T10:00:00+00:00",
                       "updated_at": "2026-08-09T10:05:00+00:00",
-                      "deleted_at": null
+                      "deleted_at": null,
+                      "is_starred": false
                     }
                   }
                 }
@@ -774,6 +779,103 @@
         }
       }
     },
+    "/docs/api/v1/documents/{document_id}/star": {
+      "post": {
+        "operationId": "docs_api_v1_documents_star_create",
+        "description": "Star or unstar one document for the requesting user.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "docs_api_v1_documents_star_destroy",
+        "description": "Star or unstar one document for the requesting user.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/thumbnail": {
+      "get": {
+        "operationId": "docs_api_v1_documents_thumbnail_retrieve",
+        "description": "Serve a cached image thumbnail of a ``type=file`` image document.\n\nSame authorization and the same storage seam as the content endpoint —\na preview is the document, smaller. Missing Pillow answers 503 (the\nExporterUnavailable convention: a frontend falls back to a type icon);\na non-image, a non-file or an unknown tier answers 400.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "tier",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Longest-edge pixel tier; the ladder is fixed (160, 480).",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
     "/docs/api/v1/documents/{document_id}/updates": {
       "get": {
         "operationId": "docs_api_v1_documents_updates_retrieve",
@@ -923,7 +1025,8 @@
                         "name": "Meetings",
                         "created_at": "2026-08-09T10:00:00+00:00",
                         "updated_at": "2026-08-09T10:00:00+00:00",
-                        "deleted_at": null
+                        "deleted_at": null,
+                        "is_starred": false
                       }
                     ]
                   }
@@ -981,7 +1084,8 @@
                       "name": "Meetings",
                       "created_at": "2026-08-09T10:00:00+00:00",
                       "updated_at": "2026-08-09T10:00:00+00:00",
-                      "deleted_at": null
+                      "deleted_at": null,
+                      "is_starred": false
                     }
                   }
                 }
@@ -1031,7 +1135,8 @@
                       "name": "Meetings",
                       "created_at": "2026-08-09T10:00:00+00:00",
                       "updated_at": "2026-08-09T10:00:00+00:00",
-                      "deleted_at": null
+                      "deleted_at": null,
+                      "is_starred": false
                     }
                   }
                 }
@@ -1098,7 +1203,8 @@
                       "name": "Meetings",
                       "created_at": "2026-08-09T10:00:00+00:00",
                       "updated_at": "2026-08-09T10:00:00+00:00",
-                      "deleted_at": null
+                      "deleted_at": null,
+                      "is_starred": false
                     }
                   }
                 }
@@ -1176,13 +1282,221 @@
                       "name": "Meetings",
                       "created_at": "2026-08-09T10:00:00+00:00",
                       "updated_at": "2026-08-09T10:00:00+00:00",
-                      "deleted_at": null
+                      "deleted_at": null,
+                      "is_starred": false
                     }
                   }
                 }
               }
             },
             "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/folders/{folder_id}/star": {
+      "post": {
+        "operationId": "docs_api_v1_folders_star_create",
+        "description": "Star or unstar one folder for the requesting user.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "docs_api_v1_folders_star_destroy",
+        "description": "Star or unstar one folder for the requesting user.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/docs/api/v1/recents": {
+      "get": {
+        "operationId": "docs_api_v1_recents_list",
+        "description": "Documents the requesting user reached most recently (newest first).\n\nWritten by the service layer on content read, download-URL issuance and\naccepted save — never by this endpoint, which only reads.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / recents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                        "folder_id": null,
+                        "type": "md",
+                        "title": "Notes",
+                        "head_seq": 3,
+                        "snapshot_seq": 3,
+                        "size_bytes": 42,
+                        "mime_type": "",
+                        "metadata": {},
+                        "editor_hint": "markdown",
+                        "collab": "snapshot",
+                        "diffable": true,
+                        "created_at": "2026-08-09T10:00:00+00:00",
+                        "updated_at": "2026-08-09T10:05:00+00:00",
+                        "deleted_at": null,
+                        "is_starred": false
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/search": {
+      "get": {
+        "operationId": "docs_api_v1_search_list",
+        "description": "Workspace-scoped name search over live folders and documents.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Ceiling on returned hits (default SEARCH_MAX_RESULTS)."
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive substring of a folder name or document title. Mandatory: an absent query is a 400, never the whole workspace.",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / search"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchHitDTO"
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/starred": {
+      "get": {
+        "operationId": "docs_api_v1_starred_retrieve",
+        "description": "Everything the requesting user starred in one workspace.\n\nLive rows only. A trashed item drops out of the listing but keeps its\nstar until purge, so restoring it brings the bookmark back.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
           }
         }
       }
@@ -1356,7 +1670,8 @@
                       "diffable": true,
                       "created_at": "2026-08-09T10:00:00+00:00",
                       "updated_at": "2026-08-09T10:05:00+00:00",
-                      "deleted_at": null
+                      "deleted_at": null,
+                      "is_starred": false
                     }
                   }
                 }
@@ -1380,6 +1695,22 @@
         },
         "required": [
           "head_seq"
+        ]
+      },
+      "BreadcrumbNodeDTO": {
+        "type": "object",
+        "description": "One ancestor folder on a search hit's path.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
         ]
       },
       "DocumentCreate": {
@@ -1478,6 +1809,11 @@
             "type": "string",
             "nullable": true,
             "description": "Set while the document sits in the trash."
+          },
+          "is_starred": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the requesting user starred this; null when the request carries no user (not applicable is not false)."
           }
         },
         "required": [
@@ -1560,6 +1896,11 @@
             "type": "string",
             "nullable": true,
             "description": "Set while the folder sits in the trash."
+          },
+          "is_starred": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the requesting user starred this; null when the request carries no user (not applicable is not false)."
           }
         },
         "required": [
@@ -1696,6 +2037,48 @@
         },
         "required": [
           "head_seq"
+        ]
+      },
+      "SearchHitDTO": {
+        "type": "object",
+        "description": "One name-search hit (drive-spec §3.3).\n\n``kind`` dispatches the client's rendering; ``breadcrumb`` is the\nroot-first ancestor chain of the hit's CONTAINER (empty at the workspace\nroot), materialized server-side so a result list costs one request.",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_starred": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "breadcrumb": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreadcrumbNodeDTO"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "workspace_id"
         ]
       },
       "TrashEmpty": {

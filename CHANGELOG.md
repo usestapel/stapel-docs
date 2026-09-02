@@ -6,6 +6,133 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-02
+
+### Added — the drive wave: starred, recents, search, usage, thumbnails
+
+`tasks/stapel-drive-spec.md` §3.1-§3.4 and §3.6. The Google-Drive product
+ships as a wave of this module rather than a second L2 module, so none of
+this introduces a second owner of workspace document data — the new rows sit
+next to the ones they annotate, behind the same `authorize()` choke point and
+the same `DocsStorage` seam.
+
+- **Starred** (`Star`) — per-user bookmarks on documents AND folders.
+  `POST`/`DELETE /documents/<id>/star` and the folder twin,
+  `GET /starred?workspace_id=`. Both verbs answer 204 whatever the previous
+  state was: an idempotent verb that reports "already done" as a failure
+  forces every client to read before writing. Gated by **`docs.view`**, not
+  `docs.edit` — a star is a bookmark, and requiring edit would make "keep
+  this handy" an act of authorship. Exactly one of the two target FKs is a
+  `CheckConstraint`, so a meaningless row is refused by the database rather
+  than by a convention some future call site forgets. `is_starred` now rides
+  every folder and document envelope, annotated with `Exists` and **`null`
+  for a principal with no user id** — the listings canon: "not applicable"
+  is a third answer, and collapsing it into `false` tells an anonymous reader
+  it un-starred something it never could have starred.
+- **Recents** (`RecentEntry`) — `GET /recents?workspace_id=`, newest first,
+  live only. The upsert lives in the **service layer**, on the three paths
+  that actually hand a document to a person: `read_content`,
+  `document_download_url` and an accepted `save_content`. Hooking the views
+  instead would have meant the next read path added inherits nothing; hooking
+  the service means a rejected save records nothing (it never happened) and a
+  machine read — export, thumbnail rendering, revision replay — passes no
+  user and leaves no trace. Capped by `RECENTS_MAX_PER_USER` (default 100),
+  trimmed oldest-first on write. No events: a bus message per document open
+  would be the noisiest topic in the fleet.
+- **Search by name** — `GET /search?workspace_id=&q=[&limit=]`. Workspace
+  scoped, tree-wide, case-insensitive `icontains` over live `Folder.name` and
+  `Document.title`; each hit carries its `kind` and a root-first
+  **breadcrumb** materialized from ONE folder-index query for the whole
+  result set, because resolving each hit's ancestry on its own is the N+1
+  that makes a search endpoint quadratic in tree depth the first time a real
+  workspace gets deep (a test asserts the query count is constant across ten
+  hits nested three deep). An absent or blank `q` is a 400 — a search
+  endpoint that answers an empty query with the whole workspace is a listing
+  endpoint wearing a search name, and the most expensive scan a client can
+  trigger by accident. Deliberately **not** knowledge search: no FTS, no
+  trigram in v1. The existing `?q=` filter on the documents listing stays for
+  the in-folder case.
+- **`docs.usage`** — the metering surface billing can consume:
+  `{bytes_live, bytes_trash, bytes_total, documents, folders, by_type}` for
+  one workspace. `bytes_total` is the SAME sum the 507 quota already refuses
+  against (invariant I2, one sum), so a meter and a refusal can never tell an
+  operator two different stories about how full a workspace is; trashed rows
+  keep being charged in `bytes_trash`, because trash is not a discount.
+  Composing an entitlement ceiling out of it is the host's glue — docs owns
+  the measurement, never the price. **Authority is the same gate as
+  `docs.create_document`**, one capability lower (`docs.view`): the surface
+  is read-only, but the data is a workspace's, and "it only reads" is how a
+  per-workspace corpus size and type mix becomes enumerable by id to every
+  participant on the bus.
+- **Image thumbnails** — `GET /documents/<id>/thumbnail?tier=` for
+  `type=file` documents with an `image/*` mime. Server-side Pillow resize
+  (new optional extra `stapel-docs[thumbnails]`, also folded into `[all]`),
+  tiers a fixed `(160, 480)` ladder. Served through `authorize(docs.view)`
+  and the storage seam and nothing else — never a second read path, and never
+  a CDN, which is what would make a private workspace file's preview publicly
+  addressable. Missing Pillow answers **503** the way a missing exporter
+  dependency does, so a frontend falls back to a type icon instead of having
+  to tell a silent empty answer from a broken deploy; a non-image, a non-file
+  and a pending upload with no bytes answer 400, and so does a source Pillow
+  refuses to decode — a caller's bad input is a 400, not a 500.
+
+### Added — how a derived object stays inside invariant I2
+
+The cached thumbnail is written under the document's OWN storage prefix
+(`{PREFIX}/{workspace}/{document}/thumb.{head_seq}.{tier}.jpg`), and a
+`Thumbnail` row registers the key. Both halves are load-bearing:
+
+- `head_seq` in the key means a stale image is **unaddressable**, not merely
+  unpreferred — a save bumps the seq, the next request asks for a key that
+  does not exist yet, and the renderer runs. There is no cache to invalidate
+  and therefore no invalidation to forget.
+- the row exists because `services.purge_document` deletes **enumerated**
+  keys, not a key prefix. An unregistered derived object would have outlived
+  the document it depicts, in a module whose whole storage story is "content
+  bytes live under this prefix and nowhere else, and purge destroys all of
+  them". A test purges a document with two cached tiers and asserts both
+  objects are gone from the bucket.
+
+Thumbnail bytes are deliberately absent from the `document.storage_changed`
+delta and from the quota sum: they were never charged, so removing them must
+not credit anything back.
+
+### Changed — GDPR and the account life cycle cover the new tables
+
+- **Account erasure**: authorship keeps being *anonymized* (documents are
+  co-produced workspace content and survive their authors), but `Star` and
+  `RecentEntry` rows are *deleted* — they are one person's private view of
+  the corpus, they mean nothing without that person, and an anonymized star
+  is a bookmark nobody can reach and nobody can clear. The receipt gains
+  `stars_deleted` / `recents_deleted`; document and workspace erasures gain
+  `stars` / `recents`, and their `storage_objects` count now includes cached
+  thumbnails.
+- **`user.merged`** re-parents the new tables with **collision folding**,
+  because both are unique per `(user, target)` and a blind `UPDATE` breaks
+  the constraint exactly in the common case — a guest and their real account
+  tend to look at the same things. A star folds to "still starred, once"; a
+  recent folds to the **newer** `accessed_at`, since one person has one
+  answer to "when did I last reach this" and it is the later one. A guest
+  whose only trace is a bookmark still arms `MergeTargetNotReady`, so the
+  event is redelivered rather than ACKed with the bookmark stranded.
+  `check_lifecycle_pairs()` stays green.
+
+### Changed — contract and configuration
+
+- Two new settings: `RECENTS_MAX_PER_USER` (100) and `SEARCH_MAX_RESULTS`
+  (50). Thumbnail tiers are **not** a setting: the tier is part of the URL a
+  client caches against, and every extra rung is another rendered copy of
+  every image in the bucket.
+- Three new error keys (`error.400.docs_thumbnail_tier`,
+  `error.400.docs_thumbnail_unsupported`,
+  `error.503.docs_thumbnails_unavailable`) with ru/es catalogs.
+- The HTTP surface grows 27 → 35 operations; the usage surface 54 → 67
+  entries (`thumbnails.py` joins the surface roots). `docs/llms.txt` no
+  longer fits the 6000-token ceiling, so the budget is raised to 7000 —
+  deliberately, per the generator's own advice, rather than by shortening the
+  intent lines that explain the module's gates.
+- Migration `0003_drive_star_recent_thumbnail` — three new tables, additive.
+
 ## [0.4.1] — 2026-09-02
 
 ### Changed — a markdown document exports as markdown, not as its source

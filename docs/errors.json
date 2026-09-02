@@ -72,6 +72,22 @@
     "owner": "stapel_docs"
   },
   {
+    "code": "error.400.docs_thumbnail_tier",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Unknown thumbnail size",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.400.docs_thumbnail_unsupported",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This document has no image preview",
+    "owner": "stapel_docs"
+  },
+  {
     "code": "error.400.docs_too_many_updates",
     "status": 400,
     "params": [],
@@ -593,6 +609,14 @@
     "params": [],
     "remediation": "retry",
     "en": "The export backend is not installed",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.503.docs_thumbnails_unavailable",
+    "status": 503,
+    "params": [],
+    "remediation": "retry",
+    "en": "The thumbnail renderer is not installed",
     "owner": "stapel_docs"
   },
   {

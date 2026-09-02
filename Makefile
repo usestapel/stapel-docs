@@ -20,19 +20,21 @@ PYTHON ?= python3
 # Emit the contract triad + capabilities.json + llms.txt (the fifth contract
 # artifact, stapel_tools.llms_txt) into docs/.
 #
-# The llms.txt budget is raised from the generator's default 4000 to 6000,
+# The llms.txt budget is raised from the generator's default 4000 to 7000,
 # same exception stapel-auth (8000), stapel-recordings (5000) and
 # stapel-workspaces (4500) already take. This module carries the fleet's
-# largest usage surface (47 entries across services, storage, doc_types,
-# exporters and authz — the whole point of a library whose seams exist to be
-# called) plus a full-CRUD 27-operation HTTP surface, which together measure
-# ~5227 tokens. Raise the ceiling, do NOT shorten `intent` lines in
+# largest usage surface (67 entries across services, storage, doc_types,
+# exporters, thumbnails and authz — the whole point of a library whose seams
+# exist to be called) plus a full-CRUD 35-operation HTTP surface, which
+# together measure ~6920 tokens. Raise the ceiling, do NOT shorten `intent` lines in
 # docs/capabilities.meta.json to fit — a trimmed context file is
 # indistinguishable from a complete one at the point of use, which is the
 # failure mode the budget gate exists to prevent. contract-check below and
-# tests/test_contract.py enforce the same 6000 ceiling. The ceiling moved
+# tests/test_contract.py enforce the same 7000 ceiling. The ceiling moved
 # 5500 -> 6000 when the resource-invariant surface landed (limits, quota and
-# upload-session gates plus their error keys): the honest move per the
+# upload-session gates plus their error keys), and 6000 -> 7000 when the
+# drive wave landed (starred/recents/search/usage/thumbnails: 13 more called
+# symbols, 8 more operations, 3 more error keys): the honest move per the
 # generator's own advice is to raise the ceiling deliberately, because
 # shortening the intent lines of security gates is how a gate becomes
 # something nobody can explain and therefore nobody adopts.
@@ -45,7 +47,7 @@ PYTHON ?= python3
 contract:
 	$(PYTHON) -m stapel_docs._codegen --out docs
 	$(PYTHON) -m stapel_docs._capabilities --out docs
-	$(PYTHON) -m stapel_tools.llms_txt . --out docs --budget 6000
+	$(PYTHON) -m stapel_tools.llms_txt . --out docs --budget 7000
 	$(PYTHON) -m stapel_tools.readme .
 
 # Drift gate: regenerate into a temp dir and diff against the committed docs/*.json
@@ -54,7 +56,7 @@ contract-check:
 	@tmp=$$(mktemp -d); \
 	$(PYTHON) -m stapel_docs._codegen --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
 	$(PYTHON) -m stapel_docs._capabilities --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
-	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 6000 || { rm -rf "$$tmp"; exit 1; }; \
+	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 7000 || { rm -rf "$$tmp"; exit 1; }; \
 	rc=0; \
 	for f in schema.json flows.json errors.json capabilities.json llms.txt; do \
 		if ! diff -q "docs/$$f" "$$tmp/$$f" >/dev/null 2>&1; then \

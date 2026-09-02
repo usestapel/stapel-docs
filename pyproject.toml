@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-docs"
-version = "0.4.1"
+version = "0.5.0"
 description = "Documents: storage, revisions and per-type editors for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -66,7 +66,12 @@ s3 = ["boto3>=1.26"]
 # verbatim print, so a partial install is visible instead of silently
 # producing PDFs full of literal `#` and `**`.
 pdf = ["fpdf2>=2.8", "markdown>=3.4"]
-all = ["boto3>=1.26", "fpdf2>=2.8", "markdown>=3.4"]
+# Server-side image thumbnails (drive wave, 0.5.0). Optional on purpose: a
+# deployment that never previews images should not carry an image codec, and
+# its absence is a visible 503 on the thumbnail endpoint rather than a
+# silently missing feature.
+thumbnails = ["Pillow>=10"]
+all = ["boto3>=1.26", "fpdf2>=2.8", "markdown>=3.4", "Pillow>=10"]
 
 [tool.setuptools]
 package-dir = {"stapel_docs" = "."}
