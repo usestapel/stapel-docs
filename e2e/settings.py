@@ -27,6 +27,9 @@ INSTALLED_APPS = [
     "stapel_core.django.users",
     "stapel_core.django.outbox",
     "stapel_auth",
+    # stapel-workspaces 0.24+ journals its audit into core.s event store;
+    # its migrations depend on the app (label stapel_eventstore) being mounted.
+    "stapel_core.django.eventstore",
     "stapel_workspaces",
     "stapel_docs",
 ]
@@ -99,3 +102,38 @@ STAPEL_DOCS = {
 
 STAPEL_SERVICES = [{"name": "stapel-docs E2E", "prefix": ""}]
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# The fleet promoted two HOST-QUALITY checks to errors after this scratch
+# host was written: strict template variables (core) and the profiles
+# display-name provider (workspaces). Neither gates anything the e2e flow
+# proves about stapel-docs, and a scratch host that installs half the
+# fleet to satisfy them stops being minimal — silenced by name, on purpose.
+SILENCED_SYSTEM_CHECKS = [
+    "stapel_core.templates.W001",
+    "stapel_workspaces.W001",
+]
+
+# This scratch host sells nothing: no billing service is mounted, and the
+# workspaces plan ceiling would otherwise fail closed on every create.
+STAPEL_WORKSPACES = {"ALLOW_UNBILLED": True}
+
+# stapel-auth gates the bare POST /token/ login behind a flag now (the
+# fleet's cookie/session flow is the default door). The scratch runner
+# authenticates by that one endpoint, so the flag goes on here.
+STAPEL_AUTH = {"AUTH_LEGACY_TOKEN_LOGIN": True, "AUTH_PASSWORD_LOGIN": True}
+
+# No broker on the scratch host: whatever a login fires as a shared_task
+# runs inline (the runner asserts outcomes, not queue mechanics). The
+# default Celery app is configured HERE, at settings import, because the
+# fleet's shared_task decorators bind to the current default app — the
+# stapel-auth test conftest's own bootstrap, verbatim.
+from celery import Celery as _Celery  # noqa: E402
+
+_celery = _Celery("stapel_docs_e2e")
+_celery.config_from_object({
+    "task_always_eager": True,
+    "task_eager_propagates": True,
+    "broker_url": "memory://",
+    "result_backend": "cache+memory://",
+})
+_celery.set_default()
