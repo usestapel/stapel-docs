@@ -32,6 +32,7 @@ Contract (all keys are storage-relative strings):
     upload_from_file(key, src_path, content_type=None) -> None
     put_bytes(key, data, content_type=...) -> None
     get_bytes(key) -> bytes
+    get_bytes_range(key, start, length) -> bytes   # archive browsing
     delete_object(key) -> None
     create_multipart_upload(key, content_type=None) -> str   # upload_id
     presigned_upload_part_url(key, upload_id, part_number, *, expires_seconds) -> str
@@ -120,6 +121,19 @@ class DocsStorage(ABC):
 
     @abstractmethod
     def get_bytes(self, key: str) -> bytes: ...
+
+    def get_bytes_range(self, key: str, start: int, length: int) -> bytes:
+        """Up to *length* bytes of the object from offset *start*.
+
+        The archive-browsing path reads a zip's central directory through
+        this instead of downloading the object whole. The default rides
+        ``get_bytes`` — correct for any third-party backend, efficient for
+        none — and both shipped backends override it with a real ranged
+        read."""
+        if length <= 0:
+            return b""
+        data = self.get_bytes(key)
+        return data[start:start + length]
 
     @abstractmethod
     def delete_object(self, key: str) -> None: ...
@@ -217,6 +231,20 @@ class DjangoStorageBackend(DocsStorage):
     def get_bytes(self, key):
         with self._storage().open(key, "rb") as fh:
             return fh.read()
+
+    def get_bytes_range(self, key, start, length):
+        if length <= 0:
+            return b""
+        with self._storage().open(key, "rb") as fh:
+            try:
+                fh.seek(start)
+                return fh.read(length)
+            except (OSError, ValueError):
+                # A storage whose file handle cannot seek (rare in the
+                # django-storages family) degrades to read-and-slice —
+                # correct, dev-grade, and bounded by the object's size.
+                fh.seek(0)
+                return fh.read()[start:start + length]
 
     def delete_object(self, key):
         storage = self._storage()
@@ -340,6 +368,16 @@ class S3Backend(DocsStorage):
         buf = io.BytesIO()
         self._client(False).download_fileobj(self._bucket(), key, buf)
         return buf.getvalue()
+
+    def get_bytes_range(self, key, start, length):
+        if length <= 0:
+            return b""
+        resp = self._client(False).get_object(
+            Bucket=self._bucket(),
+            Key=key,
+            Range=f"bytes={start}-{start + length - 1}",
+        )
+        return resp["Body"].read()
 
     def delete_object(self, key):
         self._client(False).delete_object(Bucket=self._bucket(), Key=key)

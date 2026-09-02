@@ -491,6 +491,82 @@
         }
       }
     },
+    "/docs/api/v1/documents/{document_id}/archive": {
+      "get": {
+        "operationId": "docs_api_v1_documents_archive_retrieve",
+        "description": "List a zip document's entries like a folder.\n\nThe central directory is read through ranged storage reads — the\narchive is never downloaded whole to answer a listing. Complete or\nrefused (413), never truncated.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / archive"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveListingDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/archive/entry": {
+      "get": {
+        "operationId": "docs_api_v1_documents_archive_entry_retrieve",
+        "description": "One member of a zip document, extracted server-side under the\narchive ceilings. ``?path=`` names the member; the optional\n``X-Docs-Archive-Password`` header unlocks ZipCrypto members.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Member path inside the archive, exactly as listed.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / archive"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
     "/docs/api/v1/documents/{document_id}/content": {
       "get": {
         "operationId": "docs_api_v1_documents_content_retrieve",
@@ -1847,6 +1923,79 @@
         }
       }
     },
+    "/docs/api/v1/shared/{token}/archive": {
+      "get": {
+        "operationId": "docs_api_v1_shared_archive_retrieve",
+        "description": "The bearer's browse of a shared zip — same listing, same caps.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveListingDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/docs/api/v1/shared/{token}/archive/entry": {
+      "get": {
+        "operationId": "docs_api_v1_shared_archive_entry_retrieve",
+        "description": "One member of a shared zip for the bearer — the extraction path and\nevery ceiling are identical to the member endpoint (axis §6: a link\ngrants the document's viewers, never a wider byte budget).",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
     "/docs/api/v1/shared/{token}/content": {
       "get": {
         "operationId": "docs_api_v1_shared_content_retrieve",
@@ -2190,6 +2339,68 @@
         },
         "required": [
           "head_seq"
+        ]
+      },
+      "ArchiveEntryDTO": {
+        "type": "object",
+        "description": "One member of a zip document browsed as a folder (viewing wave).\n\n``mime_type`` is guessed from the member's name — a hint for picking\na viewer, not a promise about the bytes; ``encrypted`` marks members\nwhose extraction needs the per-request password.",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "compressed_bytes": {
+            "type": "integer"
+          },
+          "is_dir": {
+            "type": "boolean"
+          },
+          "encrypted": {
+            "type": "boolean"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "modified_at": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "compressed_bytes",
+          "encrypted",
+          "is_dir",
+          "mime_type",
+          "path",
+          "size_bytes"
+        ]
+      },
+      "ArchiveListingDTO": {
+        "type": "object",
+        "description": "A zip document's central directory as a browsable listing.\n\nComplete or refused, never truncated: past the entry-count or total-\nsize ceilings the whole listing answers 413 — a truncated folder\nlooks complete to every client that renders it. ``archive_encrypted``\nis the lock state the UI shows before anyone opens an entry.",
+        "properties": {
+          "entry_count": {
+            "type": "integer"
+          },
+          "total_uncompressed_bytes": {
+            "type": "integer"
+          },
+          "archive_encrypted": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveEntryDTO"
+            }
+          }
+        },
+        "required": [
+          "archive_encrypted",
+          "entry_count",
+          "total_uncompressed_bytes"
         ]
       },
       "BreadcrumbNodeDTO": {

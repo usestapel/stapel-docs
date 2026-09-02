@@ -24,6 +24,38 @@
     "owner": "stapel_core"
   },
   {
+    "code": "error.400.docs_archive_encryption_unsupported",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This archive uses an encryption scheme that cannot be opened here",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.400.docs_archive_malformed",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "The archive is damaged and cannot be read",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.400.docs_archive_password_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This archive entry is password-protected",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.400.docs_archive_password_wrong",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "The archive password is not correct",
+    "owner": "stapel_docs"
+  },
+  {
     "code": "error.400.docs_bad_since",
     "status": 400,
     "params": [],
@@ -69,6 +101,14 @@
     "params": [],
     "remediation": "fix_input",
     "en": "The payload is not a valid CRDT update for this document type",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.400.docs_not_an_archive",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This document is not a browsable archive",
     "owner": "stapel_docs"
   },
   {
@@ -450,6 +490,14 @@
     "owner": "stapel_docs"
   },
   {
+    "code": "error.404.docs_archive_entry_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "No such entry in the archive",
+    "owner": "stapel_docs"
+  },
+  {
     "code": "error.404.docs_document_not_found",
     "status": 404,
     "params": [],
@@ -559,6 +607,38 @@
     "params": [],
     "remediation": "retry",
     "en": "Snapshot saves require an If-Match sequence",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.413.docs_archive_entry_too_large",
+    "status": 413,
+    "params": [],
+    "remediation": "retry",
+    "en": "The archive entry exceeds the extraction size limit",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.413.docs_archive_ratio",
+    "status": 413,
+    "params": [],
+    "remediation": "retry",
+    "en": "The archive entry exceeds the compression ratio limit",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.413.docs_archive_too_many_entries",
+    "status": 413,
+    "params": [],
+    "remediation": "retry",
+    "en": "The archive holds too many entries to browse",
+    "owner": "stapel_docs"
+  },
+  {
+    "code": "error.413.docs_archive_total_too_large",
+    "status": 413,
+    "params": [],
+    "remediation": "retry",
+    "en": "The archive unpacks to more data than may be browsed",
     "owner": "stapel_docs"
   },
   {

@@ -23,10 +23,14 @@ from rest_framework import serializers as drf_serializers
 from rest_framework.negotiation import DefaultContentNegotiation
 from rest_framework.parsers import BaseParser
 from rest_framework.views import APIView
-from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
+from stapel_core.django.api.errors import (
+    ERR_400_BAD_REQUEST,
+    StapelErrorResponse,
+    StapelResponse,
+)
 from stapel_core.django.api.permissions import IsNotAnonymousUser
 
-from . import services
+from . import archives, services
 from .authz import (
     ALLOW,
     CAP_SHARE_LINK,
@@ -68,6 +72,7 @@ from .presenters import (
     get_link_presenter,
     get_revision_presenter,
     present_append_result,
+    present_archive_listing,
     present_download_url,
     present_purge_result,
     present_resync,
@@ -81,6 +86,8 @@ from .thumbnails import THUMBNAIL_TIERS
 from .serializers import (
     AccessGrantSerializer,
     AppendResultSerializer,
+    ArchiveEntryQuerySerializer,
+    ArchiveListingSerializer,
     DocumentAccessSerializer,
     DocumentCreateSerializer,
     DocumentListQuerySerializer,
@@ -192,6 +199,62 @@ def _access_error(request, workspace_id, *actions, document=None):
 def _acting_user(request):
     user = getattr(request, "user", None)
     return user if user is not None and user.is_authenticated else None
+
+
+
+def _parse_byte_range(header, size: int):
+    """One ``Range: bytes=`` spec -> ``(start, end)``, ``"unsatisfiable"``
+    or ``None`` (absent/malformed/multi-range -> serve the full body).
+
+    Media viewers seek; on the DjangoStorage dev profile this stream is
+    the only byte path, so it speaks single-range 206 itself. Multi-range
+    responses (multipart/byteranges) buy nothing a player needs and are
+    deliberately not spoken — degrading them to 200 is the behavior RFC
+    9110 allows an origin that ignores Range.
+    """
+    if not header or not header.startswith("bytes=") or size <= 0:
+        return None
+    spec = header[len("bytes="):].strip()
+    if "," in spec or "-" not in spec:
+        return None
+    start_raw, _, end_raw = spec.partition("-")
+    start_raw, end_raw = start_raw.strip(), end_raw.strip()
+    try:
+        if not start_raw:
+            suffix = int(end_raw)
+            if suffix <= 0:
+                return None
+            return max(0, size - suffix), size - 1
+        start = int(start_raw)
+        end = int(end_raw) if end_raw else size - 1
+    except ValueError:
+        return None
+    if start < 0 or (end_raw and end < start):
+        return None
+    if start >= size:
+        return "unsatisfiable"
+    return start, min(end, size - 1)
+
+
+def _content_stream_response(request, body: bytes, mime: str) -> HttpResponse:
+    """The body as a Range-aware stream (Accept-Ranges everywhere,
+    206/416 when the request asked for a slice)."""
+    size = len(body)
+    byte_range = _parse_byte_range(request.headers.get("Range"), size)
+    if byte_range == "unsatisfiable":
+        response = HttpResponse(status=416)
+        response["Content-Range"] = f"bytes */{size}"
+    elif byte_range is None:
+        response = HttpResponse(body, content_type=mime)
+    else:
+        start, end = byte_range
+        response = HttpResponse(
+            body[start:end + 1], content_type=mime, status=206
+        )
+        response["Content-Range"] = f"bytes {start}-{end}/{size}"
+        response["Content-Length"] = str(end - start + 1)
+    response["Accept-Ranges"] = "bytes"
+    return response
 
 
 def _maps_docs_errors(method):
@@ -544,7 +607,7 @@ class DocumentContentView(SerializerSeamMixin, APIView):
         body, mime, head_seq = services.read_content(
             document, user=_acting_user(request)
         )
-        response = HttpResponse(body, content_type=mime)
+        response = _content_stream_response(request, body, mime)
         response["ETag"] = f'"{head_seq}"'
         response["X-Docs-Head-Seq"] = str(head_seq)
         return response
@@ -760,7 +823,7 @@ class RevisionContentView(SerializerSeamMixin, APIView):
             return denied
         revision = services.get_revision(document, revision_id)
         body, mime = services.revision_content(document, revision)
-        return HttpResponse(body, content_type=mime)
+        return _content_stream_response(request, body, mime)
 
 
 @extend_schema(tags=["Docs / revisions"])
@@ -1023,6 +1086,91 @@ class DocumentThumbnailView(SerializerSeamMixin, APIView):
         # document addresses a different image instead of a stale cache.
         response["ETag"] = f'"{document.head_seq}-{query.validated_data["tier"]}"'
         return response
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Archives — a zip document browsed as a compressed folder (0.8.0)
+# ─────────────────────────────────────────────────────────────────────
+
+#: Per-request password for encrypted members (ZipCrypto). A capability
+#: presented, never stored: it exists for the life of one extraction.
+ARCHIVE_PASSWORD_HEADER = "X-Docs-Archive-Password"
+
+
+def _archive_entry_response(request, document, path: str) -> HttpResponse:
+    """Serve one extracted member. The guessed type re-enters the upload
+    allowlist: a type the deployment would refuse to store is served as an
+    opaque attachment, so the container cannot smuggle active content into
+    the API origin."""
+    from urllib.parse import quote
+
+    password = request.headers.get(ARCHIVE_PASSWORD_HEADER) or None
+    data, mime, inline = archives.read_member(document, path, password=password)
+    response = HttpResponse(
+        data, content_type=mime if inline else "application/octet-stream"
+    )
+    filename = path.rsplit("/", 1)[-1] or "entry"
+    disposition = "inline" if inline else "attachment"
+    response["Content-Disposition"] = (
+        f"{disposition}; filename*=UTF-8''{quote(filename)}"
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@extend_schema(tags=["Docs / archive"])
+class DocumentArchiveView(SerializerSeamMixin, APIView):
+    """List a zip document's entries like a folder.
+
+    The central directory is read through ranged storage reads — the
+    archive is never downloaded whole to answer a listing. Complete or
+    refused (413), never truncated."""
+
+    permission_classes = [IsNotAnonymousUser]
+    response_serializer_class = ArchiveListingSerializer
+
+    @extend_schema(responses={200: ArchiveListingSerializer})
+    @_maps_docs_errors
+    def get(self, request, document_id):
+        document = services.get_live_document(document_id)
+        denied = _access_error(request, document.workspace_id, "view", document=document)
+        if denied:
+            return denied
+        listing = archives.list_entries(document)
+        return StapelResponse(
+            self.get_response_serializer_class()(present_archive_listing(listing))
+        )
+
+
+@extend_schema(tags=["Docs / archive"])
+class DocumentArchiveEntryView(SerializerSeamMixin, APIView):
+    """One member of a zip document, extracted server-side under the
+    archive ceilings. ``?path=`` names the member; the optional
+    ``X-Docs-Archive-Password`` header unlocks ZipCrypto members."""
+
+    permission_classes = [IsNotAnonymousUser]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="path", type=str, location=OpenApiParameter.QUERY, required=True,
+                description="Member path inside the archive, exactly as listed.",
+            )
+        ],
+        responses={200: None},
+    )
+    @_maps_docs_errors
+    def get(self, request, document_id):
+        document = services.get_live_document(document_id)
+        denied = _access_error(request, document.workspace_id, "view", document=document)
+        if denied:
+            return denied
+        query = ArchiveEntryQuerySerializer(data=request.query_params)
+        if not query.is_valid():
+            return StapelErrorResponse(400, ERR_400_BAD_REQUEST)
+        return _archive_entry_response(
+            request, document, query.validated_data["path"]
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1508,7 +1656,7 @@ class SharedContentView(_BearerViewBase):
         # No user is passed on purpose: a bearer is not a member, and a
         # document they opened must not surface in anybody's recents.
         body, mime, head_seq = services.read_content(document)
-        response = HttpResponse(body, content_type=mime)
+        response = _content_stream_response(request, body, mime)
         response["ETag"] = f'"{head_seq}"'
         response["X-Docs-Head-Seq"] = str(head_seq)
         return response
@@ -1530,4 +1678,51 @@ class SharedDownloadView(_BearerViewBase):
         url = services.document_download_url(document)
         return StapelResponse(
             self.get_response_serializer_class()(present_download_url(url))
+        )
+
+
+@extend_schema(tags=["Docs / sharing"])
+class SharedArchiveView(_BearerViewBase):
+    """The bearer's browse of a shared zip — same listing, same caps."""
+
+    response_serializer_class = ArchiveListingSerializer
+
+    @extend_schema(responses={200: ArchiveListingSerializer})
+    @_maps_docs_errors
+    def get(self, request, token):
+        resolved, denied = self._resolve(request, token)
+        if denied:
+            return denied
+        document, _link, _level = resolved
+        listing = archives.list_entries(document)
+        return StapelResponse(
+            self.get_response_serializer_class()(present_archive_listing(listing))
+        )
+
+
+@extend_schema(tags=["Docs / sharing"])
+class SharedArchiveEntryView(_BearerViewBase):
+    """One member of a shared zip for the bearer — the extraction path and
+    every ceiling are identical to the member endpoint (axis §6: a link
+    grants the document's viewers, never a wider byte budget)."""
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="path", type=str, location=OpenApiParameter.QUERY, required=True,
+            )
+        ],
+        responses={200: None},
+    )
+    @_maps_docs_errors
+    def get(self, request, token):
+        resolved, denied = self._resolve(request, token)
+        if denied:
+            return denied
+        document, _link, _level = resolved
+        query = ArchiveEntryQuerySerializer(data=request.query_params)
+        if not query.is_valid():
+            return StapelErrorResponse(400, ERR_400_BAD_REQUEST)
+        return _archive_entry_response(
+            request, document, query.validated_data["path"]
         )

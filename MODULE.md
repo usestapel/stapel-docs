@@ -239,7 +239,12 @@ presigned + native multipart;
 `pip install stapel-docs[s3]`; `S3_*` keys). Implement the ABC to target
 any store; `get_storage()` resolves + memoizes. Wrong class / unimportable
 path is a system-check ERROR (E001). **No `default_storage`/boto3 calls
-outside `storage.py`** — lint-enforced (storage-verdict §9.2).
+outside `storage.py`** — lint-enforced (storage-verdict §9.2). Since
+0.8.0 the contract carries `get_bytes_range(key, start, length)` — the
+ranged read the archive-browsing endpoints list a zip's central
+directory through; the ABC ships a get_bytes-backed default, both
+builtin backends override it with a real ranged read (S3 `Range:` GET /
+file seek), and a custom backend should too.
 
 ### Exporters — `EXPORTERS` (**merge**)
 
@@ -420,6 +425,7 @@ registry with defaults in [CONFIG.MD](CONFIG.MD).
 | `WORKSPACE_QUOTA_BYTES` | value (ships at 10 GiB; `0` = quota off) | per-workspace stored-byte budget (507 when crossed) |
 | `UPLOAD_SESSION_TTL_SECONDS`, `MAX_PENDING_UPLOADS_PER_WORKSPACE` | value | upload-ticket expiry, open-session ceiling |
 | `UPLOAD_ALLOWED_MIME_TYPES` | value (ships a real allowlist; `["*/*"]` = any) | which content types may be uploaded at all |
+| `MAX_ARCHIVE_ENTRIES`, `MAX_ARCHIVE_MEMBER_BYTES`, `MAX_ARCHIVE_TOTAL_UNCOMPRESSED_BYTES`, `MAX_ARCHIVE_COMPRESSION_RATIO` | value (`0` = ceiling off) | zip-as-folder browsing ceilings (listing refusal, member extraction, bomb hygiene) |
 | `INTERNAL_REQUIRE_CALLER`, `INTERNAL_TRUSTED_SERVICES` | value | authority carried by comm callers of `docs.create_document` |
 | `TRASH_PURGE_SCHEDULE` | value | cadence of `stapel_docs.tasks.purge_expired_trash` (beat) |
 | `SHARING` | axis (implemented, closed defaults; `RESOLVERS` **merge**) | sharing beyond the baseline: whitelist grants and bearer links |

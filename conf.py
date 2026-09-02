@@ -84,6 +84,15 @@ DEFAULT_UPLOAD_MIME_TYPES = [
     "video/mp4",
     "video/webm",
     "video/quicktime",
+    # Zip archives (viewing wave, 0.8.0). A zip is admitted as a CONTAINER
+    # the module can browse: the archive endpoints list its central
+    # directory and extract single members server-side under their own
+    # ceilings (MAX_ARCHIVE_*), and a member whose type is not on THIS
+    # allowlist is served as an opaque attachment, never inline — so
+    # letting the container in does not let its contents around the
+    # active-content policy above.
+    "application/zip",
+    "application/x-zip-compressed",
 ]
 
 #: AppSettings-shaped literal dict (capability-config.md §2): a top-level
@@ -147,6 +156,29 @@ DEFAULTS = {
         # opt-out, never the shipped default.
         "WORKSPACE_QUOTA_BYTES": 10 * 1024 * 1024 * 1024,
 
+        # ── Archive browsing (zip-as-folder, 0.8.0) ──────────────────
+        # A zip document is browsed like a folder: the listing reads the
+        # central directory through RANGED storage reads (the archive is
+        # never downloaded whole), and extraction takes one member at a
+        # time. Declared sizes in a zip are attacker-controlled, so every
+        # ceiling here is checked twice — against the central directory
+        # before any inflation, and against the actual inflated stream,
+        # which stops at the cap instead of trusting the header. 0
+        # disables an individual ceiling (explicit host decision).
+        # Entries a listing will enumerate; one past this refuses the
+        # whole listing (413) rather than truncating it — a truncated
+        # folder looks complete to every client that renders it.
+        "MAX_ARCHIVE_ENTRIES": 10000,
+        # Largest single member the server will inflate into memory.
+        "MAX_ARCHIVE_MEMBER_BYTES": 50 * 1024 * 1024,
+        # Sum of declared uncompressed sizes; past this the archive is
+        # bomb-shaped and refuses to browse at all.
+        "MAX_ARCHIVE_TOTAL_UNCOMPRESSED_BYTES": 10 * 1024 * 1024 * 1024,
+        # declared_uncompressed / compressed ceiling per member, checked
+        # only above a 1 MiB floor (tiny legitimate files hit wild
+        # ratios; a bomb needs volume to be a bomb).
+        "MAX_ARCHIVE_COMPRESSION_RATIO": 200,
+
         # ── Upload session invariants ────────────────────────────────
         # A ticket is a capability: it expires, it belongs to the user who
         # opened it, and only that user (or a workspace manager) may spend
@@ -162,7 +194,10 @@ DEFAULTS = {
         # workspace actually stores; what it leaves out is what a host
         # serving MEDIA_URL inline would execute in its own origin
         # (text/html, image/svg+xml, application/javascript) or hand a user
-        # to run (installers, archives of them). Widen it deliberately —
+        # to run (installers, executables). Zip is the one container
+        # admitted (0.8.0): the module browses it itself and its members
+        # re-enter this allowlist before being served inline. Widen it
+        # deliberately —
         # ["*/*"] accepts anything, an explicit host decision, and [] (or
         # any list without a match) accepts nothing.
         "UPLOAD_ALLOWED_MIME_TYPES": DEFAULT_UPLOAD_MIME_TYPES,

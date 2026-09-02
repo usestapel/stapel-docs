@@ -1,5 +1,21 @@
 {
   "errors.es": {
+    "error.400.docs_archive_encryption_unsupported": {
+      "hash": "c285236e2dd4c2ac",
+      "origin": "imported"
+    },
+    "error.400.docs_archive_malformed": {
+      "hash": "90175ba10ded842d",
+      "origin": "imported"
+    },
+    "error.400.docs_archive_password_required": {
+      "hash": "69f1594780b781a2",
+      "origin": "imported"
+    },
+    "error.400.docs_archive_password_wrong": {
+      "hash": "dfd8289bee0bc7b0",
+      "origin": "imported"
+    },
     "error.400.docs_bad_since": {
       "hash": "dedd1365cb2c5195",
       "origin": "llm"
@@ -23,6 +39,10 @@
     "error.400.docs_invalid_crdt_payload": {
       "hash": "4d402781c1b44997",
       "origin": "llm"
+    },
+    "error.400.docs_not_an_archive": {
+      "hash": "5252eeeb17569c89",
+      "origin": "imported"
     },
     "error.400.docs_not_trashed": {
       "hash": "aeb8676d075462de",
@@ -108,6 +128,10 @@
       "hash": "a2ec0dfe41fcc877",
       "origin": "llm"
     },
+    "error.404.docs_archive_entry_not_found": {
+      "hash": "46e5e0baf299079a",
+      "origin": "imported"
+    },
     "error.404.docs_document_not_found": {
       "hash": "2717993aecde6b43",
       "origin": "llm"
@@ -135,6 +159,22 @@
     "error.412.docs_missing_if_match": {
       "hash": "f19eb03ee69b35df",
       "origin": "llm"
+    },
+    "error.413.docs_archive_entry_too_large": {
+      "hash": "e045ed8954217063",
+      "origin": "imported"
+    },
+    "error.413.docs_archive_ratio": {
+      "hash": "a12fec62dbc0f8c5",
+      "origin": "imported"
+    },
+    "error.413.docs_archive_too_many_entries": {
+      "hash": "174f693bf4937562",
+      "origin": "imported"
+    },
+    "error.413.docs_archive_total_too_large": {
+      "hash": "84f89f6703d459a0",
+      "origin": "imported"
     },
     "error.413.docs_body_too_large": {
       "hash": "598c05088813e60e",
@@ -174,6 +214,22 @@
     }
   },
   "errors.ru": {
+    "error.400.docs_archive_encryption_unsupported": {
+      "hash": "c285236e2dd4c2ac",
+      "origin": "imported"
+    },
+    "error.400.docs_archive_malformed": {
+      "hash": "90175ba10ded842d",
+      "origin": "imported"
+    },
+    "error.400.docs_archive_password_required": {
+      "hash": "69f1594780b781a2",
+      "origin": "imported"
+    },
+    "error.400.docs_archive_password_wrong": {
+      "hash": "dfd8289bee0bc7b0",
+      "origin": "imported"
+    },
     "error.400.docs_bad_since": {
       "hash": "dedd1365cb2c5195",
       "origin": "llm"
@@ -197,6 +253,10 @@
     "error.400.docs_invalid_crdt_payload": {
       "hash": "4d402781c1b44997",
       "origin": "llm"
+    },
+    "error.400.docs_not_an_archive": {
+      "hash": "5252eeeb17569c89",
+      "origin": "imported"
     },
     "error.400.docs_not_trashed": {
       "hash": "aeb8676d075462de",
@@ -282,6 +342,10 @@
       "hash": "a2ec0dfe41fcc877",
       "origin": "llm"
     },
+    "error.404.docs_archive_entry_not_found": {
+      "hash": "46e5e0baf299079a",
+      "origin": "imported"
+    },
     "error.404.docs_document_not_found": {
       "hash": "2717993aecde6b43",
       "origin": "llm"
@@ -309,6 +373,22 @@
     "error.412.docs_missing_if_match": {
       "hash": "f19eb03ee69b35df",
       "origin": "llm"
+    },
+    "error.413.docs_archive_entry_too_large": {
+      "hash": "e045ed8954217063",
+      "origin": "imported"
+    },
+    "error.413.docs_archive_ratio": {
+      "hash": "a12fec62dbc0f8c5",
+      "origin": "imported"
+    },
+    "error.413.docs_archive_too_many_entries": {
+      "hash": "174f693bf4937562",
+      "origin": "imported"
+    },
+    "error.413.docs_archive_total_too_large": {
+      "hash": "84f89f6703d459a0",
+      "origin": "imported"
     },
     "error.413.docs_body_too_large": {
       "hash": "598c05088813e60e",

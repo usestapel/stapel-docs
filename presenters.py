@@ -22,6 +22,8 @@ from stapel_core.django.swappable import declare_swap, get_presenter
 from .doc_types import COLLAB_SNAPSHOT, get_doc_types
 from .dto import (
     AppendResultDTO,
+    ArchiveEntryDTO,
+    ArchiveListingDTO,
     BreadcrumbNodeDTO,
     DownloadUrlDTO,
     JournalUpdateDTO,
@@ -403,6 +405,16 @@ def present_download_url(url: str) -> DownloadUrlDTO:
     return DownloadUrlDTO(url=url)
 
 
+def present_archive_listing(listing: dict) -> ArchiveListingDTO:
+    """Build the zip-as-folder listing from ``archives.list_entries`` data."""
+    return ArchiveListingDTO(
+        entry_count=listing["entry_count"],
+        total_uncompressed_bytes=listing["total_uncompressed_bytes"],
+        archive_encrypted=listing["archive_encrypted"],
+        entries=[ArchiveEntryDTO(**entry) for entry in listing["entries"]],
+    )
+
+
 def present_upload_ticket(session, put_url: str) -> UploadTicketDTO:
     return UploadTicketDTO(
         upload_id=str(session.id),
@@ -500,6 +512,7 @@ __all__ = [
     "present_updates_feed",
     "present_resync",
     "present_download_url",
+    "present_archive_listing",
     "present_upload_ticket",
     "present_purge_result",
     "present_shared_document",

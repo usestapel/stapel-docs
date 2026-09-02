@@ -6,6 +6,71 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-09-02
+
+### Added — the viewing wave: Range on the byte streams, zip as a compressed folder
+
+Media viewers need two things this module did not say out loud: a byte
+stream a player can seek, and a way to look inside the one container
+type a workspace actually stores.
+
+- **HTTP Range on the authorized content streams.** `GET
+  /documents/<id>/content`, `GET …/revisions/<id>/content` and the
+  bearer's `GET /shared/<token>/content` answer a single byte range with
+  206 + `Content-Range` (open and suffix forms included), 416 past the
+  end, and advertise `Accept-Ranges: bytes` on full reads; malformed and
+  multi-range specs degrade to the full 200 the way RFC 9110 permits.
+  On object-store profiles a presigned GET already honours Range at the
+  store (verified against MinIO); on the DjangoStorage dev profile this
+  stream is the only byte path, so it speaks the protocol itself — the
+  honest limitation stays that the dev backend materializes the body in
+  worker memory.
+- **`GET /documents/<id>/archive`** — a `application/zip` /
+  `application/x-zip-compressed` document listed like a folder:
+  `{entry_count, total_uncompressed_bytes, archive_encrypted, entries[]}`,
+  each entry `{path, size_bytes, compressed_bytes, is_dir, encrypted,
+  mime_type (name-guessed), modified_at}`. The central directory is read
+  through the NEW storage-seam primitive
+  **`DocsStorage.get_bytes_range(key, start, length)`** (S3/MinIO ranged
+  GET; file seek on the default backend; a get_bytes-backed default for
+  third-party backends) — the archive is never downloaded whole to
+  answer a listing, and the suite pins that with an exploding
+  `get_bytes`.
+- **`GET /documents/<id>/archive/entry?path=…`** — one member,
+  extracted server-side. The guessed type re-enters the upload allowlist
+  before being served inline; anything else leaves as an opaque
+  attachment (`X-Content-Type-Options: nosniff` either way), so the
+  container cannot smuggle active content around the policy that guards
+  direct uploads. Password-protected (ZipCrypto) members take the
+  password per request in `X-Docs-Archive-Password` — held for the life
+  of one extraction, stored nowhere.
+- **The bearer path gets the same viewers and the same caps**:
+  `GET /shared/<token>/archive` + `…/archive/entry` for view-grant link
+  holders, through the same `_resolve` door and the same ceilings.
+- **Encryption is a state, not a crash**: the listing carries per-entry
+  `encrypted` flags and the `archive_encrypted` verdict (the UI's lock);
+  extraction without a password, with a wrong one, or of an AES /
+  strong-crypto member (beyond stdlib `zipfile`) answers
+  `docs_archive_password_required` / `…_password_wrong` /
+  `…_encryption_unsupported` — named 400s, never 500s. ZipCrypto's
+  one-byte password check means 1 wrong password in 256 dies on the CRC
+  instead; that path maps to `…_password_wrong` too.
+- **Zip-bomb hygiene, twice-checked**: `MAX_ARCHIVE_ENTRIES` (10 000),
+  `MAX_ARCHIVE_MEMBER_BYTES` (50 MiB), `MAX_ARCHIVE_TOTAL_UNCOMPRESSED_BYTES`
+  (10 GiB) and `MAX_ARCHIVE_COMPRESSION_RATIO` (200, above a 1 MiB
+  floor) refuse with named 413s — against the central directory before
+  any inflation, and again against the actual inflated stream, which
+  hard-stops at the cap instead of trusting a declared size. A listing
+  past its ceilings refuses whole rather than truncating: a truncated
+  folder looks complete to every client that renders it.
+- **`application/zip` + `application/x-zip-compressed` join the default
+  upload allowlist** — previously refused entirely. The active-content
+  rationale that kept archives out is preserved by the member-serving
+  policy above: the container is admitted, its contents still face the
+  same allowlist at the only door that serves them inline.
+- 10 new error keys, translated en/ru/es; contract artifacts regenerated
+  (36 paths, 95 error keys).
+
 ## [0.7.1] — 2026-09-02
 
 ### Fixed — the default backend's browser upload finally works

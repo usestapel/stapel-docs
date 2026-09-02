@@ -1,8 +1,8 @@
-# stapel-docs 0.7.1
+# stapel-docs 0.8.0
 
 Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).
 
-Contract: axes 1 · surface 93 · extension points 7 · operations 45 · error codes 85.
+Contract: axes 1 · surface 93 · extension points 7 · operations 49 · error codes 95.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -231,8 +231,11 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-core (required) — comm bus (docs.create_document Function, document.* Actions, the workspaces.check_capability client), JWT authentication, unified error envelope, GDPR provider registry, AppSettings config layer
 - stapel-workspaces (optional) — every HTTP authorization asks the workspaces.check_capability comm Function (fail-closed, deny-by-default) — stapel-workspaces is the shelf's answerer; any provider of that Function satisfies the contract, and without one every HTTP request denies (comm ingest still works)
 
-## HTTP operations (45) — call by operationId, never by a typed path
+## HTTP operations (49) — call by operationId, never by a typed path
 Paths are relative to `/docs/api/v1/`.
+### Docs / archive
+- GET /documents/{document_id}/archive/entry — docs_api_v1_documents_archive_entry_retrieve
+- GET /documents/{document_id}/archive — docs_api_v1_documents_archive_retrieve
 ### Docs / content
 - GET /documents/{document_id}/content — docs_api_v1_documents_content_retrieve
 - PUT /documents/{document_id}/content — docs_api_v1_documents_content_update
@@ -270,6 +273,8 @@ Paths are relative to `/docs/api/v1/`.
 - POST /documents/{document_id}/links — docs_api_v1_documents_links_create
 - DELETE /documents/{document_id}/links/{link_id} — docs_api_v1_documents_links_destroy
 - GET /documents/{document_id}/links — docs_api_v1_documents_links_list
+- GET /shared/{token}/archive/entry — docs_api_v1_shared_archive_entry_retrieve
+- GET /shared/{token}/archive — docs_api_v1_shared_archive_retrieve
 - GET /shared/{token}/content — docs_api_v1_shared_content_retrieve
 - GET /shared/{token}/download — docs_api_v1_shared_download_retrieve
 - GET /shared/{token} — docs_api_v1_shared_retrieve
@@ -290,17 +295,22 @@ Paths are relative to `/docs/api/v1/`.
 - POST /uploads — docs_api_v1_uploads_create
 - POST /uploads/{upload_id}/finalize — docs_api_v1_uploads_finalize_create
 
-## Error codes (85) — the StapelError envelope
+## Error codes (95) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
 - error.400.captcha_required [400] retry
+- error.400.docs_archive_encryption_unsupported [400] fix_input
+- error.400.docs_archive_malformed [400] fix_input
+- error.400.docs_archive_password_required [400] fix_input
+- error.400.docs_archive_password_wrong [400] fix_input
 - error.400.docs_bad_since [400] fix_input
 - error.400.docs_duplicate_name [400] fix_input
 - error.400.docs_export_format [400] fix_input
 - error.400.docs_folder_cycle [400] fix_input
 - error.400.docs_folder_depth [400] fix_input
 - error.400.docs_invalid_crdt_payload [400] fix_input
+- error.400.docs_not_an_archive [400] fix_input
 - error.400.docs_not_trashed [400] fix_input
 - error.400.docs_share_level [400] fix_input
 - error.400.docs_share_mode_disabled [400] fix_input
@@ -345,6 +355,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.403.verification_required [403] verify
 - error.404.ad_not_found [404] retry
 - error.404.docs_access_not_found [404] retry
+- error.404.docs_archive_entry_not_found [404] retry
 - error.404.docs_document_not_found [404] retry
 - error.404.docs_folder_not_found [404] retry
 - error.404.docs_link_not_found [404] retry
@@ -359,6 +370,10 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.409.docs_seq_conflict [409] fix_input
 - error.410.gone [410] retry
 - error.412.docs_missing_if_match [412] retry
+- error.413.docs_archive_entry_too_large [413] retry
+- error.413.docs_archive_ratio [413] retry
+- error.413.docs_archive_too_many_entries [413] retry
+- error.413.docs_archive_total_too_large [413] retry
 - error.413.docs_body_too_large [413] retry
 - error.413.docs_export_too_large [413] retry
 - error.413.docs_update_too_large [413] retry

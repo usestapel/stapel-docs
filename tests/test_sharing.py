@@ -1516,6 +1516,8 @@ class TestEveryDocumentRouteConsultsTheChokePointWithItsRow:
         "docs-document-download": "view",
         "docs-document-export": "view",
         "docs-document-thumbnail": "view",
+        "docs-document-archive": "view",
+        "docs-document-archive-entry": "view",
         "docs-document-updates": "view",
         "docs-revisions": "view",
         "docs-revision-content": "view",
@@ -1556,6 +1558,11 @@ class TestEveryDocumentRouteConsultsTheChokePointWithItsRow:
             "docs-document-download": ("get", "/download"),
             "docs-document-export": ("get", "/export?format=pdf"),
             "docs-document-thumbnail": ("get", "/thumbnail?tier=160"),
+            # A view grant reaches the archive endpoints too; the md
+            # fixture answers 400 (not an archive), which is exactly the
+            # point — the refusal is about the document, not the grant.
+            "docs-document-archive": ("get", "/archive"),
+            "docs-document-archive-entry": ("get", "/archive/entry?path=x"),
             "docs-document-updates": ("get", "/updates"),
             "docs-revisions": ("get", "/revisions"),
             "docs-revision-content": ("get", f"/revisions/{revision_id}/content"),

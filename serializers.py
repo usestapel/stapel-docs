@@ -18,6 +18,7 @@ from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from .dto import (
     AppendResultDTO,
+    ArchiveListingDTO,
     DownloadUrlDTO,
     ResyncDTO,
     SaveResultDTO,
@@ -70,6 +71,11 @@ class DownloadUrlSerializer(StapelDataclassSerializer):
         dataclass = DownloadUrlDTO
 
 
+class ArchiveListingSerializer(StapelDataclassSerializer):
+    class Meta:
+        dataclass = ArchiveListingDTO
+
+
 class UploadTicketSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = UploadTicketDTO
@@ -103,6 +109,13 @@ class DocumentListQuerySerializer(WorkspaceQuerySerializer):
     folder_id = serializers.UUIDField(required=False, allow_null=True)
     type = serializers.CharField(max_length=32, required=False)
     q = serializers.CharField(max_length=512, required=False)
+
+
+class ArchiveEntryQuerySerializer(serializers.Serializer):
+    """``GET .../archive/entry`` — ``path`` names the member exactly as the
+    listing spelled it (zip member names are case-sensitive bytes)."""
+
+    path = serializers.CharField(max_length=4096, allow_blank=False)
 
 
 class SearchQuerySerializer(WorkspaceQuerySerializer):

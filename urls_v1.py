@@ -8,6 +8,8 @@ from django.urls import path
 from .views import (
     DocumentAccessDetailView,
     DocumentAccessView,
+    DocumentArchiveEntryView,
+    DocumentArchiveView,
     DocumentContentView,
     DocumentDetailView,
     DocumentDownloadView,
@@ -29,6 +31,8 @@ from .views import (
     RevisionListCreateView,
     RevisionRestoreView,
     SearchView,
+    SharedArchiveEntryView,
+    SharedArchiveView,
     SharedContentView,
     SharedDocumentView,
     SharedDownloadView,
@@ -52,6 +56,16 @@ urlpatterns = [
     path("documents/<uuid:document_id>/download", DocumentDownloadView.as_view(), name="docs-document-download"),
     path("documents/<uuid:document_id>/export", DocumentExportView.as_view(), name="docs-document-export"),
     path("documents/<uuid:document_id>/star", DocumentStarView.as_view(), name="docs-document-star"),
+    path(
+        "documents/<uuid:document_id>/archive",
+        DocumentArchiveView.as_view(),
+        name="docs-document-archive",
+    ),
+    path(
+        "documents/<uuid:document_id>/archive/entry",
+        DocumentArchiveEntryView.as_view(),
+        name="docs-document-archive-entry",
+    ),
     path(
         "documents/<uuid:document_id>/thumbnail",
         DocumentThumbnailView.as_view(),
@@ -108,6 +122,16 @@ urlpatterns = [
         "shared/<str:token>/download",
         SharedDownloadView.as_view(),
         name="docs-shared-download",
+    ),
+    path(
+        "shared/<str:token>/archive",
+        SharedArchiveView.as_view(),
+        name="docs-shared-archive",
+    ),
+    path(
+        "shared/<str:token>/archive/entry",
+        SharedArchiveEntryView.as_view(),
+        name="docs-shared-archive-entry",
     ),
     path("starred", StarredView.as_view(), name="docs-starred"),
     path("recents", RecentsView.as_view(), name="docs-recents"),

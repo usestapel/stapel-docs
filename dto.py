@@ -77,6 +77,38 @@ class UploadTicketDTO:
 
 
 @dataclass
+class ArchiveEntryDTO:
+    """One member of a zip document browsed as a folder (viewing wave).
+
+    ``mime_type`` is guessed from the member's name — a hint for picking
+    a viewer, not a promise about the bytes; ``encrypted`` marks members
+    whose extraction needs the per-request password."""
+
+    path: str
+    size_bytes: int
+    compressed_bytes: int
+    is_dir: bool
+    encrypted: bool
+    mime_type: str
+    modified_at: Optional[str] = None
+
+
+@dataclass
+class ArchiveListingDTO:
+    """A zip document's central directory as a browsable listing.
+
+    Complete or refused, never truncated: past the entry-count or total-
+    size ceilings the whole listing answers 413 — a truncated folder
+    looks complete to every client that renders it. ``archive_encrypted``
+    is the lock state the UI shows before anyone opens an entry."""
+
+    entry_count: int
+    total_uncompressed_bytes: int
+    archive_encrypted: bool
+    entries: List[ArchiveEntryDTO] = field(default_factory=list)
+
+
+@dataclass
 class TrashPurgeResultDTO:
     """Counts of irreversibly purged trash items."""
 

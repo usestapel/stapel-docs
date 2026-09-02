@@ -24,6 +24,11 @@ ERR_400_TOO_MANY_UPDATES = "error.400.docs_too_many_updates"
 ERR_400_TOO_MANY_UPLOADS = "error.400.docs_too_many_uploads"
 ERR_400_THUMBNAIL_TIER = "error.400.docs_thumbnail_tier"
 ERR_400_THUMBNAIL_UNSUPPORTED = "error.400.docs_thumbnail_unsupported"
+ERR_400_NOT_AN_ARCHIVE = "error.400.docs_not_an_archive"
+ERR_400_ARCHIVE_MALFORMED = "error.400.docs_archive_malformed"
+ERR_400_ARCHIVE_PASSWORD_REQUIRED = "error.400.docs_archive_password_required"
+ERR_400_ARCHIVE_PASSWORD_WRONG = "error.400.docs_archive_password_wrong"
+ERR_400_ARCHIVE_ENCRYPTION_UNSUPPORTED = "error.400.docs_archive_encryption_unsupported"
 ERR_400_SHARE_MODE_DISABLED = "error.400.docs_share_mode_disabled"
 ERR_400_SHARE_LEVEL = "error.400.docs_share_level"
 ERR_400_SHARE_SUBJECT = "error.400.docs_share_subject"
@@ -35,6 +40,7 @@ ERR_404_DOCUMENT = "error.404.docs_document_not_found"
 ERR_404_FOLDER = "error.404.docs_folder_not_found"
 ERR_404_REVISION = "error.404.docs_revision_not_found"
 ERR_404_UPLOAD = "error.404.docs_upload_not_found"
+ERR_404_ARCHIVE_ENTRY = "error.404.docs_archive_entry_not_found"
 ERR_404_SHARE_ACCESS = "error.404.docs_access_not_found"
 ERR_404_SHARE_LINK = "error.404.docs_link_not_found"
 ERR_409_SEQ_CONFLICT = "error.409.docs_seq_conflict"
@@ -43,6 +49,10 @@ ERR_413_BODY_TOO_LARGE = "error.413.docs_body_too_large"
 ERR_413_UPDATE_TOO_LARGE = "error.413.docs_update_too_large"
 ERR_413_UPLOAD_TOO_LARGE = "error.413.docs_upload_too_large"
 ERR_413_EXPORT_TOO_LARGE = "error.413.docs_export_too_large"
+ERR_413_ARCHIVE_ENTRIES = "error.413.docs_archive_too_many_entries"
+ERR_413_ARCHIVE_ENTRY_TOO_LARGE = "error.413.docs_archive_entry_too_large"
+ERR_413_ARCHIVE_TOTAL_TOO_LARGE = "error.413.docs_archive_total_too_large"
+ERR_413_ARCHIVE_RATIO = "error.413.docs_archive_ratio"
 ERR_507_WORKSPACE_QUOTA = "error.507.docs_workspace_quota"
 ERR_503_WORKSPACES = "error.503.docs_workspaces_unavailable"
 ERR_503_EXPORTER = "error.503.docs_exporter_unavailable"
@@ -69,6 +79,11 @@ STAPEL_DOCS_ERRORS = {
     ERR_400_TOO_MANY_UPLOADS: "Too many upload sessions are already open in this workspace",
     ERR_400_THUMBNAIL_TIER: "Unknown thumbnail size",
     ERR_400_THUMBNAIL_UNSUPPORTED: "This document has no image preview",
+    ERR_400_NOT_AN_ARCHIVE: "This document is not a browsable archive",
+    ERR_400_ARCHIVE_MALFORMED: "The archive is damaged and cannot be read",
+    ERR_400_ARCHIVE_PASSWORD_REQUIRED: "This archive entry is password-protected",
+    ERR_400_ARCHIVE_PASSWORD_WRONG: "The archive password is not correct",
+    ERR_400_ARCHIVE_ENCRYPTION_UNSUPPORTED: "This archive uses an encryption scheme that cannot be opened here",
     ERR_400_SHARE_MODE_DISABLED: "This way of sharing is switched off for this deployment",
     ERR_400_SHARE_LEVEL: "That access level may not be granted here",
     ERR_400_SHARE_SUBJECT: "A share grant names exactly one subject",
@@ -80,6 +95,7 @@ STAPEL_DOCS_ERRORS = {
     ERR_404_FOLDER: "Folder not found",
     ERR_404_REVISION: "Revision not found",
     ERR_404_UPLOAD: "Upload session not found",
+    ERR_404_ARCHIVE_ENTRY: "No such entry in the archive",
     ERR_404_SHARE_ACCESS: "Share grant not found",
     ERR_404_SHARE_LINK: "Share link not found",
     ERR_409_SEQ_CONFLICT: "A newer version was saved by someone else",
@@ -88,6 +104,10 @@ STAPEL_DOCS_ERRORS = {
     ERR_413_UPDATE_TOO_LARGE: "The update payload exceeds the size limit",
     ERR_413_UPLOAD_TOO_LARGE: "The upload exceeds the size limit",
     ERR_413_EXPORT_TOO_LARGE: "The document is too large to export",
+    ERR_413_ARCHIVE_ENTRIES: "The archive holds too many entries to browse",
+    ERR_413_ARCHIVE_ENTRY_TOO_LARGE: "The archive entry exceeds the extraction size limit",
+    ERR_413_ARCHIVE_TOTAL_TOO_LARGE: "The archive unpacks to more data than may be browsed",
+    ERR_413_ARCHIVE_RATIO: "The archive entry exceeds the compression ratio limit",
     ERR_507_WORKSPACE_QUOTA: "The workspace storage quota is exhausted",
     ERR_503_WORKSPACES: "Workspace membership service is unavailable",
     ERR_503_EXPORTER: "The export backend is not installed",
