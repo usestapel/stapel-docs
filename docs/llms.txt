@@ -1,8 +1,8 @@
-# stapel-docs 0.7.0
+# stapel-docs 0.7.1
 
 Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).
 
-Contract: axes 1 · surface 91 · extension points 7 · operations 44 · error codes 85.
+Contract: axes 1 · surface 93 · extension points 7 · operations 45 · error codes 85.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -59,6 +59,8 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
   Retention expiry: purge everything soft-deleted longer than TRASH_RETENTION_DAYS ago — the body of the docs_purge_expired management command; call it from a host cron/beat instead of re-deriving the cutoff.
 - purge_folder — stapel_docs.services.purge_folder
   Purge a trashed folder with its trashed contents; live documents still pointing into the subtree survive at the workspace root (FK SET_NULL), never destroyed by a folder purge.
+- receive_upload_bytes — stapel_docs.services.receive_upload_bytes
+  Store a client's upload body for its session (the module-intake PUT's server half): pending + unexpired + under MAX_UPLOAD_BYTES, then put_bytes under the ticket's key. Declared-size/checksum verdicts stay finalize's — a raw put_bytes skips even these ticket checks.
 - redeem_link — stapel_docs.services.redeem_link
   Stamp first_redeemed_at once and emit document.share.link_redeemed. Call only AFTER authorize() allowed the request: the stamp is evidence somebody got in, so a refused presentation must not write it. Guarded by a conditional UPDATE, so two simultaneous first openings emit exactly one event.
 - rename_folder — stapel_docs.services.rename_folder
@@ -103,7 +105,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - create_named_revision — stapel_docs.services.create_named_revision
   Name the CURRENT head snapshot; naming the same head twice renames the existing named revision instead of stacking rows.
 - create_upload — stapel_docs.services.create_upload
-  Open a presigned direct-to-storage upload (type=file): the Document row exists immediately but stays hidden from listings until finalize, and the ticket's key/TTL are what finalize later validates. A bare presigned_put_url gives you the URL and none of that.
+  Open an upload session (type=file): the Document row exists immediately but stays hidden from listings until finalize, and the ticket's key/TTL are what finalize later validates. put_url is storage-presigned when the backend accepts a direct PUT, else the module's own signed intake URL — a bare presigned_put_url gives you neither the choice nor the ticket.
 - document_download_url — stapel_docs.services.document_download_url
   Mint a download URL for a document's current body AND record the reach in recents — the document-level wrapper of download_url, which stays the raw key-level mint for revisions.
 - document_prefix — stapel_docs.storage.document_prefix
@@ -199,6 +201,8 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
   Everything soft-deleted in a workspace — (folders, documents) for the trash surface.
 - unregister_doc_type — stapel_docs.doc_types.unregister_doc_type
   Remove one runtime registration — the teardown that stops one test's type from leaking into the next.
+- upload_intake_signer — stapel_docs.services.upload_intake_signer
+  The TimestampSigner (dedicated salt) behind module-intake put_urls — the signature is the whole credential of the intake PUT. Verify or mint intake signatures through it or the ticket and the URL stop agreeing.
 - with_stars — stapel_docs.services.with_stars
   Annotate is_starred on a Folder/Document queryset for one user — None (not False) when there is no user, because 'not applicable' and 'not starred' are different answers. Reach for it in any custom listing that presents docs rows; hand-writing the Exists() subquery is how the anonymous case silently becomes False.
 - workspace_usage — stapel_docs.services.workspace_usage
@@ -227,7 +231,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-core (required) — comm bus (docs.create_document Function, document.* Actions, the workspaces.check_capability client), JWT authentication, unified error envelope, GDPR provider registry, AppSettings config layer
 - stapel-workspaces (optional) — every HTTP authorization asks the workspaces.check_capability comm Function (fail-closed, deny-by-default) — stapel-workspaces is the shelf's answerer; any provider of that Function satisfies the contract, and without one every HTTP request denies (comm ingest still works)
 
-## HTTP operations (44) — call by operationId, never by a typed path
+## HTTP operations (45) — call by operationId, never by a typed path
 Paths are relative to `/docs/api/v1/`.
 ### Docs / content
 - GET /documents/{document_id}/content — docs_api_v1_documents_content_retrieve
@@ -282,6 +286,7 @@ Paths are relative to `/docs/api/v1/`.
 - POST /documents/{document_id}/updates — docs_api_v1_documents_updates_create
 - GET /documents/{document_id}/updates — docs_api_v1_documents_updates_retrieve
 ### Docs / uploads
+- PUT /uploads/{upload_id}/content — docs_api_v1_uploads_content_update
 - POST /uploads — docs_api_v1_uploads_create
 - POST /uploads/{upload_id}/finalize — docs_api_v1_uploads_finalize_create
 

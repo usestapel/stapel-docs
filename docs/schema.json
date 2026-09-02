@@ -2062,6 +2062,31 @@
         }
       }
     },
+    "/docs/api/v1/uploads/{upload_id}/content": {
+      "put": {
+        "operationId": "docs_api_v1_uploads_content_update",
+        "description": "Module-intake PUT of the upload body — the direct-to-storage leg for\nbackends that cannot accept one (``accepts_direct_put`` False).\n\nAllowAny on purpose, and no authenticators at all: the SIGNATURE is the\nauth, exactly like the S3 presigned URL this endpoint stands in for —\nthe client contract (drive-react) is a URL it PUTs raw bytes to with no\nAuthorization header attached. A leaked URL is bounded the same way a\nleaked presigned URL is: by the ticket's TTL and its single pending\nsession — the signature opens exactly one intake, spendable until\nfinalize consumes the session. Empty ``authentication_classes`` is also\nwhat makes CSRF structurally impossible here: DRF enforces CSRF only\ninside ``SessionAuthentication.enforce_csrf``, and with no\nauthenticator a cookie-mode browser (the live 0.7.0 repro host) can\nnever be 403'd for a token this presigned-style flow has no way to\ncarry.\n\nSize ceiling aside, the body is NOT judged here: finalize measures the\nstored object (``head_object``) and owns the declared-size/checksum\nverdicts. This view's whole job is to store bytes for the right key.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / uploads"
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
     "/docs/api/v1/uploads/{upload_id}/finalize": {
       "post": {
         "operationId": "docs_api_v1_uploads_finalize_create",

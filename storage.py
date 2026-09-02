@@ -15,9 +15,11 @@ Two backends ship:
 - :class:`DjangoStorageBackend` (default) — rides on Django's configured
   ``default_storage``. It cannot sign a URL, so it declares
   ``mints_expiring_urls = False`` and the download-URL endpoints refuse
-  (503) until the host opts into permanent media links; a synthetic
-  multipart shim keeps the API total. Clients must treat presigned URLs as
-  opaque — never assume S3 URL shape.
+  (503) until the host opts into permanent media links; it declares
+  ``accepts_direct_put = False``, so upload tickets carry the module's
+  own signed intake URL instead of a storage URL; a synthetic multipart
+  shim keeps the API total. Clients must treat presigned URLs as opaque —
+  never assume S3 URL shape.
 - :class:`S3Backend` — boto3 presigned/multipart helpers; ``boto3`` is an
   optional dependency (``pip install stapel-docs[s3]``).
 
@@ -85,6 +87,17 @@ class DocsStorage(ABC):
     #: signs its URLs says so by overriding this to True.
     mints_expiring_urls: bool = False
 
+    #: Does ``presigned_put_url`` return a URL a client can actually PUT
+    #: bytes to? True is what the contract above promises, so it is the
+    #: default a compliant backend inherits. A backend that can only offer
+    #: a served/read URL (DjangoStorageBackend — ``storage.url`` accepts
+    #: GET and nothing else) says so by overriding this to False, and
+    #: ``services.create_upload`` then mints the module's OWN signed
+    #: intake URL (``PUT /uploads/<id>/content?signature=…``) instead of
+    #: asking the storage — otherwise the ticket points the browser's
+    #: upload at a wall and finalize can never succeed.
+    accepts_direct_put: bool = True
+
     # ── URLs ─────────────────────────────────────────────────────────
     @abstractmethod
     def presigned_put_url(self, key: str, *, expires_seconds: int = 900, content_type: Optional[str] = None) -> str: ...
@@ -139,15 +152,21 @@ class DjangoStorageBackend(DocsStorage):
     shim so the client-facing flow is uniform in dev.
     """
 
+    # ``storage.url`` serves GET only — a client PUT at it bounces off the
+    # media server (the 0.7.0 browser-upload defect). The service layer
+    # reads this flag and mints the module's signed intake URL instead.
+    accepts_direct_put = False
+
     def _storage(self):
         from django.core.files.storage import default_storage
 
         return default_storage
 
     def presigned_put_url(self, key, *, expires_seconds=900, content_type=None):
-        # No native presigned PUT — clients upload via the finalize
-        # endpoint (server-side put_bytes). Return the served URL so
-        # clients still have a stable reference.
+        # Not a PUT target (see ``accepts_direct_put`` above) — with the
+        # flag False the service layer never sends a client here for an
+        # upload. Kept total for the synthetic multipart shim below:
+        # return the served URL as a stable reference.
         try:
             return self._storage().url(key)
         except Exception:
@@ -235,8 +254,10 @@ class S3Backend(DocsStorage):
         S3_REGION, S3_BUCKET.
     """
 
-    # Native presigning: the URL carries its own expiry and stops working.
+    # Native presigning: the URL carries its own expiry and stops working,
+    # and a presigned put_object URL is a real direct-PUT target.
     mints_expiring_urls = True
+    accepts_direct_put = True
 
     MULTIPART_PART_SIZE = 10 * 1024 * 1024
 

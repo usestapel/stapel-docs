@@ -16,6 +16,7 @@ from __future__ import annotations
 import functools
 import uuid as uuid_module
 
+from django.core.signing import BadSignature, SignatureExpired
 from django.http import HttpResponse
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers as drf_serializers
@@ -44,6 +45,7 @@ from .errors import (
     ERR_400_EXPORT_FORMAT,
     ERR_400_THUMBNAIL_TIER,
     ERR_400_TYPE_NOT_EDITABLE,
+    ERR_400_UPLOAD_EXPIRED,
     ERR_401_SHARE_AUTH,
     ERR_403_FORBIDDEN,
     ERR_403_UPLOAD_OWNER,
@@ -1125,6 +1127,59 @@ class UploadCreateView(SerializerSeamMixin, APIView):
             ),
             status=201,
         )
+
+
+@extend_schema(tags=["Docs / uploads"])
+class UploadContentPutView(SerializerSeamMixin, APIView):
+    """Module-intake PUT of the upload body — the direct-to-storage leg for
+    backends that cannot accept one (``accepts_direct_put`` False).
+
+    AllowAny on purpose, and no authenticators at all: the SIGNATURE is the
+    auth, exactly like the S3 presigned URL this endpoint stands in for —
+    the client contract (drive-react) is a URL it PUTs raw bytes to with no
+    Authorization header attached. A leaked URL is bounded the same way a
+    leaked presigned URL is: by the ticket's TTL and its single pending
+    session — the signature opens exactly one intake, spendable until
+    finalize consumes the session. Empty ``authentication_classes`` is also
+    what makes CSRF structurally impossible here: DRF enforces CSRF only
+    inside ``SessionAuthentication.enforce_csrf``, and with no
+    authenticator a cookie-mode browser (the live 0.7.0 repro host) can
+    never be 403'd for a token this presigned-style flow has no way to
+    carry.
+
+    Size ceiling aside, the body is NOT judged here: finalize measures the
+    stored object (``head_object``) and owns the declared-size/checksum
+    verdicts. This view's whole job is to store bytes for the right key.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+    parser_classes = [RawBodyParser]
+
+    @extend_schema(request=None, responses={204: None})
+    @_maps_docs_errors
+    def put(self, request, upload_id):
+        signature = request.query_params.get("signature", "")
+        if not signature:
+            return StapelErrorResponse(403, ERR_403_FORBIDDEN)
+        ttl = services.resource_limit("UPLOAD_SESSION_TTL_SECONDS")
+        try:
+            signed_for = services.upload_intake_signer().unsign(
+                signature, max_age=ttl or None
+            )
+        except SignatureExpired:
+            # The signature ages exactly like the session it opens
+            # (UPLOAD_SESSION_TTL_SECONDS) — same refusal as an expired
+            # ticket at finalize.
+            return StapelErrorResponse(400, ERR_400_UPLOAD_EXPIRED)
+        except BadSignature:
+            return StapelErrorResponse(403, ERR_403_FORBIDDEN)
+        if signed_for != str(upload_id):
+            return StapelErrorResponse(403, ERR_403_FORBIDDEN)
+        session = services.get_upload_session(upload_id)
+        body = request.data if isinstance(request.data, bytes) else request.body
+        services.receive_upload_bytes(session, body)
+        return StapelResponse(status=204)
 
 
 @extend_schema(tags=["Docs / uploads"])

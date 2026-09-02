@@ -6,6 +6,65 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-09-02
+
+### Fixed — the default backend's browser upload finally works
+
+> **Operator note: on ≤0.7.0, every deployment on the default
+> `DjangoStorageBackend` (no S3/MinIO) had a broken browser upload** —
+> `POST /uploads` answered a ticket, the client's PUT bounced, finalize
+> could never succeed. Upgrade to 0.7.1; no data changes, no client
+> changes — the ticket's `put_url` simply starts pointing somewhere that
+> accepts bytes. S3/MinIO deployments are untouched.
+
+Found by a live drive-tab walk in a real browser against a host with no
+MinIO — not by this module's suite. `DjangoStorageBackend.presigned_put_url`
+returned `storage.url(key)`, a `/media/…` path that serves GET and nothing
+else, so the frontend queue's XHR PUT (open → PUT to `put_url` → finalize)
+got a 403 and no bytes ever reached storage. The backend's own docstring
+claimed clients upload "via the finalize endpoint" — and no endpoint
+accepted the bytes. The upload flow was total in the API and impossible in
+a browser, on the backend every fresh deployment starts on.
+
+The fix keeps the client contract exactly as the S3 path defines it — a
+URL the client PUTs raw bytes to with **no auth header** — by making the
+module its own intake when the storage cannot be:
+
+- **`DocsStorage.accepts_direct_put`** — new capability flag beside
+  `mints_expiring_urls`: does `presigned_put_url` mint a URL a client can
+  actually PUT to? True on the base/`S3Backend` (the contract's promise),
+  False on `DjangoStorageBackend` (`storage.url` is GET-only).
+- **`PUT /uploads/<id>/content?signature=…`** — when the flag is False,
+  `create_upload` mints this module-intake URL (`reverse`d, so the host's
+  mount prefix holds) instead of asking the storage. The signature — a
+  `TimestampSigner` under a dedicated salt over the upload_id — IS the
+  credential, the module's own dialect of a presigned URL: no
+  Authorization header, no cookie, no CSRF token (the view runs no
+  authenticators, which is what makes a CSRF 403 structurally impossible
+  for the cookie-mode host where the defect was found). A leaked URL is
+  bounded the way a leaked presigned URL is: by the ticket's TTL
+  (`UPLOAD_SESSION_TTL_SECONDS`, refused with the same
+  `error.400.docs_upload_expired` finalize answers) and by its single
+  pending session — finalize consumes it, a replayed PUT is a 400.
+- **The judge did not move.** The intake stores bytes for the ticket's key
+  and enforces only `MAX_UPLOAD_BYTES` on the body; declared-size and
+  checksum verdicts stay finalize's alone, measured against the STORED
+  object — one invariant, one voice.
+
+No serializer or error-key changes: the ticket still carries `put_url` as
+an opaque string, which is what "never assume S3 URL shape" was always
+for. New route + two service symbols land in the contract quintet
+(llms.txt ceiling 9000 → 9500, the Makefile's documented move).
+
+**Why the suite missed it.** The upload tests simulated the client PUT
+straight into the storage seam — right for the S3 profile, and exactly the
+step that cannot happen over HTTP on the default backend. The full loop is
+now tested the way the browser does it: open, PUT the bytes to whatever
+`put_url` the ticket says with no credentials attached, finalize, read
+them back — plus tampered/missing/cross-ticket signatures (403), expired
+and spent sessions (400), the ceiling (413), and a fake direct-PUT backend
+pinning that the S3 path still gets its URL from the storage.
+
 ## [0.7.0] — 2026-09-02
 
 ### Added — the crdt slice: builtin live types, server assembly, a socket

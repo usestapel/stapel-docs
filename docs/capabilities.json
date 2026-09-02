@@ -1,6 +1,6 @@
 {
   "module": "stapel-docs",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "provides": "Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).",
   "axes": [
     {
@@ -253,7 +253,7 @@
       "name": "create_upload",
       "kind": "factory",
       "path": "stapel_docs.services.create_upload",
-      "intent": "Open a presigned direct-to-storage upload (type=file): the Document row exists immediately but stays hidden from listings until finalize, and the ticket's key/TTL are what finalize later validates. A bare presigned_put_url gives you the URL and none of that."
+      "intent": "Open an upload session (type=file): the Document row exists immediately but stays hidden from listings until finalize, and the ticket's key/TTL are what finalize later validates. put_url is storage-presigned when the backend accepts a direct PUT, else the module's own signed intake URL — a bare presigned_put_url gives you neither the choice nor the ticket."
     },
     {
       "name": "document_download_url",
@@ -439,6 +439,12 @@
       "intent": "The replay feed since a sequence number, with honest resync semantics: a since that fell out of the compaction window returns (\"resync\", None) instead of a silently incomplete list."
     },
     {
+      "name": "receive_upload_bytes",
+      "kind": "gate_function",
+      "path": "stapel_docs.services.receive_upload_bytes",
+      "intent": "Store a client's upload body for its session (the module-intake PUT's server half): pending + unexpired + under MAX_UPLOAD_BYTES, then put_bytes under the ticket's key. Declared-size/checksum verdicts stay finalize's — a raw put_bytes skips even these ticket checks."
+    },
+    {
       "name": "recent_documents",
       "kind": "factory",
       "path": "stapel_docs.services.recent_documents",
@@ -572,6 +578,12 @@
       "intent": "Patch title/metadata — and strip the reserved upload-pending marker no caller outside the upload flow may set."
     },
     {
+      "name": "upload_intake_signer",
+      "kind": "factory",
+      "path": "stapel_docs.services.upload_intake_signer",
+      "intent": "The TimestampSigner (dedicated salt) behind module-intake put_urls — the signature is the whole credential of the intake PUT. Verify or mint intake signatures through it or the ticket and the URL stop agreeing."
+    },
+    {
       "name": "with_stars",
       "kind": "factory",
       "path": "stapel_docs.services.with_stars",
@@ -642,7 +654,7 @@
       "intent": "Resize image bytes so the longest edge fits a tier, as JPEG (alpha composited onto white, never upscaled). Raises ThumbnailsUnavailable without Pillow and ThumbnailSourceUnusable for bytes it cannot decode — a caller's bad input is a 400, not a 500."
     }
   ],
-  "operations_total": 44,
+  "operations_total": 45,
   "requires": [
     {
       "module": "stapel-core",

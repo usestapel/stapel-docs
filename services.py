@@ -14,9 +14,12 @@ import logging
 import uuid as uuid_module
 from contextlib import contextmanager
 from datetime import timedelta
+from urllib.parse import quote
 
+from django.core.signing import TimestampSigner
 from django.db import transaction
 from django.db.models import Count, Min, Sum
+from django.urls import reverse
 from django.utils import timezone
 from stapel_core.django.api.errors import ERR_400_BAD_REQUEST, ERR_404_NOT_FOUND
 
@@ -1585,6 +1588,52 @@ def get_thumbnail(document, tier) -> tuple[bytes, str]:
 
 # ── Uploads (type=file via presigned PUT; recordings pattern) ────────
 
+#: Dedicated salt of the module-intake upload signature: a signature
+#: minted here opens exactly one thing — the intake PUT of one upload
+#: session — and no other TimestampSigner surface in the deployment.
+UPLOAD_INTAKE_SALT = "stapel_docs.upload_intake"
+
+
+def upload_intake_signer() -> TimestampSigner:
+    """Signer of the module-intake put_url. The signature IS the
+    credential — the module's own dialect of an S3 presigned URL."""
+    return TimestampSigner(salt=UPLOAD_INTAKE_SALT)
+
+
+def _intake_put_url(session) -> str:
+    """Mint the module's own upload target for backends that cannot
+    accept a direct client PUT (``accepts_direct_put`` False).
+
+    ``reverse`` keeps the host's mount prefix honest; the signed
+    upload_id in the query is the whole credential, checked (and aged
+    against UPLOAD_SESSION_TTL_SECONDS) by ``UploadContentPutView``."""
+    signature = upload_intake_signer().sign(str(session.id))
+    path = reverse("docs-upload-content", kwargs={"upload_id": session.id})
+    return f"{path}?signature={quote(signature)}"
+
+
+def receive_upload_bytes(session, data: bytes) -> None:
+    """Store a client's upload body for its session — the server-side half
+    of the module-intake PUT.
+
+    Ticket semantics only: pending, unexpired, and under the intake
+    ceiling. The declared-size and checksum verdicts stay where they
+    live — finalize measures the STORED object via ``head_object`` and is
+    the single owner of those refusals; duplicating them here would give
+    the same invariant two voices that can disagree."""
+    if session.state != UploadSession.STATE_PENDING:
+        raise DocsError(400, ERR_400_UPLOAD_STATE)
+    if session.expires_at is not None and session.expires_at <= timezone.now():
+        raise DocsError(400, ERR_400_UPLOAD_EXPIRED)
+    upload_limit = resource_limit("MAX_UPLOAD_BYTES")
+    if upload_limit and len(data) > upload_limit:
+        raise DocsError(
+            413, ERR_413_UPLOAD_TOO_LARGE, {"limit_bytes": upload_limit, "size_bytes": len(data)}
+        )
+    get_storage().put_bytes(
+        session.key, data, content_type=session.mime_type or "application/octet-stream"
+    )
+
 
 def pending_uploads(workspace_id):
     """Open (pending, unexpired) sessions of a workspace."""
@@ -1649,11 +1698,18 @@ def create_upload(
             checksum=(checksum or "").lower(),
             expires_at=expires_at,
         )
-    put_url = get_storage().presigned_put_url(
-        key,
-        expires_seconds=int(docs_settings.UPLOAD_URL_EXPIRES_SECONDS),
-        content_type=mime_type or None,
-    )
+    storage = get_storage()
+    if getattr(storage, "accepts_direct_put", True):
+        put_url = storage.presigned_put_url(
+            key,
+            expires_seconds=int(docs_settings.UPLOAD_URL_EXPIRES_SECONDS),
+            content_type=mime_type or None,
+        )
+    else:
+        # The backend has no URL a client could PUT to (0.7.0 handed out
+        # ``storage.url`` here — a GET-only media path the browser's bytes
+        # bounced off). The module intakes the bytes itself instead.
+        put_url = _intake_put_url(session)
     return session, put_url
 
 

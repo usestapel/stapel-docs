@@ -276,7 +276,15 @@
     },
     "create_upload": {
       "kind": "factory",
-      "intent": "Open a presigned direct-to-storage upload (type=file): the Document row exists immediately but stays hidden from listings until finalize, and the ticket's key/TTL are what finalize later validates. A bare presigned_put_url gives you the URL and none of that."
+      "intent": "Open an upload session (type=file): the Document row exists immediately but stays hidden from listings until finalize, and the ticket's key/TTL are what finalize later validates. put_url is storage-presigned when the backend accepts a direct PUT, else the module's own signed intake URL — a bare presigned_put_url gives you neither the choice nor the ticket."
+    },
+    "receive_upload_bytes": {
+      "kind": "gate_function",
+      "intent": "Store a client's upload body for its session (the module-intake PUT's server half): pending + unexpired + under MAX_UPLOAD_BYTES, then put_bytes under the ticket's key. Declared-size/checksum verdicts stay finalize's — a raw put_bytes skips even these ticket checks."
+    },
+    "upload_intake_signer": {
+      "kind": "factory",
+      "intent": "The TimestampSigner (dedicated salt) behind module-intake put_urls — the signature is the whole credential of the intake PUT. Verify or mint intake signatures through it or the ticket and the URL stop agreeing."
     },
     "finalize_upload": {
       "kind": "gate_function",

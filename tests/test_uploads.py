@@ -79,9 +79,9 @@ def test_finalize_without_object_is_upload_state_400(actor, workspace_id):
 
 def test_finalize_promotes_blob_to_head(actor, user, workspace_id):
     ticket = _open_upload(actor, workspace_id)
-    # Under DjangoStorageBackend the presigned PUT degrades to a served URL
-    # (not writable) — the client-side PUT is simulated straight into the
-    # seam, which is exactly what the S3 profile's presigned PUT would do.
+    # The client-side PUT is simulated straight into the seam — what the
+    # S3 profile's presigned PUT (or the module-intake PUT, tested in its
+    # own section below) ends up doing.
     get_storage().put_bytes(ticket["key"], b"raw video bytes", content_type="video/mp4")
 
     resp = actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize")
@@ -462,3 +462,165 @@ def test_upload_respects_the_workspace_quota(actor, workspace_id):
         )
     assert resp.status_code == 507
     assert resp.json()["localizable_error"] == "error.507.docs_workspace_quota"
+
+
+# ── Module intake PUT (0.7.1) — the browser path without S3 ──────────
+#
+# DjangoStorageBackend cannot mint a URL a client can PUT to:
+# ``storage.url`` is a GET-only served path, so 0.7.0 tickets sent the
+# browser's bytes at a wall (403, nothing stored, finalize unreachable).
+# A backend that declares ``accepts_direct_put = False`` now gets the
+# module's OWN signed intake URL minted instead —
+# ``PUT /uploads/<id>/content?signature=…`` — where the signature is the
+# whole credential, exactly like an S3 presigned URL: no auth header, no
+# cookie, bounded by the same session TTL.
+
+
+def _anonymous():
+    from rest_framework.test import APIClient
+
+    return APIClient()
+
+
+def test_django_backend_put_url_is_the_signed_module_intake(actor, workspace_id):
+    ticket = _open_upload(actor, workspace_id)
+    assert ticket["put_url"].startswith(
+        f"{API}/uploads/{ticket['upload_id']}/content?signature="
+    )
+
+
+def test_browser_upload_loop_works_end_to_end_without_s3(actor, workspace_id):
+    """The live drive-tab repro, fixed: open → PUT the bytes to the minted
+    URL with NO credentials attached → finalize → content GET serves them."""
+    ticket = _open_upload(actor, workspace_id)
+    blob = b"raw video bytes"
+
+    resp = _anonymous().put(ticket["put_url"], data=blob, content_type="video/mp4")
+    assert resp.status_code == 204, resp.content
+
+    finalize = actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize")
+    assert finalize.status_code == 200, finalize.content
+    content = actor.get(f"{API}/documents/{ticket['document_id']}/content")
+    assert content.content == blob
+    assert content["Content-Type"].startswith("video/mp4")
+
+
+def test_intake_put_is_immune_to_csrf_enforcement(actor, workspace_id):
+    """DRF enforces CSRF only inside ``SessionAuthentication.enforce_csrf``.
+    The intake view authenticates nobody — the signature is the whole
+    credential — so a cookie-mode browser (the live repro host) can never
+    be refused for a missing CSRF token. Asserted structurally (no
+    authenticator ever runs enforce_csrf) and behaviourally (a
+    CSRF-enforcing client gets through)."""
+    from rest_framework.test import APIClient
+
+    from stapel_docs.views import UploadContentPutView
+
+    assert UploadContentPutView.authentication_classes == []
+
+    ticket = _open_upload(actor, workspace_id)
+    strict = APIClient(enforce_csrf_checks=True)
+    resp = strict.put(ticket["put_url"], data=b"bytes", content_type="video/mp4")
+    assert resp.status_code == 204, resp.content
+
+
+def test_tampered_intake_signature_is_403(actor, workspace_id):
+    ticket = _open_upload(actor, workspace_id)
+    resp = _anonymous().put(
+        ticket["put_url"] + "tampered", data=b"x", content_type="video/mp4"
+    )
+    assert resp.status_code == 403
+    # And no signature at all is the same refusal.
+    bare = ticket["put_url"].split("?")[0]
+    assert _anonymous().put(
+        bare, data=b"x", content_type="video/mp4"
+    ).status_code == 403
+
+
+def test_intake_signature_binds_its_own_ticket(actor, workspace_id):
+    """A signature minted for ticket A opens nothing else."""
+    a = _open_upload(actor, workspace_id)
+    b = _open_upload(actor, workspace_id, title="other.mp4")
+    stolen = a["put_url"].split("signature=", 1)[1]
+    resp = _anonymous().put(
+        f"{API}/uploads/{b['upload_id']}/content?signature={stolen}",
+        data=b"x",
+        content_type="video/mp4",
+    )
+    assert resp.status_code == 403
+
+
+def test_signed_put_to_an_unknown_session_is_404(actor):
+    from urllib.parse import quote
+
+    from stapel_docs.services import upload_intake_signer
+
+    ghost = uuid.uuid4()
+    signature = quote(upload_intake_signer().sign(str(ghost)))
+    resp = _anonymous().put(
+        f"{API}/uploads/{ghost}/content?signature={signature}",
+        data=b"x",
+        content_type="video/mp4",
+    )
+    assert resp.status_code == 404
+    assert resp.json()["localizable_error"] == "error.404.docs_upload_not_found"
+
+
+def test_intake_put_to_an_expired_session_is_400(actor, workspace_id):
+    from django.utils import timezone
+
+    ticket = _open_upload(actor, workspace_id)
+    UploadSession.objects.filter(pk=ticket["upload_id"]).update(
+        expires_at=timezone.now() - timedelta(seconds=1)
+    )
+    resp = _anonymous().put(ticket["put_url"], data=b"late", content_type="video/mp4")
+    assert resp.status_code == 400
+    assert resp.json()["localizable_error"] == "error.400.docs_upload_expired"
+
+
+def test_intake_put_to_a_finalized_session_is_400(actor, workspace_id):
+    ticket = _open_upload(actor, workspace_id)
+    assert _anonymous().put(
+        ticket["put_url"], data=b"blob", content_type="video/mp4"
+    ).status_code == 204
+    assert actor.post(f"{API}/uploads/{ticket['upload_id']}/finalize").status_code == 200
+    # The ticket is spent: a replayed PUT must not overwrite the promoted blob.
+    resp = _anonymous().put(
+        ticket["put_url"], data=b"overwrite", content_type="video/mp4"
+    )
+    assert resp.status_code == 400
+    assert resp.json()["localizable_error"] == "error.400.docs_upload_state"
+
+
+def test_intake_put_over_the_ceiling_is_413(actor, workspace_id):
+    ticket = _open_upload(actor, workspace_id)
+    with override_settings(STAPEL_DOCS={"MAX_UPLOAD_BYTES": 8}):
+        resp = _anonymous().put(
+            ticket["put_url"], data=b"x" * 64, content_type="video/mp4"
+        )
+    assert resp.status_code == 413
+    assert resp.json()["localizable_error"] == "error.413.docs_upload_too_large"
+
+
+def test_direct_put_backend_still_gets_the_storage_minted_url(
+    actor, workspace_id, monkeypatch
+):
+    """The S3 path is untouched: a backend that accepts a direct PUT is
+    ASKED for the presigned URL and its answer is the ticket's put_url."""
+    from stapel_docs import storage as storage_module
+
+    backend = storage_module.get_storage()
+    seen = {}
+
+    def _fake_presign(self, key, *, expires_seconds=900, content_type=None):
+        seen["key"] = key
+        seen["content_type"] = content_type
+        return "https://minio.example/bucket/presigned-put"
+
+    monkeypatch.setattr(type(backend), "accepts_direct_put", True)
+    monkeypatch.setattr(type(backend), "presigned_put_url", _fake_presign)
+
+    ticket = _open_upload(actor, workspace_id)
+    assert ticket["put_url"] == "https://minio.example/bucket/presigned-put"
+    assert seen["key"] == ticket["key"]
+    assert seen["content_type"] == "video/mp4"

@@ -80,7 +80,7 @@ CANONICAL_PREFIX = "/docs/api/v1/"
 # fit. Must match the Makefile — if they drift, the gate starts measuring the
 # wrong number.
 ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
-LLMS_TXT_BUDGET = "9000"
+LLMS_TXT_BUDGET = "9500"
 
 
 def _emit(out_dir: Path) -> None:
@@ -196,12 +196,25 @@ def test_schema_ref_closure_is_self_contained():
     assert not dangling, f"dangling $ref(s), not defined in this module's own schema: {dangling}"
 
 
+#: Operations whose credential rides IN the URL, presigned-style, so they
+#: carry no JWT security requirement by design — the ONLY entries allowed
+#: here are endpoints whose view sets ``authentication_classes = []``
+#: because a header credential is structurally impossible for the caller
+#: (the upload intake PUT: the drive queue PUTs raw bytes at put_url with
+#: no Authorization header, exactly as it would at an S3 presigned URL).
+SIGNATURE_AUTHED_OPERATIONS = {
+    ("put", "/docs/api/v1/uploads/{upload_id}/content"),
+}
+
+
 def test_protected_endpoints_carry_jwt_security():
     """The profiles-finding gap: a module with no co-mounted sibling loses
     `security: [{"JWTCookieAuth": []}]` unless _codegen.py explicitly calls
     stapel_core's `_register_jwt_auth_extension()` before emission. Every
     docs view is `permission_classes = [IsNotAnonymousUser]`, so every
-    operation here is expected to carry the JWT cookie security requirement.
+    operation here is expected to carry the JWT cookie security requirement
+    — except the enumerated signature-authed operations, whose URL is the
+    credential (their auth story is tested in tests/test_uploads.py).
     """
     schema = json.loads((DOCS / "schema.json").read_text())
     security_schemes = schema.get("components", {}).get("securitySchemes", {})
@@ -212,6 +225,8 @@ def test_protected_endpoints_carry_jwt_security():
     for path, path_obj in schema["paths"].items():
         for method, op in path_obj.items():
             if method not in ("get", "post", "put", "patch", "delete"):
+                continue
+            if (method, path) in SIGNATURE_AUTHED_OPERATIONS:
                 continue
             security = op.get("security")
             assert security and any("JWTCookieAuth" in s for s in security), (

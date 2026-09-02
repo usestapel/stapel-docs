@@ -232,8 +232,10 @@ conversion is a new document created through an explicit flow.
 
 Single-strategy replace seam: dotted path to a `DocsStorage`
 implementation. Ships `DjangoStorageBackend` (default — rides Django's
-`default_storage`; presigned URLs degrade to served URLs; never assume S3
-URL shape) and `S3Backend` (boto3 presigned + native multipart;
+`default_storage`; presigned GET degrades to the served URL, and upload
+tickets carry the module's own signed intake PUT (`accepts_direct_put`
+False) since 0.7.1; never assume S3 URL shape) and `S3Backend` (boto3
+presigned + native multipart;
 `pip install stapel-docs[s3]`; `S3_*` keys). Implement the ABC to target
 any store; `get_storage()` resolves + memoizes. Wrong class / unimportable
 path is a system-check ERROR (E001). **No `default_storage`/boto3 calls

@@ -35,6 +35,7 @@ from .views import (
     StarredView,
     TrashEmptyView,
     TrashView,
+    UploadContentPutView,
     UploadCreateView,
     UploadFinalizeView,
 )
@@ -114,6 +115,10 @@ urlpatterns = [
     path("trash", TrashView.as_view(), name="docs-trash"),
     path("trash/empty", TrashEmptyView.as_view(), name="docs-trash-empty"),
     path("uploads", UploadCreateView.as_view(), name="docs-uploads"),
+    # Module-intake PUT: the direct-to-storage leg for backends with
+    # accepts_direct_put=False. Signature-authenticated (the credential
+    # rides in the URL, presigned-style) — see UploadContentPutView.
+    path("uploads/<uuid:upload_id>/content", UploadContentPutView.as_view(), name="docs-upload-content"),
     path("uploads/<uuid:upload_id>/finalize", UploadFinalizeView.as_view(), name="docs-upload-finalize"),
 ]
 
