@@ -24,7 +24,7 @@ pip install stapel-docs
 
 | Fact | Value |
 |---|---|
-| Version | `0.6.0` |
+| Version | `0.6.1` |
 | Python | `>=3.11` (3.11, 3.12, 3.13) |
 | HTTP operations | 44 |
 | Config axes | 1 |

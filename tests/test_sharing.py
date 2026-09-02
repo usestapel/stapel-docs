@@ -1243,3 +1243,368 @@ class TestSharingSeamHelpers:
                 principal=_principal(guest),
                 action="obliterate",
             )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# The grantee over HTTP — the layer 0.6.0's tests missed
+# ─────────────────────────────────────────────────────────────────────
+#
+# 0.6.0 tested `authorize()` directly and the bearer path over HTTP, and
+# both were right; what nothing exercised was a whitelist grantee reaching
+# a STANDARD document URL. The views called the choke point without the
+# document, so the grant sources never ran and every grantee was refused by
+# a mechanism that had already allowed them. Every test below goes through
+# a URL for exactly that reason: an authorization rule is only as enforced
+# as its worst call site, and unit-testing the rule proves nothing about
+# the callers.
+
+
+@pytest.fixture
+def grantee(visitor, guest, document):
+    """A non-member holding a view grant, driving their own HTTP client."""
+    _grant(document, guest, "view")
+    visitor.force_authenticate(user=guest)
+    return visitor
+
+
+def _doc_url(document, suffix=""):
+    return f"{API}/documents/{document.id}{suffix}"
+
+
+class TestGranteeOverHttp:
+    AXIS = WHITELIST_ON
+
+    def test_a_view_grantee_reads_the_document_over_http(self, grantee, document):
+        resp = grantee.get(_doc_url(document))
+        assert resp.status_code == 200, resp.content
+        assert resp.json()["title"] == "Notes"
+
+    def test_a_view_grantee_reads_the_content_over_http(self, grantee, document):
+        resp = grantee.get(_doc_url(document, "/content"))
+        assert resp.status_code == 200, resp.content
+        assert resp.content == b"# hi"
+
+    def test_a_view_grantee_cannot_write_the_content(self, grantee, document):
+        resp = grantee.put(
+            _doc_url(document, "/content"),
+            b"# rewritten",
+            content_type="text/markdown",
+            HTTP_IF_MATCH='"1"',
+        )
+        assert resp.status_code == 403
+
+    def test_an_edit_grantee_writes_the_content(self, visitor, guest, document):
+        _grant(document, guest, "edit")
+        visitor.force_authenticate(user=guest)
+        resp = visitor.put(
+            _doc_url(document, "/content"),
+            b"# rewritten",
+            content_type="text/markdown",
+            HTTP_IF_MATCH='"1"',
+        )
+        assert resp.status_code == 200, resp.content
+        document.refresh_from_db()
+        assert document.head_seq == 2
+
+    def test_the_read_surfaces_a_view_grantee_reaches(self, grantee, document):
+        """Asserted as "not 403" rather than "200": a signing-less storage
+        backend answers 503 on download and a markdown document has no
+        thumbnail, and neither of those is the authorization answer this
+        regression is about."""
+        for suffix in (
+            "",
+            "/content",
+            "/download",
+            "/export?format=pdf",
+            "/updates",
+            "/revisions",
+            "/thumbnail?tier=160",
+        ):
+            resp = grantee.get(_doc_url(document, suffix))
+            assert resp.status_code != 403, (suffix, resp.status_code)
+
+    def test_a_view_grantee_reads_the_revision_history(self, grantee, document):
+        """A DECISION, stated: axis §6's "no revision history" is written
+        under the LINK heading and scopes the bearer's stripped surface —
+        the clause exists because a token in unknown hands must not reach
+        text deleted on purpose since. A whitelist grantee is the opposite
+        case: a named, enumerable, revocable principal whom §2.1 admits with
+        the row's level and no history exclusion. So they read history at
+        view; the bearer still cannot, structurally, because /shared/<token>
+        has no revisions route at all."""
+        listed = grantee.get(_doc_url(document, "/revisions"))
+        assert listed.status_code == 200, listed.content
+        revision_id = listed.json()[0]["id"]
+        content = grantee.get(
+            _doc_url(document, f"/revisions/{revision_id}/content")
+        )
+        assert content.status_code == 200
+        assert content.content == b"# hi"
+
+    def test_a_view_grantee_cannot_restore_a_revision(self, grantee, document):
+        revision_id = document.revisions.first().id
+        resp = grantee.post(
+            _doc_url(document, f"/revisions/{revision_id}/restore")
+        )
+        assert resp.status_code == 403
+
+    def test_an_edit_grantee_restores_a_revision(self, visitor, guest, document, actor):
+        """Restore-as-new-head is a write to the body, which is exactly what
+        an edit grant buys — and history is never rewritten, so it takes no
+        power the level does not carry."""
+        actor.put(
+            _doc_url(document, "/content"),
+            b"# second",
+            content_type="text/markdown",
+            HTTP_IF_MATCH='"1"',
+        )
+        _grant(document, guest, "edit")
+        visitor.force_authenticate(user=guest)
+        # The revision id comes from the ORM, not from the listing endpoint:
+        # a test that reads its fixture through the surface it is testing
+        # fails for the wrong reason when that surface breaks.
+        oldest = document.revisions.order_by("seq").first()
+        resp = visitor.post(_doc_url(document, f"/revisions/{oldest.id}/restore"))
+        assert resp.status_code == 200, resp.content
+
+    def test_a_view_grantee_may_bookmark_what_they_may_read(self, grantee, document):
+        """A star is a bookmark: the level that lets somebody read is the
+        level that lets them remember. The starred LISTING stays
+        workspace-scoped, so the bookmark shows on the document envelope and
+        never in another workspace's drive — which is the axis's "a grant is
+        a document, not a seat" holding on both ends."""
+        assert grantee.post(_doc_url(document, "/star")).status_code == 204
+        assert grantee.get(_doc_url(document)).json()["is_starred"] is True
+        assert grantee.get(
+            f"{API}/starred", {"workspace_id": str(document.workspace_id)}
+        ).status_code == 403
+
+    def test_manage_endpoints_stay_shut_for_an_edit_grantee(
+        self, visitor, guest, document
+    ):
+        """The anti-escalation invariant over HTTP: the strongest grant the
+        axis can issue still cannot delete the document, move it, name a
+        revision, or re-share it."""
+        _grant(document, guest, "edit")
+        visitor.force_authenticate(user=guest)
+        assert visitor.delete(_doc_url(document)).status_code == 403
+        assert visitor.patch(
+            _doc_url(document), {"folder_id": None}, format="json"
+        ).status_code == 403
+        assert visitor.post(
+            _doc_url(document, "/revisions"), {"name": "mine"}, format="json"
+        ).status_code == 403
+        assert visitor.post(
+            _doc_url(document, "/access"),
+            {"subject_kind": "user", "user_id": str(guest.pk)},
+            format="json",
+        ).status_code == 403
+        assert visitor.post(
+            _doc_url(document, "/links"), {}, format="json"
+        ).status_code == 403
+        assert visitor.get(_doc_url(document, "/access")).status_code == 403
+
+    def test_an_edit_grantee_may_rename_but_not_move(self, visitor, guest, document):
+        _grant(document, guest, "edit")
+        visitor.force_authenticate(user=guest)
+        assert visitor.patch(
+            _doc_url(document), {"title": "Renamed"}, format="json"
+        ).status_code == 200
+
+    def test_a_grant_does_not_widen_any_workspace_listing(self, grantee, document):
+        """The whole point of scoping grants to a document: a grantee sees
+        the document, never the tree it sits in, never what else is there."""
+        ws = {"workspace_id": str(document.workspace_id)}
+        for path, params in (
+            ("/documents", ws),
+            ("/folders", ws),
+            ("/search", {**ws, "q": "Notes"}),
+            ("/starred", ws),
+            ("/recents", ws),
+            ("/trash", ws),
+        ):
+            resp = grantee.get(f"{API}{path}", params)
+            assert resp.status_code == 403, (path, resp.status_code)
+
+    def test_a_stranger_is_still_refused_everywhere(self, visitor, document):
+        stranger = _user("stranger")
+        visitor.force_authenticate(user=stranger)
+        for suffix in ("", "/content", "/revisions", "/updates"):
+            assert visitor.get(_doc_url(document, suffix)).status_code == 403
+
+    def test_a_nonexistent_document_is_still_404_not_403(self, grantee):
+        """Loading the row before authorizing must not turn an existence
+        answer into a permission answer, or the other way round. The views
+        already fetched first; this pins that they still do."""
+        assert grantee.get(f"{API}/documents/{uuid.uuid4()}").status_code == 404
+
+    def test_a_grant_on_a_trashed_document_does_not_resurrect_it(
+        self, actor, visitor, guest, document
+    ):
+        _grant(document, guest, "edit")
+        actor.delete(_doc_url(document))
+        visitor.force_authenticate(user=guest)
+        assert visitor.get(_doc_url(document)).status_code == 404
+        assert visitor.post(_doc_url(document, "/restore")).status_code == 403
+
+    def test_a_workspaces_outage_is_still_503_on_a_granted_document(
+        self, grantee, document, monkeypatch
+    ):
+        from stapel_core.django import workspaces as ws_client
+
+        def down(*args, **kwargs):
+            raise ws_client.WorkspaceLookupUnavailable("peer down")
+
+        monkeypatch.setattr(ws_client, "require_capability", down)
+        assert grantee.get(_doc_url(document)).status_code == 503
+
+
+class TestTokensDoNotWorkOffTheBearerPath:
+    """The bearer surface is ``/shared/<token>`` and nothing else (axis §6).
+
+    Standard document URLs build their principal from the session alone, so
+    a link holder who learns the document's id gains nothing there — no
+    tree, no revision history, no workspace. That is what keeps "a link
+    bearer sees the document only" true after this fix rather than only
+    before it.
+    """
+
+    AXIS = LINK_ON
+
+    def test_a_token_in_a_header_or_query_reaches_nothing(
+        self, visitor, owner, guest, document
+    ):
+        link = _link(document, owner)
+        visitor.force_authenticate(user=guest)
+        assert visitor.get(
+            _doc_url(document), {"token": link.token}
+        ).status_code == 403
+        assert visitor.get(
+            _doc_url(document, "/revisions"), HTTP_AUTHORIZATION=f"Bearer {link.token}"
+        ).status_code == 403
+
+    def test_the_bearer_path_still_works_unchanged(
+        self, visitor, owner, guest, document
+    ):
+        link = _link(document, owner)
+        visitor.force_authenticate(user=guest)
+        envelope = visitor.get(f"{API}/shared/{link.token}")
+        assert envelope.status_code == 200
+        assert "workspace_id" not in envelope.json()
+        assert visitor.get(f"{API}/shared/{link.token}/content").content == b"# hi"
+
+
+class TestEveryDocumentRouteConsultsTheChokePointWithItsRow:
+    """A sweep, so the next document endpoint cannot repeat this defect.
+
+    The bug was not a wrong rule, it was ONE call site out of seventeen
+    asking the choke point a question with the document left out — and
+    nothing failed, because the workspace-only question is legitimate for
+    the listings that also use the helper. A per-endpoint table is the only
+    thing that notices: a new ``/documents/<id>/...`` route that is not
+    listed here fails this test, and its author has to say which of the two
+    questions it asks.
+    """
+
+    AXIS = WHITELIST_ON
+
+    #: url name -> the level a grant must carry to pass it, or None for the
+    #: endpoints that are mandate-only whatever the grant says.
+    ROUTES = {
+        "docs-document-detail": "view",
+        "docs-document-content": "view",
+        "docs-document-download": "view",
+        "docs-document-export": "view",
+        "docs-document-thumbnail": "view",
+        "docs-document-updates": "view",
+        "docs-revisions": "view",
+        "docs-revision-content": "view",
+        "docs-revision-download": "view",
+        "docs-document-star": "view",
+        "docs-revision-restore": "edit",
+        "docs-document-restore": None,
+        "docs-document-access": None,
+        "docs-document-access-detail": None,
+        "docs-document-link-detail": None,
+        "docs-document-links": None,
+    }
+
+    def test_the_table_covers_every_document_scoped_route(self):
+        from stapel_docs.urls_v1 import urlpatterns
+
+        routed = {
+            pattern.name
+            for pattern in urlpatterns
+            if "<uuid:document_id>" in str(pattern.pattern)
+        }
+        assert routed == set(self.ROUTES), (
+            "a document-scoped route is missing from the table — decide "
+            "whether it asks authorize() about the DOCUMENT (grants apply) "
+            "or about the workspace only, then list it here: "
+            f"{routed ^ set(self.ROUTES)}"
+        )
+
+    def test_every_grantable_route_admits_a_grantee(self, visitor, guest, document):
+        """The regression itself, swept: at the level its table row names,
+        every one of these must stop answering 403. Probed with the verb the
+        route actually answers, because a 405 would hide the very thing this
+        test exists to see."""
+        revision_id = str(document.revisions.first().id)
+        probes = {
+            "docs-document-detail": ("get", ""),
+            "docs-document-content": ("get", "/content"),
+            "docs-document-download": ("get", "/download"),
+            "docs-document-export": ("get", "/export?format=pdf"),
+            "docs-document-thumbnail": ("get", "/thumbnail?tier=160"),
+            "docs-document-updates": ("get", "/updates"),
+            "docs-revisions": ("get", "/revisions"),
+            "docs-revision-content": ("get", f"/revisions/{revision_id}/content"),
+            "docs-revision-download": ("get", f"/revisions/{revision_id}/download"),
+            "docs-document-star": ("post", "/star"),
+            "docs-revision-restore": ("post", f"/revisions/{revision_id}/restore"),
+        }
+        assert set(probes) == {
+            name for name, level in self.ROUTES.items() if level is not None
+        }
+
+        failures = []
+        for name, level in self.ROUTES.items():
+            if level is None:
+                continue
+            DocumentAccess.objects.filter(document=document).delete()
+            _grant(document, guest, level)
+            visitor.force_authenticate(user=guest)
+            method, suffix = probes[name]
+            resp = getattr(visitor, method)(_doc_url(document, suffix))
+            if resp.status_code == 403:
+                failures.append(name)
+        assert not failures, f"grants never reached: {failures}"
+
+    def test_every_mandate_only_route_refuses_the_strongest_grant(
+        self, visitor, guest, document
+    ):
+        """The other half of the table: an edit grant — the most the axis can
+        ever issue — must still bounce off every route marked mandate-only,
+        or the anti-escalation invariant is a comment rather than a rule."""
+        _grant(document, guest, "edit")
+        visitor.force_authenticate(user=guest)
+        access_id = link_id = uuid.uuid4()
+        probes = {
+            "docs-document-restore": ("post", "/restore"),
+            "docs-document-access": ("get", "/access"),
+            "docs-document-access-detail": ("delete", f"/access/{access_id}"),
+            "docs-document-links": ("get", "/links"),
+            "docs-document-link-detail": ("delete", f"/links/{link_id}"),
+        }
+        assert set(probes) == {
+            name for name, level in self.ROUTES.items() if level is None
+        }
+        for name, (method, suffix) in probes.items():
+            resp = getattr(visitor, method)(_doc_url(document, suffix))
+            # 404 is an EXISTENCE answer, and one route legitimately gives
+            # it here: restore only ever sees trashed rows, so a live
+            # document is "no such thing to restore" before permission is
+            # ever consulted. Its 403-on-a-trashed-document case has its own
+            # test above; what this sweep pins is that none of these five
+            # succeeds for the strongest grant the axis can issue.
+            assert resp.status_code in (403, 404), (name, resp.status_code)

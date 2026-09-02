@@ -6,6 +6,74 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-09-02
+
+### Fixed — the sharing mechanism existed; the HTTP layer never asked it
+
+A whitelist grantee was refused by every standard document endpoint. Found
+by scratch-host verification of the published 0.6.0 wheel, not by this
+module's own suite — which is the whole lesson of the fix.
+
+`views._access_error(request, workspace_id, *actions)` called the choke
+point without the document, and `authorize()` consults the grant sources
+only when it is told which object is being asked about (a grant is a row
+about one document; a call without one is a workspace-baseline question,
+which is exactly right for a listing). So `authorize(…, document=doc)`
+allowed a grantee, the identical question minus the document denied them,
+and all seventeen document-scoped views asked the second one. The
+mechanism was correct, complete, tested — and unreachable through a URL.
+Every document-scoped call site now passes its row; workspace-scoped
+listings deliberately still do not, because a grant must not widen a
+listing (axis §6: a grantee sees the document, not the tree).
+
+Nothing about the rule changed, and nothing about 404-vs-403 changed
+either: every one of those views already loaded the row before authorizing,
+so a nonexistent id was and remains a 404 and an existing-but-forbidden one
+a 403 — pinned by a test rather than left to inspection.
+
+**Why 74 tests missed it.** They exercised `authorize()` directly and the
+bearer path over HTTP, and both were right. Nothing drove a grantee through
+a standard document URL, so the one layer where the defect lived — the
+callers of the rule, not the rule — had no coverage at all. An
+authorization rule is only as enforced as its worst call site. The
+regression tests added here all go through URLs, and a per-endpoint table
+sweep now fails when a `/documents/<id>/…` route is added without deciding,
+in writing, whether it asks about the document or about the workspace only.
+Reverted against the shipped 0.6.0 views, the new tests fail on all eleven
+grantable routes.
+
+### Decided (and now documented and tested)
+
+- **Revision history is readable by a whitelist grantee at `view`.** Axis
+  §6's "no revision history" sits under the LINK heading and scopes the
+  bearer's stripped surface: a token in unknown hands must not reach text
+  deleted on purpose since. A whitelist grantee is the opposite case — a
+  named, enumerable, revocable principal whom §2.1 admits at the row's level
+  with no history exclusion. The link bearer still cannot reach history, and
+  structurally rather than by a check: `/shared/<token>` has no revisions
+  route.
+- **Restore-as-new-head takes `edit`, naming a revision stays `manage`** —
+  unchanged gating, now reachable by a grant at the level it already asked
+  for. Restoring writes the body, which is what an edit grant buys; history
+  is never rewritten, so it takes no power the level does not carry.
+- **A grantee may star a granted document** (`docs.view`-gated: the level
+  that lets somebody read is the level that lets them remember), and the
+  starred/recents LISTINGS stay workspace-scoped, so the bookmark shows on
+  the document envelope and never in a drive listing they cannot open.
+- **The share-mint level cap stays workspace-only** — deliberately not
+  given the document. The level a mint may hand out is the level the MANDATE
+  gives, never one the sharer was themselves granted; otherwise an edit
+  grant would become a lever on the grant-making machinery and "no grant
+  widens the circle of access" (§2.2) would hold for every action except the
+  one that widens it.
+- **A token presented at a standard document URL still grants nothing.**
+  `Principal.from_request` there carries no link token, and that is now
+  load-bearing rather than incidental: it is what keeps "a link bearer sees
+  the document only" true after this fix, and it has its own test.
+- **Manage-gated endpoints are unmoved**: delete, move, restore, name a
+  revision and the share sheet itself refuse the strongest grant the axis
+  can issue.
+
 ## [0.6.0] — 2026-09-02
 
 ### Added — the sharing mechanism: grant sources over an immutable baseline

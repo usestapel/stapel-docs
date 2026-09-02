@@ -148,13 +148,37 @@ class RawBodyParser(BaseParser):
         return stream.read()
 
 
-def _access_error(request, workspace_id, *actions):
+def _access_error(request, workspace_id, *actions, document=None):
     """authorize() each required action; an error response or None.
-    deny -> 403, unavailable -> 503 (never 403-on-outage)."""
+    deny -> 403, unavailable -> 503 (never 403-on-outage).
+
+    **Pass ``document`` on every endpoint that has one.** A grant is a row
+    about one object, so the whitelist and link sources are only consulted
+    when the choke point is told which object is being asked about: a call
+    without it is a workspace-baseline-only question, which is right for a
+    listing and silently wrong for a document. 0.6.0 shipped the mechanism
+    and left every standard endpoint asking the workspace-only question,
+    so a whitelist grantee was authorized correctly by ``authorize()`` and
+    refused by every URL that reached it — the mechanism existed and the
+    HTTP layer never consulted it.
+
+    The row is loaded BEFORE this call at every call site (``get_live_document``
+    raises the 404-mapped refusal first), which is what keeps a nonexistent
+    id a 404 and an existing-but-forbidden one a 403, unchanged by this fix.
+
+    ``Principal.from_request`` here never carries a link token, and that is
+    load-bearing rather than incidental: the bearer surface is
+    ``/shared/<token>`` and nothing else (axis §6), so presenting a token at
+    a standard document URL grants nothing — no tree, no revision history,
+    no workspace.
+    """
     principal = Principal.from_request(request)
     for action in actions:
         verdict = authorize(
-            workspace_id=workspace_id, principal=principal, action=action
+            workspace_id=workspace_id,
+            principal=principal,
+            action=action,
+            document=document,
         )
         if verdict == DENY:
             return StapelErrorResponse(403, ERR_403_FORBIDDEN)
@@ -425,7 +449,7 @@ class DocumentDetailView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def get(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "view")
+        denied = _access_error(request, document.workspace_id, "view", document=document)
         if denied:
             return denied
         services.attach_star(document, _acting_user(request), target="document")
@@ -446,7 +470,7 @@ class DocumentDetailView(SerializerSeamMixin, APIView):
             actions.append("edit")
         if "folder_id" in data:
             actions.append("manage")
-        denied = _access_error(request, document.workspace_id, *actions)
+        denied = _access_error(request, document.workspace_id, *actions, document=document)
         if denied:
             return denied
         if "title" in data or "metadata" in data:
@@ -465,7 +489,7 @@ class DocumentDetailView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def delete(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "manage")
+        denied = _access_error(request, document.workspace_id, "manage", document=document)
         if denied:
             return denied
         services.trash_document(document)
@@ -483,7 +507,7 @@ class DocumentRestoreView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def post(self, request, document_id):
         document = services.get_trashed_document(document_id)
-        denied = _access_error(request, document.workspace_id, "manage")
+        denied = _access_error(request, document.workspace_id, "manage", document=document)
         if denied:
             return denied
         document = services.restore_document(document)
@@ -512,7 +536,7 @@ class DocumentContentView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def get(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "view")
+        denied = _access_error(request, document.workspace_id, "view", document=document)
         if denied:
             return denied
         body, mime, head_seq = services.read_content(
@@ -527,7 +551,7 @@ class DocumentContentView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def put(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "edit")
+        denied = _access_error(request, document.workspace_id, "edit", document=document)
         if denied:
             return denied
         raw = request.headers.get("If-Match")
@@ -561,7 +585,7 @@ class DocumentDownloadView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def get(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "view")
+        denied = _access_error(request, document.workspace_id, "view", document=document)
         if denied:
             return denied
         url = services.document_download_url(document, user=_acting_user(request))
@@ -586,7 +610,7 @@ class DocumentExportView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def get(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "view")
+        denied = _access_error(request, document.workspace_id, "view", document=document)
         if denied:
             return denied
         fmt = request.query_params.get("format", "")
@@ -635,7 +659,7 @@ class DocumentUpdatesView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def get(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "view")
+        denied = _access_error(request, document.workspace_id, "view", document=document)
         if denied:
             return denied
         raw = request.query_params.get("since", "0")
@@ -658,7 +682,7 @@ class DocumentUpdatesView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def post(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "edit")
+        denied = _access_error(request, document.workspace_id, "edit", document=document)
         if denied:
             return denied
         req = self.get_request_serializer_class()(data=request.data)
@@ -691,7 +715,7 @@ class RevisionListCreateView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def get(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "view")
+        denied = _access_error(request, document.workspace_id, "view", document=document)
         if denied:
             return denied
         presenter = get_revision_presenter()
@@ -705,7 +729,7 @@ class RevisionListCreateView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def post(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "manage")
+        denied = _access_error(request, document.workspace_id, "manage", document=document)
         if denied:
             return denied
         req = self.get_request_serializer_class()(data=request.data)
@@ -729,7 +753,7 @@ class RevisionContentView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def get(self, request, document_id, revision_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "view")
+        denied = _access_error(request, document.workspace_id, "view", document=document)
         if denied:
             return denied
         revision = services.get_revision(document, revision_id)
@@ -748,7 +772,7 @@ class RevisionDownloadView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def get(self, request, document_id, revision_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "view")
+        denied = _access_error(request, document.workspace_id, "view", document=document)
         if denied:
             return denied
         revision = services.get_revision(document, revision_id)
@@ -769,7 +793,7 @@ class RevisionRestoreView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def post(self, request, document_id, revision_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "edit")
+        denied = _access_error(request, document.workspace_id, "edit", document=document)
         if denied:
             return denied
         revision = services.get_revision(document, revision_id)
@@ -807,7 +831,16 @@ class _StarViewBase(SerializerSeamMixin, APIView):
 
     def _apply(self, request, target_id, starred: bool):
         row = self._fetch(target_id)
-        denied = _access_error(request, row.workspace_id, "view")
+        # A document star is document-scoped, so a whitelist grantee may
+        # bookmark what they may read — a star is a bookmark, and the level
+        # that lets somebody read is the level that lets them remember.
+        # Folders carry no grants in v1, so the folder twin stays baseline.
+        denied = _access_error(
+            request,
+            row.workspace_id,
+            "view",
+            document=row if self.target == "document" else None,
+        )
         if denied:
             return denied
         services.set_star(
@@ -974,7 +1007,7 @@ class DocumentThumbnailView(SerializerSeamMixin, APIView):
     @_maps_docs_errors
     def get(self, request, document_id):
         document = services.get_live_document(document_id)
-        denied = _access_error(request, document.workspace_id, "view")
+        denied = _access_error(request, document.workspace_id, "view", document=document)
         if denied:
             return denied
         query = ThumbnailQuerySerializer(data=request.query_params)
@@ -1222,6 +1255,13 @@ class DocumentAccessView(SerializerSeamMixin, APIView):
             # Never grant above your own level (axis §2.1). Asked through
             # the choke point rather than re-derived, so the answer is the
             # same one the guest's own request will get.
+            #
+            # Deliberately WITHOUT `document=`: the level a mint may hand
+            # out is the level the MANDATE gives, never one the sharer was
+            # themselves granted. Otherwise an edit grant on one document
+            # would become a lever on the grant-making machinery, and "no
+            # grant widens the circle of access" (§2.2) would hold for
+            # every action except the one that widens it.
             denied = _access_error(request, document.workspace_id, data["level"])
             if denied:
                 return denied
@@ -1294,6 +1334,9 @@ class DocumentLinkView(SerializerSeamMixin, APIView):
         if denied:
             return denied
         if data["level"] != LEVEL_VIEW:
+            # Never mint above your own level, and mandate-only (§2.1/§2.2):
+            # see the identical cap on the whitelist mint for why the
+            # document is deliberately not passed here.
             denied = _access_error(request, document.workspace_id, data["level"])
             if denied:
                 return denied
