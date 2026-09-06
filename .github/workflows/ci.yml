@@ -20,6 +20,72 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      - name: Install
+        # Editable on purpose: tests/ imports resolve against the source
+        # tree (stapel_docs.tests), which a non-editable install does not
+        # ship — plain `pip install .` made every CI run red from day one
+        # while the local suite was green.
+        run: pip install -e ".[all]" || pip install -e .
+
+      - name: Lint
+        run: |
+          pip install ruff --quiet
+          ruff check . --select E,F,W --ignore E501
+
+      - name: Import check
+        run: python -c "import stapel_docs; print('import OK')"
+
+      - name: Install test dependencies
+        # stapel-tools: tests/test_contract.py drives the contract emitters
+        # (llms_txt, readme) and fails on ModuleNotFound without it.
+        # pypdf: tests/test_export.py reads the *text layer* of the PDFs it
+        # renders — the only way to assert that a markdown body came out
+        # parsed and not printed. Without it those assertions skip, and a
+        # skipped assertion is how the verbatim-md defect survived a green
+        # suite in the first place.
+        run: pip install pytest pytest-django pytest-cov pytest-asyncio pypdf "stapel-tools>=0.26.0" "stapel-realtime[testing]>=0.1.2"
+
+      - name: Tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=stapel_docs \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --junitxml=junit.xml \
+            -o junit_family=legacy \
+            -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        with:
+          files: coverage.xml
+          flags: stapel-docs
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results to Codecov
+        uses: codecov/test-results-action@v1
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  core-main:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
       - name: Install stapel-core
         run: pip install git+https://github.com/usestapel/stapel-core.git
 
