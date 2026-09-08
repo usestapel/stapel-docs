@@ -7,8 +7,8 @@ are no-ops.
 
 Provided:
 
-- ``docs.create_document`` — the main ingest seam (design §6): ironmemo
-  dumps transcripts/summaries through it. The event-driven variant is the
+- ``docs.create_document`` — the main ingest seam (design §6): a recording
+  service dumps transcripts/summaries through it. The event-driven variant is the
   ``STAPEL_DOCS["INGEST"]`` registry (``actions.py``);
 - ``docs.usage`` — the metering surface billing composes with (drive-spec
   §3.4). Read-only, and gated by the SAME caller authority as the write

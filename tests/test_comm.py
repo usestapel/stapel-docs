@@ -107,7 +107,7 @@ class TestCreateDocumentFunction:
                     "title": "Standup notes",
                     "folder_path": "/Meetings/2026-08",
                     "body": body,
-                    "metadata": {"source": "ironmemo"},
+                    "metadata": {"source": "notes-host"},
                     "actor_id": str(user.pk),
                     "owner_id": str(user.pk),
                 },
@@ -117,7 +117,7 @@ class TestCreateDocumentFunction:
             assert doc.type == "md"
             assert doc.title == "Standup notes"
             assert doc.owner_id == user.pk
-            assert doc.metadata == {"source": "ironmemo"}
+            assert doc.metadata == {"source": "notes-host"}
             # folder_path created the chain and attached the document
             parent = Folder.objects.get(workspace_id=ws, name="Meetings")
             child = Folder.objects.get(workspace_id=ws, name="2026-08", parent=parent)
@@ -213,10 +213,10 @@ class TestCreateDocumentAuthority:
         ws = uuid.uuid4()
         with override_settings(
             MEDIA_ROOT=str(tmp_path),
-            STAPEL_DOCS={"INTERNAL_TRUSTED_SERVICES": ["ironmemo"]},
+            STAPEL_DOCS={"INTERNAL_TRUSTED_SERVICES": ["notes-host"]},
         ):
             res = call(
-                "docs.create_document", self._payload(ws, caller_service="ironmemo")
+                "docs.create_document", self._payload(ws, caller_service="notes-host")
             )
         assert Document.objects.get(id=res["document_id"]).workspace_id == ws
 
@@ -224,7 +224,7 @@ class TestCreateDocumentAuthority:
         ws = uuid.uuid4()
         with override_settings(
             MEDIA_ROOT=str(tmp_path),
-            STAPEL_DOCS={"INTERNAL_TRUSTED_SERVICES": ["ironmemo"]},
+            STAPEL_DOCS={"INTERNAL_TRUSTED_SERVICES": ["notes-host"]},
         ):
             with pytest.raises(FunctionCallError, match="CallerNotAuthorized"):
                 call(
