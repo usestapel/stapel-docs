@@ -107,7 +107,15 @@ class Principal:
     def from_request(cls, request, *, link_token: str | None = None) -> "Principal":
         user = getattr(request, "user", None)
         user_id = getattr(user, "pk", None) if getattr(user, "is_authenticated", False) else None
-        is_anon = bool(getattr(user, "is_anonymous_account", False))
+        # `is_anonymous` is the field an account of the auth axis carries
+        # (stapel_core.django.users.User) and the property Django's
+        # AnonymousUser answers True to. This read used to name
+        # `is_anonymous_account`, which no user model in the fleet has: the
+        # getattr default answered False for every guest, and everything
+        # below — the LINK["ANONYMOUS"] switch, may_write() — saw a named
+        # subject. The one place a Principal is built from a request is the
+        # one place that has to be right.
+        is_anon = bool(getattr(user, "is_anonymous", False))
         return cls(user_id=user_id, is_anonymous=is_anon, link_token=link_token)
 
     @property

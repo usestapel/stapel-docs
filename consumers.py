@@ -56,7 +56,8 @@ def _may_view(document_id, user) -> bool:
         return False
     principal = Principal(
         user_id=getattr(user, "pk", None),
-        is_anonymous=bool(getattr(user, "is_anonymous_account", False)),
+        # Same field the HTTP path reads (authz.Principal.from_request).
+        is_anonymous=bool(getattr(user, "is_anonymous", False)),
     )
     return (
         authorize(

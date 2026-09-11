@@ -6,6 +6,28 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-09-11
+
+### Fixed — the guest flag was read from an attribute nothing has
+
+Security audit 2026-09-11, M-5. `Principal.from_request` and the realtime
+consumer's `_may_view` both asked the user for `is_anonymous_account`. No user
+model in the fleet has that attribute — the axis marks a guest account with
+the `is_anonymous` field (`stapel_core.django.users.User`) — so
+`getattr(..., False)` answered **False for every guest**, and everything
+downstream saw a named principal: `SHARING.LINK.ANONYMOUS = False` did not
+stop a guest redeeming a share link on the bearer views (which carry no
+permission classes by design), and `may_write()` said True for a guest.
+
+Live exposure was narrower than the invariant: the HTTP write views carry
+`IsNotAnonymousUser`, which reads the right field, so what was actually open
+was the share-link switch. The invariant itself was not enforced anywhere.
+
+Both reads now take `is_anonymous`. Every test in `test_sharing.py` built its
+`Principal` by hand, which is exactly why a bug in the one place a `Principal`
+is built from a request survived; `TestTheGuestFlagIsReadFromTheRealField`
+goes through `from_request` and `_may_view` instead.
+
 ## [0.8.0] — 2026-09-02
 
 ### Added — the viewing wave: Range on the byte streams, zip as a compressed folder

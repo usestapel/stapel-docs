@@ -1615,3 +1615,85 @@ class TestEveryDocumentRouteConsultsTheChokePointWithItsRow:
             # test above; what this sweep pins is that none of these five
             # succeeds for the strongest grant the axis can issue.
             assert resp.status_code in (403, 404), (name, resp.status_code)
+
+
+# ── The guest flag the axis reads — security audit 2026-09-11, M-5 ─────
+#
+# Every test above builds a Principal by hand, which is why a bug in the
+# ONE place a Principal is built from a request survived: `from_request`
+# and the realtime consumer both read `is_anonymous_account`, an attribute
+# no user model in the fleet has, so `getattr(..., False)` answered False
+# for every guest and `authorize()` saw a named principal.
+
+class TestTheGuestFlagIsReadFromTheRealField:
+    """`is_anonymous` is the field stapel-core's user model carries."""
+
+    @pytest.fixture
+    def anonymous_account(self, db):
+        user = _user("anon")
+        user.is_anonymous = True
+        user.save(update_fields=["is_anonymous"])
+        return user
+
+    def _request(self, user):
+        from django.test import RequestFactory
+
+        request = RequestFactory().get("/docs/api/v1/documents")
+        request.user = user
+        return request
+
+    def test_from_request_marks_a_guest_account_anonymous(
+        self, anonymous_account,
+    ):
+        principal = Principal.from_request(self._request(anonymous_account))
+        assert principal.user_id == anonymous_account.pk
+        assert principal.is_anonymous is True
+        assert principal.is_anonymous_bearer is True
+
+    def test_from_request_leaves_a_named_account_named(self, owner):
+        principal = Principal.from_request(self._request(owner))
+        assert principal.is_anonymous is False
+        assert principal.is_anonymous_bearer is False
+
+    @override_settings(
+        STAPEL_DOCS={"SHARING": {"MODES": ["link"], "LINK": {"ANONYMOUS": False}}}
+    )
+    def test_a_guest_is_refused_a_share_link_when_the_host_closed_it(
+        self, owner, anonymous_account, document,
+    ):
+        link = _link(document, owner)
+        principal = Principal.from_request(
+            self._request(anonymous_account), link_token=link.token
+        )
+        assert authorize(
+            workspace_id=document.workspace_id,
+            principal=principal,
+            action="view",
+            document=document,
+        ) == DENY
+
+    def test_may_write_is_false_for_a_guest_built_from_a_request(
+        self, anonymous_account,
+    ):
+        from stapel_docs.authz import may_write
+
+        assert may_write(Principal.from_request(self._request(anonymous_account))) is False
+
+    def test_the_realtime_consumer_reads_the_same_field(
+        self, anonymous_account, document, monkeypatch,
+    ):
+        """`consumers._may_view` builds its own Principal and carried the same
+        misspelling, so a guest reached the socket as a named subject."""
+        pytest.importorskip("channels")
+        from stapel_docs import consumers
+        import stapel_docs.authz as authz_module
+
+        seen = {}
+
+        def _spy(*, workspace_id, principal, action, document=None):
+            seen["principal"] = principal
+            return DENY
+
+        monkeypatch.setattr(authz_module, "authorize", _spy)
+        consumers._may_view(str(document.pk), anonymous_account)
+        assert seen["principal"].is_anonymous is True
