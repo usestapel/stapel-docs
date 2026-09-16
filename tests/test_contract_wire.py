@@ -35,6 +35,7 @@ import base64
 import copy
 import io
 import json
+import re
 import uuid
 import zipfile
 from pathlib import Path
@@ -712,6 +713,56 @@ def _shared_download(call, wire):
 
 def test_the_contract_declares_something_to_check():
     assert OPERATIONS, "docs/schema.json declares no JSON responses at all"
+
+
+def test_every_declared_path_resolves_under_this_urlconf():
+    """The suite must be looking where the document describes.
+
+    Three of the first four libraries this gate was written for had a
+    committed contract that nothing had ever driven, because the test urlconf
+    mounted somewhere the document does not describe: one mounted a different
+    prefix AND one segment short, one mounted the paths bare, and this one
+    mounted less than the emission did — so the gdpr half of its own contract
+    was unreachable. In every case the operations were "covered" by a file
+    that could not have reached a single one of them.
+
+    That is the same family as a gate nobody asks: the recipes can all be
+    written, the run can be green, and not one request went where the contract
+    says it goes. A missing recipe already fails loudly; this fails when the
+    MOUNT is wrong, which no per-operation check can see, because when the
+    mount is wrong every operation is equally and silently unreachable.
+
+    Asserted against the urlconf this module declares, so it fails at the one
+    moment it is cheap to fix: when somebody changes a mount.
+    """
+    from django.urls import Resolver404, resolve
+
+    # Resolution cares about the SHAPE of a segment, and this urlconf uses
+    # several converters — uuid, int, slug. A path counts as reachable if any
+    # one shape resolves: the question here is whether the mount exists, not
+    # whether a particular id does.
+    candidates = (
+        "00000000-0000-4000-8000-000000000000",
+        "1",
+        "a-slug",
+    )
+
+    unreachable = []
+    for _method, path, _code, _schema in OPERATIONS:
+        for value in candidates:
+            try:
+                resolve(re.sub(r"\{[^}]+\}", value, path))
+                break
+            except Resolver404:
+                continue
+        else:
+            unreachable.append(path)
+
+    assert not unreachable, (
+        "these declared paths do not resolve under this module's urlconf, so "
+        "nothing here can be driving them — the mount is wrong, not the "
+        "recipes:\n  " + "\n  ".join(sorted(set(unreachable)))
+    )
 
 
 def test_every_declared_operation_is_driven_or_named_undrivable():
