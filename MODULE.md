@@ -446,9 +446,9 @@ validated in tests (`VALIDATE_SCHEMAS`).
 | Action (emit) | `document.storage_changed` | per-workspace byte delta; whether `Workspace.storage_used_bytes` follows is the host's subscriber decision | `schemas/emits/document.storage_changed.json` |
 | Action (emit) | `gdpr.section.erased` | the erasure receipt: `{correlation_id, owner: "docs", subject_type, subject_key, receipt_id, counts}` — emitted in the same transaction as the erasure it reports | `schemas/emits/gdpr.section.erased.json` |
 | Action (emit) | `gdpr.owner.alive` | probe answer: `{owner: "docs", subject_types}` — from the *same* subscriber that erases | `schemas/emits/gdpr.owner.alive.json` |
-| Action (consume) | `gdpr.erasure.requested` | subject-scoped erasure — `account` \| `workspace` \| `document` (see **Erasure** below) | `schemas/consumes/gdpr.erasure.requested.json` |
-| Action (consume) | `gdpr.owner.probe` | answered with `gdpr.owner.alive` | `schemas/consumes/gdpr.owner.probe.json` |
-| Action (consume) | `user.deleted` | the pre-0.5.0 account path, routed through the same `erase("account", …)`; deprecated in stapel-gdpr 0.5.0, removed there in 0.6.0 | `schemas/consumes/user.deleted.json` |
+| Action (consume) | `gdpr.erasure.requested` | subject-scoped erasure — `account` \| `workspace` \| `document` (see **Erasure** below). Subscribed by core, via `register_gdpr_owner` | `schemas/consumes/gdpr.erasure.requested.json` |
+| Action (consume) | `gdpr.owner.probe` | answered with `gdpr.owner.alive`. Subscribed by core, via `register_gdpr_owner` | `schemas/consumes/gdpr.owner.probe.json` |
+| Action (consume) | `user.deleted` | the pre-0.5.0 account path, routed through the same `erase("account", …)`; deprecated in stapel-gdpr 0.5.0, removed there in 0.6.0. Subscribed by core, via `register_gdpr_owner`; it receipts when the payload carries a `correlation_id` (0.10.0) | `schemas/consumes/user.deleted.json` |
 | Action (consume) | `user.merged` | the other half of that life cycle, and the opposite instruction: a guest folded into an existing account has its authorship **re-parented**, not anonymized — `Document.owner`, `Folder.created_by`, `Revision.created_by`, `DocumentUpdate.author_id`, `UploadSession.created_by`. `Star` and `RecentEntry` are re-parented with **collision folding** (both are unique per `(user, target)`): a star folds to "still starred", a recent folds to the newer `accessed_at`. A survivor with no user row here yet raises `MergeTargetNotReady` so the outbox redelivers. Idempotent | `schemas/consumes/user.merged.json` |
 | Action (consume) | configured `INGEST` names | event-driven ingest via host mappers | host-owned |
 | Function (**call**) | `workspaces.check_capability` | every authorization verdict (fail-closed) | provided by **stapel-workspaces** |
@@ -476,18 +476,28 @@ STAPEL_GDPR = {"DATA_OWNERS": {"docs": ["account", "workspace", "document"]}}
 
 Rules the subscriber keeps:
 
+- **Not written here.** `apps.ready()` calls
+  `stapel_core.gdpr.register_gdpr_owner("docs", SUBJECT_TYPES, erase_subject)`
+  and core supplies the `gdpr.erasure.requested`, `gdpr.owner.probe` and
+  deprecated `user.deleted` handlers. Registering by name is also what stands
+  core's provider bridge down for this section exactly rather than for the
+  whole app (`gdpr.W012`). What is ours is `erasure.erase_subject`.
 - **Idempotent.** Delivery is at-least-once; a redelivery finds nothing left
-  and receipts zeros. `receipt_id` is `docs:<correlation_id>` — stable, so a
-  redelivery does not invent a second erasure in the audit trail.
+  and receipts zeros. `receipt_id` is
+  `docs:<subject_type>:<subject_key>:<correlation_id>` (0.10.0; it was
+  `docs:<correlation_id>`) — stable, so a redelivery does not invent a second
+  erasure in the audit trail.
 - **One transaction.** Erasure and receipt commit together (outbox canon):
   the receipt leaves iff the erasure committed, so a half-done purge can
   never complete the request. Objects die after the commit — a purge that
   rolls back must leave surviving rows readable.
 - **Silence over false certification.** A subject type this owner does not
   claim is ignored (gdpr opens no part for it); a request whose
-  `workspace_id` contradicts the document's row raises instead of receipting
-  zeros — the part then times out visibly rather than certifying an erasure
-  that never happened.
+  `workspace_id` contradicts the document's row raises
+  `erasure.ErasureScopeConflict` instead of receipting zeros — the part then
+  times out visibly rather than certifying an erasure that never happened. It
+  is a `RuntimeError` and not a `ValueError` on purpose: core's handler reads
+  a `ValueError` as "this key names nothing of mine" and returns quietly.
 - **Co-location.** The probe is answered from this same module, which is what
   makes gdpr's `W006` evidence that the erasure path is *consumed* rather
   than that a container is deployed. Do not answer it from anywhere else.

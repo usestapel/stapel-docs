@@ -30,6 +30,19 @@ _RECEIPTS: list[dict] = []
 _ALIVE: list[dict] = []
 
 
+def _owner():
+    """The registration ``apps.ready()`` made — same terms, so this is a
+    lookup rather than a second subscription."""
+    from stapel_core.gdpr import register_gdpr_owner
+
+    from stapel_docs.erasure import OWNER, SUBJECT_TYPES, erase_subject
+
+    return register_gdpr_owner(OWNER, SUBJECT_TYPES, erase_subject)
+
+
+_OWNER = _owner()
+
+
 def _collect_receipt(event):
     _RECEIPTS.append(event.payload)
 
@@ -148,7 +161,9 @@ class TestDocumentSubject:
         assert receipt["correlation_id"] == request["correlation_id"]
         assert receipt["subject_type"] == "document"
         assert receipt["subject_key"] == str(doc["id"])
-        assert receipt["receipt_id"] == f"docs:{request['correlation_id']}"
+        assert receipt["receipt_id"] == (
+            f"docs:document:{doc['id']}:{request['correlation_id']}"
+        )
         assert receipt["counts"]["documents"] == 1
         assert receipt["counts"]["revisions"] == len(keys)
         assert receipt["counts"]["storage_objects"] == len(keys)
@@ -184,6 +199,9 @@ class TestDocumentSubject:
 
         doc = _create_doc(actor, workspace_id)
 
+        # Still an ActionDeliveryError and not a silent drop: the refusal is
+        # an ErasureScopeConflict (a RuntimeError), which core's handler does
+        # not swallow the way it swallows an unusable key.
         with pytest.raises(ActionDeliveryError):
             _request_erasure("document", doc["id"], workspace_id=str(uuid.uuid4()))
 
@@ -395,14 +413,60 @@ class TestAccountSubject:
 
     def test_user_deleted_still_erases_and_stays_silent(self, actor, user, workspace_id):
         """The deprecated event keeps working for one minor and routes
-        through the same erase; the receipt belongs to the erasure request
-        that fires alongside it, so this path emits none."""
+        through the same erase. Nothing to receipt: a payload with no
+        correlation_id names no part."""
         doc = _create_doc(actor, workspace_id)
 
         emit("user.deleted", {"user_id": str(user.pk)})
 
         assert Document.objects.get(pk=doc["id"]).owner_id is None
         assert _RECEIPTS == []
+
+    def test_user_deleted_with_a_correlation_id_receipts_the_same_id(
+        self, actor, user, workspace_id
+    ):
+        """Changed in 0.10.0, and the reason it is safe.
+
+        This path used to stay silent on purpose, because the erasure
+        request fires alongside it and a second receipt looked like noise.
+        Core's handler receipts it — with the SAME deterministic id the
+        erasure request produces (`docs:account:<key>:<correlation_id>`),
+        which is exactly the shape a redelivery has. The orchestrator keys
+        a part by that id, so the two are one record, not two deletions.
+        """
+        _create_doc(actor, workspace_id)
+        correlation_id = str(uuid.uuid4())
+
+        emit("user.deleted", {
+            "user_id": str(user.pk), "correlation_id": correlation_id,
+        })
+
+        (receipt,) = _RECEIPTS
+        assert receipt["owner"] == "docs"
+        assert receipt["subject_type"] == "account"
+        assert receipt["receipt_id"] == f"docs:account:{user.pk}:{correlation_id}"
+        assert receipt["counts"]["documents_anonymized"] == 1
+
+    def test_one_erasure_leaves_exactly_one_receipt_per_part(
+        self, actor, user, workspace_id
+    ):
+        """The provider bridge yields to the registered owner.
+
+        Both wirings are live in this process — ``gdpr_registry`` has the
+        provider and ``register_gdpr_owner`` has the owner — and an erasure
+        is one part, so it is one receipt. Two would assert the deletion
+        happened twice, which is a false legal record rather than a
+        duplicate log line.
+        """
+        _create_doc(actor, workspace_id)
+
+        request = _request_erasure("account", user.pk)
+
+        (receipt,) = _RECEIPTS
+        assert receipt["owner"] == "docs"
+        assert receipt["receipt_id"] == (
+            f"docs:account:{user.pk}:{request['correlation_id']}"
+        )
 
 
 class TestForeignAndMalformedRequests:
@@ -417,7 +481,21 @@ class TestForeignAndMalformedRequests:
         assert _RECEIPTS == []
 
     def test_request_without_a_subject_is_not_receipted(self):
-        emit("gdpr.erasure.requested", {"correlation_id": str(uuid.uuid4())})
+        """A payload this shape will never parse: dropped, not raised.
+
+        Driven through the handler rather than ``emit`` because the
+        registration puts core's payload schema on the action, so a request
+        missing ``subject_type`` is now refused at the emitter too — and the
+        thing worth pinning here is what the CONSUMER does with one that
+        arrives from a peer.
+        """
+        import types
+
+        _OWNER.handle_erasure_requested(
+            types.SimpleNamespace(
+                payload={"correlation_id": str(uuid.uuid4())}, event_id="evt-1"
+            )
+        )
 
         assert _RECEIPTS == []
 
@@ -445,13 +523,47 @@ class TestOwnerProbe:
         """Co-location is the contract, not a detail: gdpr's W006 reads
         these answers as evidence that the erasure path is consumed, so an
         answer from a module that does not also erase would make the check
-        lie."""
+        lie. Both handlers are the ones ``register_gdpr_owner`` built, so
+        the module they share is core's — one module, still."""
         from stapel_core.comm.registry import action_registry
 
         erasers = action_registry.handlers("gdpr.erasure.requested")
         answerers = action_registry.handlers("gdpr.owner.probe")
-        assert {h.__module__ for h in erasers} == {"stapel_docs.actions"}
-        assert {h.__module__ for h in answerers} == {"stapel_docs.actions"}
+        assert {h.__module__ for h in erasers} == {h.__module__ for h in answerers}
+        assert _OWNER.handle_erasure_requested in erasers
+        assert _OWNER.handle_owner_probe in answerers
+
+    def test_the_owner_is_registered_with_core_and_not_hand_written(self):
+        """``apps.ready()`` declares the owner; no copy of the protocol is
+        left in this package."""
+        from stapel_core.gdpr import registered_gdpr_owners
+
+        from stapel_docs import actions
+        from stapel_docs.erasure import OWNER, SUBJECT_TYPES, erase_subject
+
+        assert registered_gdpr_owners()[OWNER] == SUBJECT_TYPES
+        assert _OWNER.erase is erase_subject
+        for gone in ("handle_erasure_requested", "handle_owner_probe",
+                     "handle_user_deleted"):
+            assert not hasattr(actions, gone)
+
+    def test_boot_reports_no_double_answerer_and_no_stranded_section(self):
+        """``manage.py check`` is silent about this module's GDPR wiring.
+
+        ``gdpr.W012`` is what a library carrying its own copy of the
+        protocol beside a registered provider looks like, and ``gdpr.E011``
+        is a declared section nothing in the process can answer for.
+        """
+        from django.core.checks.registry import registry
+
+        checks = [
+            c for c in registry.get_checks()
+            if getattr(c, "__module__", "") == "stapel_core.gdpr.provider_bridge"
+        ]
+        # Two of them, registered by core's AppConfig: an empty list here
+        # would be a gate that runs nothing and passes.
+        assert len(checks) == 2
+        assert [m for check in checks for m in check(app_configs=None)] == []
 
     def test_claimed_subjects_match_the_erase_dispatch(self):
         from stapel_docs.erasure import SUBJECT_TYPES, erase

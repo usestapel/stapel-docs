@@ -4,6 +4,63 @@ All notable changes to stapel-docs are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.10.0] — 2026-09-18
+
+### Changed — the erasure protocol is core's; `erase` stays ours
+
+This module hand-wrote the data-owner side of the erasure protocol:
+`gdpr.erasure.requested`, `gdpr.owner.probe` and the deprecated
+`user.deleted`, sixty lines that nine libraries carried verbatim.
+`apps.ready()` now declares the owner instead:
+
+```python
+register_gdpr_owner("docs", SUBJECT_TYPES, erasure.erase_subject)
+```
+
+Core builds the same three handlers. The owner name (`docs`), the three
+subject types it claims and the rows each one anonymizes or destroys are
+unchanged; so are the receipt's `counts`. What stays here is `erasure.erase`
+and the new `erasure.erase_subject`, which answers `None` for a subject type
+this owner does not claim so an erasure gdpr opened no part for is never
+receipted.
+
+Why it matters beyond tidiness: a library that both registers a
+`GDPRProvider` and hand-writes the protocol made core's provider bridge
+stand down for the whole **app** rather than for the named **section** —
+`gdpr.W012`. A named registration makes that question exact, and one erasure
+leaves exactly one receipt per part. Two receipts assert the deletion
+happened twice, which is a false legal record rather than a duplicate log
+line.
+
+**Two things change on the wire**, both consequences of adopting the one
+implementation:
+
+* `receipt_id` is now `docs:<subject_type>:<subject_key>:<correlation_id>`
+  (it was `docs:<correlation_id>`) — the fleet's derived id, which
+  distinguishes two parts of one request instead of colliding them.
+* `user.deleted` **receipts** when the payload carries a `correlation_id`.
+  This path used to stay silent on purpose, on the grounds that the erasure
+  request fires alongside it and a second receipt is noise. Core emits the
+  same deterministic id for both, which is the shape a redelivery already
+  has, and the orchestrator keys a part by that id — so the two are one
+  record. A `user.deleted` without a `correlation_id` names no part and is
+  still silent.
+
+`erasure.erase_document` now raises `erasure.ErasureScopeConflict` (a
+`RuntimeError`) instead of `ValueError` when a request's `workspace_id`
+contradicts the document's row. The refusal is unchanged and deliberate —
+the part stays open and times out visibly — but core's handler reads a
+`ValueError` as "this key names nothing of mine" and returns quietly, which
+would have turned a loud refusal into a silent drop.
+
+`stapel_docs.actions` no longer exports `handle_erasure_requested`,
+`handle_owner_probe` or `handle_user_deleted`; reach them through the
+`GdprOwner` the registration returns. The test settings now install core's
+own app, which is what registers the provider bridge and its system checks.
+
+Floor moves to `stapel-core>=0.85.1`, the release whose provider bridge
+yields to a registered owner.
+
 ## [0.9.0] — 2026-09-17
 
 ### Fixed — this package shipped its own copy of core's gdpr schemas

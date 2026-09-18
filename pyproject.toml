@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-docs"
-version = "0.9.0"
+version = "0.10.0"
 description = "Documents: storage, revisions and per-type editors for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -48,7 +48,12 @@ dependencies = [
     # docs/errors.json (regenerated against the current core) needs the
     # floor to match or a consumer on an older core silently regenerates a
     # smaller artifact and the drift gate goes red again.
-    "stapel-core>=0.81.0,<1.0",
+    #
+    # 0.85.1: the data-owner side of the erasure protocol moved into core
+    # (`register_gdpr_owner`, called from apps.ready()), and 0.85.1 is where
+    # the provider bridge yields to it. An older core has no such symbol, so
+    # it is an ImportError at startup rather than a silent half-wiring.
+    "stapel-core>=0.85.1,<1.0",
 ]
 
 [project.urls]

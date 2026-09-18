@@ -47,6 +47,17 @@ OWNER = "docs"
 SUBJECT_TYPES = ("account", "workspace", "document")
 
 
+class ErasureScopeConflict(RuntimeError):
+    """An erasure request names a document and a workspace that disagree.
+
+    A ``RuntimeError`` and not a ``ValueError`` on purpose: the erasure
+    protocol's handler (``stapel_core.gdpr.owners``) swallows ``ValueError``
+    as "this key names nothing of mine" and returns without a receipt, and
+    this is the opposite — a pair nobody vouched for, which must reach the
+    caller rather than pass for an empty success.
+    """
+
+
 def erase(subject_type: str, subject_key, *, workspace_id=None) -> dict:
     """Erase everything docs owns about one subject; return what was removed.
 
@@ -116,7 +127,7 @@ def erase_document(document_id, *, workspace_id=None) -> dict:
         # nobody vouched for; receipting zeros would certify an erasure that
         # did not happen. Refuse loudly — the part stays open and times out,
         # which is exactly the visibility gdpr's timeout exists for.
-        raise ValueError(
+        raise ErasureScopeConflict(
             f"document {document_id} is not in workspace {workspace_id}"
         )
     if document is None:
@@ -218,10 +229,24 @@ def _purge_upload_sessions(queryset, counts: dict) -> int:
     return len(sessions)
 
 
+def erase_subject(subject_type: str, subject_key, workspace_id=None):
+    """``register_gdpr_owner`` entry point — the one callable core drives.
+
+    Returns ``None`` for a subject type this owner does not claim: gdpr
+    opened no part for it, so a receipt here would answer for somebody
+    else. Everything else is :func:`erase`, unchanged.
+    """
+    if subject_type not in SUBJECT_TYPES:
+        return None
+    return erase(subject_type, subject_key, workspace_id=workspace_id)
+
+
 __all__ = [
     "OWNER",
+    "ErasureScopeConflict",
     "SUBJECT_TYPES",
     "erase",
+    "erase_subject",
     "erase_account",
     "erase_document",
     "erase_workspace",
