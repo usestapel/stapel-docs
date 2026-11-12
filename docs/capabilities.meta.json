@@ -60,6 +60,11 @@
       "business_label": "Document sharing beyond the workspace",
       "summary": "Composite axis over STAPEL_DOCS['SHARING']: MODES (additional grant sources, subset of whitelist|link), RESOLVERS (subject-reference resolvers), LINK.ANONYMOUS, LINK.MAX_LEVEL and LINK.TTL_DAYS. Both grant sources are IMPLEMENTED since 0.6.0 and the axis still ships CLOSED (MODES=[], no anonymous links, view ceiling, 30-day TTL): a host opens it deliberately, one settings line, and configuring what this version does not sanction is a loud system-check error (stapel_docs.E010-E014), never a silent no-op.",
       "behavior": "Grant sources are additive and monotonic over the immutable workspace baseline: each is an independent sufficient reason, the composition is a union with the maximum level, so enabling a mode can only ever grant and disabling one can only ever inert its own rows (they are shown as suspended, never hidden). 'manage' is never grantable by any share source (anti-escalation invariant), an anonymous presenter never writes whatever level their link carries, and a link dies the moment its creator loses docs.share.link — checked live, with an outage answering 503 rather than a fabricated verdict."
+    },
+    "SHARING.LINK.MAX_LEVEL": {
+      "business_label": "Highest level a share link can carry",
+      "summary": "SHARING['LINK']['MAX_LEVEL'], projected from the composite SHARING axis: the ceiling of a minted link, view|edit. Ships 'view' (edit is refused at boot by stapel_docs.E013 in this version). A share dialog offers only levels up to it; a higher request answers 400 error.400.docs_share_level with max_level.",
+      "behavior": "Refused, never clamped: a link above the ceiling is a 400 naming the ceiling."
     }
   },
   "surface_roots": [

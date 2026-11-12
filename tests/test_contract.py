@@ -243,15 +243,16 @@ def _capabilities() -> dict:
 
 
 def test_capabilities_axes_inventory():
-    """One composite axis: the closed-by-default sharing axis.
+    """The composite sharing axis plus the one nested knob a client branches on.
 
     The emitter expresses axes as top-level DEFAULTS keys only, so the nested
     SHARING knobs (MODES / LINK.*) surface as ONE `SHARING` axis whose default
     is the closed dict — `kind` is the derived fallback "enum" (dict default),
     and the per-key story lives in the curated summary + checks.py E010-E013.
+    `SHARING.LINK.MAX_LEVEL` is projected beside it (see _capabilities.py).
     """
     doc = _capabilities()
-    assert {a["key"] for a in doc["axes"]} == {"SHARING"}
+    assert [a["key"] for a in doc["axes"]] == ["SHARING", "SHARING.LINK.MAX_LEVEL"]
     axis = doc["axes"][0]
     assert axis["kind"] == "enum"
     assert axis["group"] == "docs.sharing"
@@ -260,6 +261,22 @@ def test_capabilities_axes_inventory():
     assert axis["default"]["MODES"] == []
     assert axis["default"]["LINK"]["ANONYMOUS"] is False
     assert axis["default"]["LINK"]["MAX_LEVEL"] == "view"
+
+
+def test_capabilities_expose_the_link_ceiling_as_its_own_axis():
+    """A share dialog must know which levels a link may carry without parsing
+    the composite SHARING dict; the value is read from conf, not retyped."""
+    from stapel_docs.conf import DEFAULT_SHARING
+
+    axis = next(
+        a for a in _capabilities()["axes"] if a["key"] == "SHARING.LINK.MAX_LEVEL"
+    )
+    assert axis["default"] == DEFAULT_SHARING["LINK"]["MAX_LEVEL"] == "view"
+    assert axis["kind"] == "enum"
+    assert axis["group"] == "docs.sharing"
+    assert "docs_share_level" in axis["curated"]["summary"]
+    composite = next(a for a in _capabilities()["axes"] if a["key"] == "SHARING")
+    assert composite["default"]["LINK"]["MAX_LEVEL"] == axis["default"]
 
 
 def test_capabilities_sharing_axis_is_behavioral():
@@ -314,10 +331,12 @@ def test_capabilities_envelope():
 
 def test_capabilities_meta_out_of_sync_fails_loudly():
     """A curated-layer gap must be an emission ERROR, never a silent skip."""
-    from stapel_tools.capabilities import axis_group_rules, build_capabilities
+    from stapel_tools.capabilities import build_capabilities
 
-    from stapel_docs.conf import DEFAULTS
+    from stapel_docs._capabilities import axis_config
     from stapel_docs.urls_v1 import GATE_REGISTRY
+
+    defaults, is_axis, axis_group = axis_config()
 
     schema = json.loads((DOCS / "schema.json").read_text())
     meta = json.loads((DOCS / "capabilities.meta.json").read_text())
@@ -326,12 +345,12 @@ def test_capabilities_meta_out_of_sync_fails_loudly():
         return build_capabilities(
             module="stapel-docs",
             version="0.0.0",
-            defaults=DEFAULTS,
+            defaults=defaults,
             registry=GATE_REGISTRY,
             schema=schema,
             meta=broken_meta,
-            is_axis=lambda k: k == "SHARING",
-            axis_group=axis_group_rules(exact={"SHARING": "docs.sharing"}),
+            is_axis=is_axis,
+            axis_group=axis_group,
             canonical_prefix="/docs/api/v1",
         )
 

@@ -2,13 +2,15 @@
 
 Google-Drive-style workspace documents: a folder tree, one-entity-per-type documents over an open type registry, content-addressed snapshot storage with an update journal and revision history, optimistic-lock editing (v1), trash with irreversible purge, a swappable object-storage seam, comm ingest (docs.create_document) and registry-driven export (PDF built in).
 
-Contract: axes 1 · surface 93 · extension points 7 · operations 49 · error codes 95.
+Contract: axes 2 · surface 93 · extension points 7 · operations 49 · error codes 95.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
 Settings keys; `default` is what you get by saying nothing. Turning an axis off unmounts the operations it gates.
 - SHARING [enum, default {"MODES": [], "RESOLVERS": {}, "LINK": {"ANONYMOUS": false, "MAX_LEVEL": "view", "TTL_DAYS": 30}}] — Document sharing beyond the workspace
   Composite axis over STAPEL_DOCS['SHARING']: MODES (additional grant sources, subset of whitelist|link), RESOLVERS (subject-reference resolvers), LINK.ANONYMOUS, LINK.MAX_LEVEL and LINK.TTL_DAYS. Both grant sources are IMPLEMENTED since 0.6.0 and the axis still ships CLOSED (MODES=[], no anonymous links, view ceiling, 30-day TTL): a host opens it deliberately, one settings line, and configuring what this version does not sanction is a loud system-check error (stapel_docs.E010-E014), never a silent no-op.
+- SHARING.LINK.MAX_LEVEL [enum, default "view"] — Highest level a share link can carry
+  SHARING['LINK']['MAX_LEVEL'], projected from the composite SHARING axis: the ceiling of a minted link, view|edit. Ships 'view' (edit is refused at boot by stapel_docs.E013 in this version). A share dialog offers only levels up to it; a higher request answers 400 error.400.docs_share_level with max_level.
 
 ## Usage surface — call these before writing your own
 This is the answer to "does Stapel already have something for X?". `instead of` names the outside symbol this one displaces.

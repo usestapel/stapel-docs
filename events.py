@@ -51,9 +51,13 @@ def emit_document_deleted(document) -> None:
 
 
 def emit_storage_changed(workspace_id, delta_bytes: int) -> None:
-    """Docs keeps its own byte accounting and announces deltas; whether
-    ``Workspace.storage_used_bytes`` follows is the host's subscriber
-    decision (design §4 — docs never writes another module's model)."""
+    """Docs keeps its own byte accounting and announces deltas (design §4 —
+    docs never writes another module's model). A delta is exact where an
+    absolute total read inside this transaction is not (two concurrent saves
+    in one workspace would each miss the other's bytes); a consumer keeping a
+    counter dedupes redeliveries by the envelope's ``event_id`` and
+    reconciles against ``docs.usage``. stapel-workspaces does both for
+    ``Workspace.storage_used_bytes``."""
     emit(
         "document.storage_changed",
         {"workspace_id": str(workspace_id), "delta_bytes": int(delta_bytes)},

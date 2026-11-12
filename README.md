@@ -27,7 +27,7 @@ pip install stapel-docs
 | Version | `0.10.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13) |
 | HTTP operations | 49 |
-| Config axes | 1 |
+| Config axes | 2 |
 | Usage surface | 93 |
 | Extension points | 7 |
 | Error codes | 95 |

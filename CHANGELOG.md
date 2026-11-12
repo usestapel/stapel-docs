@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased] — proposed 0.10.1
+
+### Added — `SHARING.LINK.MAX_LEVEL` is its own capabilities axis
+
+`docs/capabilities.json` exposed the sharing configuration as one composite
+`SHARING` axis, so the link ceiling — the value a share dialog needs to know
+which levels it may offer — was only discoverable by parsing that dict. It is
+now projected additively as the axis `SHARING.LINK.MAX_LEVEL` (kind `enum`,
+default `view`, group `docs.sharing`), read from the same `DEFAULTS` literal;
+the composite axis is unchanged. `_capabilities.axis_config()` is the single
+axis rule the emitter and its tests share. Note: capabilities.json states the
+shipped default, not a deployment's value. Test:
+`tests/test_contract.py::test_capabilities_expose_the_link_ceiling_as_its_own_axis`.
+
+`document.storage_changed` is unchanged; its docstring now names the
+consumer contract (dedupe by envelope `event_id`, reconcile against
+`docs.usage`), which stapel-workspaces implements.
+
 All notable changes to stapel-docs are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
