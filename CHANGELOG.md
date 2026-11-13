@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — proposed 0.10.1
+## [0.10.1] — 2026-11-13
 
 ### Added — `SHARING.LINK.MAX_LEVEL` is its own capabilities axis
 
