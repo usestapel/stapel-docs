@@ -86,6 +86,13 @@ class TrashPurgeResultSerializer(StapelDataclassSerializer):
         dataclass = TrashPurgeResultDTO
 
 
+class WorkspaceListingSerializer(serializers.Serializer):
+    """A workspace-wide listing (starred, trash): folders and documents."""
+
+    folders = FolderSerializer(many=True)
+    documents = DocumentSerializer(many=True)
+
+
 class SearchHitSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SearchHitDTO

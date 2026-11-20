@@ -24,13 +24,13 @@ pip install stapel-docs
 
 | Fact | Value |
 |---|---|
-| Version | `0.10.1` |
+| Version | `0.10.2` |
 | Python | `>=3.11` (3.11, 3.12, 3.13) |
 | HTTP operations | 49 |
 | Config axes | 2 |
 | Usage surface | 93 |
 | Extension points | 7 |
-| Error codes | 95 |
+| Error codes | 96 |
 | Fleet dependencies | [`stapel-auth`](https://github.com/usestapel/stapel-auth) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) · [`stapel-workspaces`](https://github.com/usestapel/stapel-workspaces) (optional) |
 
 ## Documentation

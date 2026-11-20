@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-docs"
-version = "0.10.1"
+version = "0.10.2"
 description = "Documents: storage, revisions and per-type editors for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -53,7 +53,7 @@ dependencies = [
     # (`register_gdpr_owner`, called from apps.ready()), and 0.85.1 is where
     # the provider bridge yields to it. An older core has no such symbol, so
     # it is an ImportError at startup rather than a silent half-wiring.
-    "stapel-core>=0.85.1,<1.0",
+    "stapel-core>=0.99.3,<1.0",
 ]
 
 [project.urls]

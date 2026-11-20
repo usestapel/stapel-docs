@@ -562,7 +562,15 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -592,7 +600,26 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
           }
         }
       },
@@ -702,7 +729,15 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -1096,7 +1131,26 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -1285,7 +1339,15 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -1991,7 +2053,15 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -2020,7 +2090,26 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -2085,7 +2174,14 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceListing"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -2114,7 +2210,14 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceListing"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -3116,6 +3219,28 @@
           "key",
           "put_url",
           "upload_id"
+        ]
+      },
+      "WorkspaceListing": {
+        "type": "object",
+        "description": "A workspace-wide listing (starred, trash): folders and documents.",
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderPresenterDTO"
+            }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentPresenterDTO"
+            }
+          }
+        },
+        "required": [
+          "documents",
+          "folders"
         ]
       }
     },

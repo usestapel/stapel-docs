@@ -79,7 +79,7 @@ CANONICAL_PREFIX = "/docs/api/v1/"
 # already take: raise the ceiling for this module, do not shorten intents to
 # fit. Must match the Makefile — if they drift, the gate starts measuring the
 # wrong number.
-ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
+ARTIFACTS = TRIAD + ("schema.v2.json", "capabilities.json", "llms.txt")
 LLMS_TXT_BUDGET = "9500"
 
 

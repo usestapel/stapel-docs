@@ -18,6 +18,7 @@ import uuid as uuid_module
 
 from django.core.signing import BadSignature, SignatureExpired
 from django.http import HttpResponse
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers as drf_serializers
 from rest_framework.negotiation import DefaultContentNegotiation
@@ -82,7 +83,7 @@ from .presenters import (
     present_updates_feed,
     present_upload_ticket,
 )
-from .thumbnails import THUMBNAIL_TIERS
+from .thumbnails import THUMBNAIL_MIME, THUMBNAIL_TIERS
 from .serializers import (
     AccessGrantSerializer,
     AppendResultSerializer,
@@ -109,6 +110,7 @@ from .serializers import (
     ThumbnailQuerySerializer,
     TrashEmptySerializer,
     TrashPurgeResultSerializer,
+    WorkspaceListingSerializer,
     UpdatesAppendSerializer,
     UpdatesFeedSerializer,
     UploadCreateSerializer,
@@ -234,6 +236,15 @@ def _parse_byte_range(header, size: int):
     if start >= size:
         return "unsatisfiable"
     return start, min(end, size - 1)
+
+
+#: A body served as bytes whose media type varies per document.
+_BYTES = {(200, "application/octet-stream"): OpenApiTypes.BINARY}
+#: The same body from :func:`_content_stream_response`: 206 answers a Range.
+_RANGED_BYTES = {
+    (200, "application/octet-stream"): OpenApiTypes.BINARY,
+    (206, "application/octet-stream"): OpenApiTypes.BINARY,
+}
 
 
 def _content_stream_response(request, body: bytes, mime: str) -> HttpResponse:
@@ -597,7 +608,7 @@ class DocumentContentView(SerializerSeamMixin, APIView):
     parser_classes = [RawBodyParser]
     response_serializer_class = SaveResultSerializer
 
-    @extend_schema(responses={200: None})
+    @extend_schema(responses=_RANGED_BYTES)
     @_maps_docs_errors
     def get(self, request, document_id):
         document = services.get_live_document(document_id)
@@ -670,7 +681,7 @@ class DocumentExportView(SerializerSeamMixin, APIView):
         parameters=[
             OpenApiParameter(name="format", type=str, location=OpenApiParameter.QUERY, required=True),
         ],
-        responses={200: None},
+        responses=_BYTES,
     )
     @_maps_docs_errors
     def get(self, request, document_id):
@@ -814,7 +825,7 @@ class RevisionContentView(SerializerSeamMixin, APIView):
 
     permission_classes = [IsNotAnonymousUser]
 
-    @extend_schema(responses={200: None})
+    @extend_schema(responses=_RANGED_BYTES)
     @_maps_docs_errors
     def get(self, request, document_id, revision_id):
         document = services.get_live_document(document_id)
@@ -953,7 +964,7 @@ class StarredView(SerializerSeamMixin, APIView):
 
     permission_classes = [IsNotAnonymousUser]
 
-    @extend_schema(parameters=[_WORKSPACE_PARAM], responses={200: None})
+    @extend_schema(parameters=[_WORKSPACE_PARAM], responses={200: WorkspaceListingSerializer})
     @_maps_docs_errors
     def get(self, request):
         query = WorkspaceQuerySerializer(data=request.query_params)
@@ -1067,7 +1078,7 @@ class DocumentThumbnailView(SerializerSeamMixin, APIView):
                 description="Longest-edge pixel tier; the ladder is fixed (160, 480).",
             )
         ],
-        responses={200: None},
+        responses={(200, THUMBNAIL_MIME): OpenApiTypes.BINARY},
     )
     @_maps_docs_errors
     def get(self, request, document_id):
@@ -1157,7 +1168,7 @@ class DocumentArchiveEntryView(SerializerSeamMixin, APIView):
                 description="Member path inside the archive, exactly as listed.",
             )
         ],
-        responses={200: None},
+        responses=_BYTES,
     )
     @_maps_docs_errors
     def get(self, request, document_id):
@@ -1184,7 +1195,7 @@ class TrashView(SerializerSeamMixin, APIView):
 
     permission_classes = [IsNotAnonymousUser]
 
-    @extend_schema(parameters=[_WORKSPACE_PARAM], responses={200: None})
+    @extend_schema(parameters=[_WORKSPACE_PARAM], responses={200: WorkspaceListingSerializer})
     @_maps_docs_errors
     def get(self, request):
         query = WorkspaceQuerySerializer(data=request.query_params)
@@ -1646,7 +1657,7 @@ class SharedContentView(_BearerViewBase):
     there is no PUT here, and an anonymous presenter could not write through
     one anyway (axis §6)."""
 
-    @extend_schema(responses={200: None})
+    @extend_schema(responses=_RANGED_BYTES)
     @_maps_docs_errors
     def get(self, request, token):
         resolved, denied = self._resolve(request, token)
@@ -1712,7 +1723,7 @@ class SharedArchiveEntryView(_BearerViewBase):
                 name="path", type=str, location=OpenApiParameter.QUERY, required=True,
             )
         ],
-        responses={200: None},
+        responses=_BYTES,
     )
     @_maps_docs_errors
     def get(self, request, token):

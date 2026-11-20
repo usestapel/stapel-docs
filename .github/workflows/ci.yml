@@ -43,7 +43,11 @@ jobs:
         # parsed and not printed. Without it those assertions skip, and a
         # skipped assertion is how the verbatim-md defect survived a green
         # suite in the first place.
-        run: pip install pytest pytest-django pytest-cov pytest-asyncio pypdf "stapel-tools>=0.26.0" "stapel-realtime[testing]>=0.1.2"
+        run: pip install pytest pytest-django pytest-cov pytest-asyncio pypdf "stapel-tools>=0.84.0,<1" "stapel-realtime[testing]>=0.1.2"
+
+      - name: Contract drift (make contract-check, emitted on 3.12)
+        if: matrix.python-version == '3.12'
+        run: make contract-check PYTHON=python
 
       - name: Tests with coverage
         run: |
@@ -112,7 +116,7 @@ jobs:
         # parsed and not printed. Without it those assertions skip, and a
         # skipped assertion is how the verbatim-md defect survived a green
         # suite in the first place.
-        run: pip install pytest pytest-django pytest-cov pytest-asyncio pypdf "stapel-tools>=0.26.0" "stapel-realtime[testing]>=0.1.2"
+        run: pip install pytest pytest-django pytest-cov pytest-asyncio pypdf "stapel-tools>=0.84.0,<1" "stapel-realtime[testing]>=0.1.2"
 
       - name: Tests with coverage
         run: |

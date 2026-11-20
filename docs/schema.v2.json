@@ -1,0 +1,5802 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "",
+    "version": "0.0.0",
+    "x-stapel-contract": 2
+  },
+  "paths": {
+    "/docs/api/v1/documents": {
+      "get": {
+        "operationId": "docs_api_v1_documents_list",
+        "description": "List live documents of a workspace (pending uploads excluded), or\ncreate one (unknown type -> 400; absent body -> the type's empty body).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "folder_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive title substring."
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                        "folder_id": null,
+                        "type": "md",
+                        "title": "Notes",
+                        "head_seq": 3,
+                        "snapshot_seq": 3,
+                        "size_bytes": 42,
+                        "mime_type": "",
+                        "metadata": {},
+                        "editor_hint": "markdown",
+                        "collab": "snapshot",
+                        "diffable": true,
+                        "socket_path": null,
+                        "created_at": "2026-08-09T10:00:00+00:00",
+                        "updated_at": "2026-08-09T10:05:00+00:00",
+                        "deleted_at": null,
+                        "is_starred": false
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_create",
+        "description": "List live documents of a workspace (pending uploads excluded), or\ncreate one (unknown type -> 400; absent body -> the type's empty body).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "tags": [
+          "Docs / documents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "socket_path": null,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null,
+                      "is_starred": false
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_folder_depth",
+              "error.400.docs_invalid_crdt_payload",
+              "error.400.docs_type_not_editable",
+              "error.400.docs_unknown_type"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_folder_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_body_too_large"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Insufficient Storage",
+            "x-stapel-errors": [
+              "error.507.docs_workspace_quota"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}": {
+      "get": {
+        "operationId": "docs_api_v1_documents_retrieve",
+        "description": "Fetch the envelope, patch (title/metadata=edit, folder move=manage)\nor trash a document.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "socket_path": null,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null,
+                      "is_starred": false
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "patch": {
+        "operationId": "docs_api_v1_documents_partial_update",
+        "description": "Fetch the envelope, patch (title/metadata=edit, folder move=manage)\nor trash a document.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedDocumentPatch"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedDocumentPatch"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedDocumentPatch"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "socket_path": null,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null,
+                      "is_starred": false
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.docs_folder_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "delete": {
+        "operationId": "docs_api_v1_documents_destroy",
+        "description": "Fetch the envelope, patch (title/metadata=edit, folder move=manage)\nor trash a document.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/access": {
+      "get": {
+        "operationId": "docs_api_v1_documents_access_list",
+        "description": "The whitelist half of the share sheet: who has access, and grant one.\n\nBoth methods are gated on ``docs.share.whitelist`` — the sheet lists\nother people, so seeing it is itself a sharing-administration act, not\na document read.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentAccessPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "DocumentAccessPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "1aa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "subject_kind": "user",
+                        "subject": "7bb85f64-5717-4562-b3fc-2c963f66af11",
+                        "level": "view",
+                        "granted_by": null,
+                        "suspended": false,
+                        "created_at": "2026-09-02T10:00:00+00:00"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_access_create",
+        "description": "The whitelist half of the share sheet: who has access, and grant one.\n\nBoth methods are gated on ``docs.share.whitelist`` — the sheet lists\nother people, so seeing it is itself a sharing-administration act, not\na document read.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessGrant"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessGrant"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessGrant"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentAccessPresenterDTO"
+                },
+                "examples": {
+                  "DocumentAccessPresenterDTO": {
+                    "value": {
+                      "id": "1aa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "subject_kind": "user",
+                      "subject": "7bb85f64-5717-4562-b3fc-2c963f66af11",
+                      "level": "view",
+                      "granted_by": null,
+                      "suspended": false,
+                      "created_at": "2026-09-02T10:00:00+00:00"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_share_level",
+              "error.400.docs_share_mode_disabled",
+              "error.400.docs_share_ref_kind",
+              "error.400.docs_share_subject"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/access/{access_id}": {
+      "delete": {
+        "operationId": "docs_api_v1_documents_access_destroy",
+        "description": "Revoke one whitelist grant.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "access_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_access_not_found",
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/archive": {
+      "get": {
+        "operationId": "docs_api_v1_documents_archive_retrieve",
+        "description": "List a zip document's entries like a folder.\n\nThe central directory is read through ranged storage reads — the\narchive is never downloaded whole to answer a listing. Complete or\nrefused (413), never truncated.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / archive"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveListingDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_archive_too_many_entries",
+              "error.413.docs_archive_total_too_large"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/archive/entry": {
+      "get": {
+        "operationId": "docs_api_v1_documents_archive_entry_retrieve",
+        "description": "One member of a zip document, extracted server-side under the\narchive ceilings. ``?path=`` names the member; the optional\n``X-Docs-Archive-Password`` header unlocks ZipCrypto members.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Member path inside the archive, exactly as listed.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / archive"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.bad_request",
+              "error.400.docs_archive_encryption_unsupported",
+              "error.400.docs_archive_malformed",
+              "error.400.docs_archive_password_required",
+              "error.400.docs_archive_password_wrong"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_archive_entry_not_found",
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_archive_entry_too_large",
+              "error.413.docs_archive_ratio"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/content": {
+      "get": {
+        "operationId": "docs_api_v1_documents_content_retrieve",
+        "description": "The versioning heart: GET raw body bytes / PUT a whole-state save\nunder optimistic lock (If-Match carries the client's head_seq).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "put": {
+        "operationId": "docs_api_v1_documents_content_update",
+        "description": "The versioning heart: GET raw body bytes / PUT a whole-state save\nunder optimistic lock (If-Match carries the client's head_seq).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_invalid_crdt_payload",
+              "error.400.docs_type_not_editable"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Conflict",
+            "x-stapel-errors": [
+              "error.409.docs_seq_conflict"
+            ]
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Precondition Failed",
+            "x-stapel-errors": [
+              "error.412.docs_missing_if_match"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_body_too_large"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Insufficient Storage",
+            "x-stapel-errors": [
+              "error.507.docs_workspace_quota"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/download": {
+      "get": {
+        "operationId": "docs_api_v1_documents_download_retrieve",
+        "description": "Presigned GET URL for the current body — opaque, never assume shape.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadUrlDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_download_url_unavailable",
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/export": {
+      "get": {
+        "operationId": "docs_api_v1_documents_export_retrieve",
+        "description": "Render the body through the exporter registry (?format=pdf).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_export_format",
+              "error.400.docs_type_not_editable"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_export_too_large"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_exporter_unavailable",
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/links": {
+      "get": {
+        "operationId": "docs_api_v1_documents_links_list",
+        "description": "The bearer-link half of the share sheet: list links, mint one.\n\nThe listing carries live tokens (a sheet that cannot re-show the link it\nminted makes people mint a second one), which is precisely why GET is\ngated on ``docs.share.link`` and not on document view.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentLinkPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "DocumentLinkPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "4cc85f64-5717-4562-b3fc-2c963f66afa6",
+                        "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "token": "0xk3…",
+                        "level": "view",
+                        "status": "active",
+                        "expires_at": "2026-10-02T10:00:00+00:00",
+                        "revoked_at": null,
+                        "first_redeemed_at": null,
+                        "created_by": null,
+                        "suspended": false,
+                        "created_at": "2026-09-02T10:00:00+00:00"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_links_create",
+        "description": "The bearer-link half of the share sheet: list links, mint one.\n\nThe listing carries live tokens (a sheet that cannot re-show the link it\nminted makes people mint a second one), which is precisely why GET is\ngated on ``docs.share.link`` and not on document view.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreate"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentLinkPresenterDTO"
+                },
+                "examples": {
+                  "DocumentLinkPresenterDTO": {
+                    "value": {
+                      "id": "4cc85f64-5717-4562-b3fc-2c963f66afa6",
+                      "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "token": "0xk3…",
+                      "level": "view",
+                      "status": "active",
+                      "expires_at": "2026-10-02T10:00:00+00:00",
+                      "revoked_at": null,
+                      "first_redeemed_at": null,
+                      "created_by": null,
+                      "suspended": false,
+                      "created_at": "2026-09-02T10:00:00+00:00"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_share_level",
+              "error.400.docs_share_mode_disabled"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/links/{link_id}": {
+      "delete": {
+        "operationId": "docs_api_v1_documents_links_destroy",
+        "description": "Revoke one bearer link (terminal — a revoked link never revives).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "link_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.docs_link_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/restore": {
+      "post": {
+        "operationId": "docs_api_v1_documents_restore_create",
+        "description": "Untrash a document (re-announced via document.created).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / documents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "socket_path": null,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null,
+                      "is_starred": false
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/revisions": {
+      "get": {
+        "operationId": "docs_api_v1_documents_revisions_list",
+        "description": "List the version history / name the current head snapshot.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RevisionPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "RevisionPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "9aa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "seq": 3,
+                        "kind": "named",
+                        "name": "Before rewrite",
+                        "size_bytes": 42,
+                        "created_by": null,
+                        "created_at": "2026-08-09T10:05:00+00:00"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_revisions_create",
+        "description": "List the version history / name the current head snapshot.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedRevision"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedRevision"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedRevision"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionPresenterDTO"
+                },
+                "examples": {
+                  "RevisionPresenterDTO": {
+                    "value": {
+                      "id": "9aa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "document_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "seq": 3,
+                      "kind": "named",
+                      "name": "Before rewrite",
+                      "size_bytes": 42,
+                      "created_by": null,
+                      "created_at": "2026-08-09T10:05:00+00:00"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.bad_request"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/revisions/{revision_id}/content": {
+      "get": {
+        "operationId": "docs_api_v1_documents_revisions_content_retrieve",
+        "description": "The revision's full bytes — a self-contained snapshot (I1).\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "revision_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.docs_revision_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/revisions/{revision_id}/download": {
+      "get": {
+        "operationId": "docs_api_v1_documents_revisions_download_retrieve",
+        "description": "Presigned GET URL for a revision's snapshot.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "revision_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadUrlDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.docs_revision_not_found",
+              "error.404.not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_download_url_unavailable",
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/revisions/{revision_id}/restore": {
+      "post": {
+        "operationId": "docs_api_v1_documents_revisions_restore_create",
+        "description": "Restore-as-new-head: history is never rewritten.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "revision_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / revisions"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_invalid_crdt_payload",
+              "error.400.docs_type_not_editable"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.docs_revision_not_found"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Conflict",
+            "x-stapel-errors": [
+              "error.409.docs_seq_conflict"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_body_too_large"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Insufficient Storage",
+            "x-stapel-errors": [
+              "error.507.docs_workspace_quota"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/star": {
+      "post": {
+        "operationId": "docs_api_v1_documents_star_create",
+        "description": "Star or unstar one document for the requesting user.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "delete": {
+        "operationId": "docs_api_v1_documents_star_destroy",
+        "description": "Star or unstar one document for the requesting user.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/thumbnail": {
+      "get": {
+        "operationId": "docs_api_v1_documents_thumbnail_retrieve",
+        "description": "Serve a cached image thumbnail of a ``type=file`` image document.\n\nSame authorization and the same storage seam as the content endpoint —\na preview is the document, smaller. Missing Pillow answers 503 (the\nExporterUnavailable convention: a frontend falls back to a type icon);\na non-image, a non-file or an unknown tier answers 400.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "tier",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Longest-edge pixel tier; the ladder is fixed (160, 480).",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / content"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_thumbnail_tier",
+              "error.400.docs_thumbnail_unsupported"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_thumbnails_unavailable",
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/documents/{document_id}/updates": {
+      "get": {
+        "operationId": "docs_api_v1_documents_updates_retrieve",
+        "description": "Append opaque commutative updates (crdt types only) / replay the\njournal from ``?since=`` with chat-pattern resync semantics.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Docs / updates"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatesFeedDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_bad_since"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_documents_updates_create",
+        "description": "Append opaque commutative updates (crdt types only) / replay the\njournal from ``?since=`` with chat-pattern resync semantics.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / updates"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatesAppend"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatesAppend"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatesAppend"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppendResultDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_invalid_crdt_payload",
+              "error.400.docs_too_many_updates",
+              "error.400.docs_updates_not_crdt"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_update_too_large"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/folders": {
+      "get": {
+        "operationId": "docs_api_v1_folders_list",
+        "description": "List live folders of a workspace, or create one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "parent_id",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to children of this folder; pass empty for workspace roots. Absent = the whole tree."
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FolderPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                        "parent_id": null,
+                        "name": "Meetings",
+                        "created_at": "2026-08-09T10:00:00+00:00",
+                        "updated_at": "2026-08-09T10:00:00+00:00",
+                        "deleted_at": null,
+                        "is_starred": false
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "post": {
+        "operationId": "docs_api_v1_folders_create",
+        "description": "List live folders of a workspace, or create one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "tags": [
+          "Docs / folders"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPresenterDTO"
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "parent_id": null,
+                      "name": "Meetings",
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:00:00+00:00",
+                      "deleted_at": null,
+                      "is_starred": false
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_duplicate_name",
+              "error.400.docs_folder_depth"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_folder_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/folders/{folder_id}": {
+      "get": {
+        "operationId": "docs_api_v1_folders_retrieve",
+        "description": "Fetch, rename/move (rename=edit, move=manage) or trash a folder.\nTrashing soft-deletes the whole live subtree, documents included.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPresenterDTO"
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "parent_id": null,
+                      "name": "Meetings",
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:00:00+00:00",
+                      "deleted_at": null,
+                      "is_starred": false
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_folder_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "patch": {
+        "operationId": "docs_api_v1_folders_partial_update",
+        "description": "Fetch, rename/move (rename=edit, move=manage) or trash a folder.\nTrashing soft-deletes the whole live subtree, documents included.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedFolderPatch"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedFolderPatch"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedFolderPatch"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPresenterDTO"
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "parent_id": null,
+                      "name": "Meetings",
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:00:00+00:00",
+                      "deleted_at": null,
+                      "is_starred": false
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_duplicate_name",
+              "error.400.docs_folder_cycle",
+              "error.400.docs_folder_depth"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_folder_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "delete": {
+        "operationId": "docs_api_v1_folders_destroy",
+        "description": "Fetch, rename/move (rename=edit, move=manage) or trash a folder.\nTrashing soft-deletes the whole live subtree, documents included.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_folder_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/folders/{folder_id}/restore": {
+      "post": {
+        "operationId": "docs_api_v1_folders_restore_create",
+        "description": "Untrash a folder subtree.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / folders"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPresenterDTO"
+                },
+                "examples": {
+                  "FolderPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "parent_id": null,
+                      "name": "Meetings",
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:00:00+00:00",
+                      "deleted_at": null,
+                      "is_starred": false
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_folder_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/folders/{folder_id}/star": {
+      "post": {
+        "operationId": "docs_api_v1_folders_star_create",
+        "description": "Star or unstar one folder for the requesting user.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_folder_not_found",
+              "error.404.not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      },
+      "delete": {
+        "operationId": "docs_api_v1_folders_star_destroy",
+        "description": "Star or unstar one folder for the requesting user.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_folder_not_found",
+              "error.404.not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/recents": {
+      "get": {
+        "operationId": "docs_api_v1_recents_list",
+        "description": "Documents the requesting user reached most recently (newest first).\n\nWritten by the service layer on content read, download-URL issuance and\naccepted save — never by this endpoint, which only reads.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / recents"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                        "folder_id": null,
+                        "type": "md",
+                        "title": "Notes",
+                        "head_seq": 3,
+                        "snapshot_seq": 3,
+                        "size_bytes": 42,
+                        "mime_type": "",
+                        "metadata": {},
+                        "editor_hint": "markdown",
+                        "collab": "snapshot",
+                        "diffable": true,
+                        "socket_path": null,
+                        "created_at": "2026-08-09T10:00:00+00:00",
+                        "updated_at": "2026-08-09T10:05:00+00:00",
+                        "deleted_at": null,
+                        "is_starred": false
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/search": {
+      "get": {
+        "operationId": "docs_api_v1_search_list",
+        "description": "Workspace-scoped name search over live folders and documents.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Ceiling on returned hits (default SEARCH_MAX_RESULTS)."
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive substring of a folder name or document title. Mandatory: an absent query is a 400, never the whole workspace.",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / search"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchHitDTO"
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/shared/{token}": {
+      "get": {
+        "operationId": "docs_api_v1_shared_retrieve",
+        "description": "The bearer's view of a document — stripped (axis §6).\n\nTitle, type and shape; no tree, no workspace, no owner, no revisions. A\nlink grants a document, not a seat, and history is withheld besides:\nan old revision can hold text that was deleted on purpose since.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedDocumentDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "x-stapel-errors": [
+              "error.401.docs_share_auth_required"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/shared/{token}/archive": {
+      "get": {
+        "operationId": "docs_api_v1_shared_archive_retrieve",
+        "description": "The bearer's browse of a shared zip — same listing, same caps.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveListingDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "x-stapel-errors": [
+              "error.401.docs_share_auth_required"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_archive_too_many_entries",
+              "error.413.docs_archive_total_too_large"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/shared/{token}/archive/entry": {
+      "get": {
+        "operationId": "docs_api_v1_shared_archive_entry_retrieve",
+        "description": "One member of a shared zip for the bearer — the extraction path and\nevery ceiling are identical to the member endpoint (axis §6: a link\ngrants the document's viewers, never a wider byte budget).",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.bad_request",
+              "error.400.docs_archive_encryption_unsupported",
+              "error.400.docs_archive_malformed",
+              "error.400.docs_archive_password_required",
+              "error.400.docs_archive_password_wrong"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "x-stapel-errors": [
+              "error.401.docs_share_auth_required"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_archive_entry_not_found",
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_archive_entry_too_large",
+              "error.413.docs_archive_ratio"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/shared/{token}/content": {
+      "get": {
+        "operationId": "docs_api_v1_shared_content_retrieve",
+        "description": "The bearer's read of the current body. Read-only by construction:\nthere is no PUT here, and an anonymous presenter could not write through\none anyway (axis §6).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "x-stapel-errors": [
+              "error.401.docs_share_auth_required"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/shared/{token}/download": {
+      "get": {
+        "operationId": "docs_api_v1_shared_download_retrieve",
+        "description": "Presigned GET URL for the bearer's copy of the current body.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / sharing"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadUrlDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Unauthorized",
+            "x-stapel-errors": [
+              "error.401.docs_share_auth_required"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.not_found"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_download_url_unavailable",
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/starred": {
+      "get": {
+        "operationId": "docs_api_v1_starred_retrieve",
+        "description": "Everything the requesting user starred in one workspace.\n\nLive rows only. A trashed item drops out of the listing but keeps its\nstar until purge, so restoring it brings the bookmark back.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / starred"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceListing"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/trash": {
+      "get": {
+        "operationId": "docs_api_v1_trash_retrieve",
+        "description": "Everything soft-deleted in the workspace.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / trash"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceListing"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/trash/empty": {
+      "post": {
+        "operationId": "docs_api_v1_trash_empty_create",
+        "description": "Irreversibly purge listed trashed items — or the whole trash.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "tags": [
+          "Docs / trash"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashEmpty"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashEmpty"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashEmpty"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashPurgeResultDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_not_trashed"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/uploads": {
+      "post": {
+        "operationId": "docs_api_v1_uploads_create",
+        "description": "Open a presigned direct-to-storage upload (type=file). The document\nrow exists immediately but stays hidden from listings until finalize.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "tags": [
+          "Docs / uploads"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadTicketDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_too_many_uploads",
+              "error.400.docs_upload_mime"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_folder_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_upload_too_large"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Insufficient Storage",
+            "x-stapel-errors": [
+              "error.507.docs_workspace_quota"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/uploads/{upload_id}/content": {
+      "put": {
+        "operationId": "docs_api_v1_uploads_content_update",
+        "description": "Module-intake PUT of the upload body — the direct-to-storage leg for\nbackends that cannot accept one (``accepts_direct_put`` False).\n\nAllowAny on purpose, and no authenticators at all: the SIGNATURE is the\nauth, exactly like the S3 presigned URL this endpoint stands in for —\nthe client contract (drive-react) is a URL it PUTs raw bytes to with no\nAuthorization header attached. A leaked URL is bounded the same way a\nleaked presigned URL is: by the ticket's TTL and its single pending\nsession — the signature opens exactly one intake, spendable until\nfinalize consumes the session. Empty ``authentication_classes`` is also\nwhat makes CSRF structurally impossible here: DRF enforces CSRF only\ninside ``SessionAuthentication.enforce_csrf``, and with no\nauthenticator a cookie-mode browser (the live 0.7.0 repro host) can\nnever be 403'd for a token this presigned-style flow has no way to\ncarry.\n\nSize ceiling aside, the body is NOT judged here: finalize measures the\nstored object (``head_object``) and owns the declared-size/checksum\nverdicts. This view's whole job is to store bytes for the right key.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / uploads"
+        ],
+        "security": [
+          {}
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_upload_expired",
+              "error.400.docs_upload_state"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_upload_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_upload_too_large"
+            ]
+          }
+        }
+      }
+    },
+    "/docs/api/v1/uploads/{upload_id}/finalize": {
+      "post": {
+        "operationId": "docs_api_v1_uploads_finalize_create",
+        "description": "Promote the uploaded object to the document's first version.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Docs / uploads"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPresenterDTO"
+                },
+                "examples": {
+                  "DocumentPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "folder_id": null,
+                      "type": "md",
+                      "title": "Notes",
+                      "head_seq": 3,
+                      "snapshot_seq": 3,
+                      "size_bytes": 42,
+                      "mime_type": "",
+                      "metadata": {},
+                      "editor_hint": "markdown",
+                      "collab": "snapshot",
+                      "diffable": true,
+                      "socket_path": null,
+                      "created_at": "2026-08-09T10:00:00+00:00",
+                      "updated_at": "2026-08-09T10:05:00+00:00",
+                      "deleted_at": null,
+                      "is_starred": false
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.docs_upload_expired",
+              "error.400.docs_upload_mismatch",
+              "error.400.docs_upload_state",
+              "error.400.docs_upload_unmeasurable"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.docs_forbidden",
+              "error.403.docs_upload_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.docs_document_not_found",
+              "error.404.docs_upload_not_found"
+            ]
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Request Entity Too Large",
+            "x-stapel-errors": [
+              "error.413.docs_upload_too_large"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Service Unavailable",
+            "x-stapel-errors": [
+              "error.503.docs_workspaces_unavailable"
+            ]
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Insufficient Storage",
+            "x-stapel-errors": [
+              "error.507.docs_workspace_quota"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccessGrant": {
+        "type": "object",
+        "description": "``POST /documents/<id>/access`` — exactly one subject, one level.\n\n``subject_kind`` is explicit rather than inferred from which field is\npresent: an ACL write that guesses its own meaning is one typo away\nfrom granting to a subject the caller did not name.",
+        "properties": {
+          "subject_kind": {
+            "$ref": "#/components/schemas/SubjectKindEnum"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "ref": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "level": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LevelEnum"
+              }
+            ],
+            "default": "view"
+          }
+        },
+        "required": [
+          "subject_kind"
+        ]
+      },
+      "AppendResultDTO": {
+        "type": "object",
+        "description": "Outcome of a journal append batch.",
+        "properties": {
+          "head_seq": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "head_seq"
+        ]
+      },
+      "ArchiveEntryDTO": {
+        "type": "object",
+        "description": "One member of a zip document browsed as a folder (viewing wave).\n\n``mime_type`` is guessed from the member's name — a hint for picking\na viewer, not a promise about the bytes; ``encrypted`` marks members\nwhose extraction needs the per-request password.",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "compressed_bytes": {
+            "type": "integer"
+          },
+          "is_dir": {
+            "type": "boolean"
+          },
+          "encrypted": {
+            "type": "boolean"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "modified_at": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "compressed_bytes",
+          "encrypted",
+          "is_dir",
+          "mime_type",
+          "path",
+          "size_bytes"
+        ]
+      },
+      "ArchiveListingDTO": {
+        "type": "object",
+        "description": "A zip document's central directory as a browsable listing.\n\nComplete or refused, never truncated: past the entry-count or total-\nsize ceilings the whole listing answers 413 — a truncated folder\nlooks complete to every client that renders it. ``archive_encrypted``\nis the lock state the UI shows before anyone opens an entry.",
+        "properties": {
+          "entry_count": {
+            "type": "integer"
+          },
+          "total_uncompressed_bytes": {
+            "type": "integer"
+          },
+          "archive_encrypted": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveEntryDTO"
+            }
+          }
+        },
+        "required": [
+          "archive_encrypted",
+          "entry_count",
+          "total_uncompressed_bytes"
+        ]
+      },
+      "BreadcrumbNodeDTO": {
+        "type": "object",
+        "description": "One ancestor folder on a search hit's path.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "DocumentAccessPresenterDTO": {
+        "type": "object",
+        "description": "Presents one whitelist grant as a share-sheet row.\n\n``suspended`` is the kill-switch state (axis §3): true when the row\nexists but its mode is switched off, so the sheet says \"paused by\nconfiguration\" instead of hiding a grant the admin would then believe\nwas revoked.",
+        "properties": {
+          "subject_kind": {
+            "type": "string",
+            "description": "subject kind"
+          },
+          "level": {
+            "type": "string",
+            "description": "level"
+          },
+          "id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "description": "The user id for subject_kind=user, the container reference for subject_kind=ref."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "granted_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "suspended": {
+            "type": "boolean",
+            "description": "The grant exists but its sharing mode is switched off for this deployment — inert, not revoked."
+          }
+        },
+        "required": [
+          "created_at",
+          "document_id",
+          "id",
+          "level",
+          "subject",
+          "subject_kind"
+        ]
+      },
+      "DocumentCreate": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "folder_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "metadata": {},
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "type",
+          "workspace_id"
+        ]
+      },
+      "DocumentLinkPresenterDTO": {
+        "type": "object",
+        "description": "Presents one bearer link to whoever may administer sharing.\n\nThe token IS in this envelope — a share sheet that cannot re-show the\nlink it minted is a sheet that makes people mint a second one — which is\nexactly why the listing endpoint is gated on ``docs.share.link`` and why\nno ``document.share.*`` EVENT carries it.",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "token"
+          },
+          "level": {
+            "type": "string",
+            "description": "level"
+          },
+          "id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Derived: \"revoked\" beats \"expired\" beats \"active\"."
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "revoked_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "first_redeemed_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "When the link was first opened successfully; stamped once."
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "suspended": {
+            "type": "boolean",
+            "description": "The link exists but link sharing is switched off for this deployment — inert, not revoked."
+          }
+        },
+        "required": [
+          "created_at",
+          "document_id",
+          "expires_at",
+          "id",
+          "level",
+          "status",
+          "token"
+        ]
+      },
+      "DocumentPresenterDTO": {
+        "type": "object",
+        "description": "Presents a Document row as the API envelope. The three registry-derived\nfields (editor_hint/collab/diffable) degrade to file-type presentation\nwhen the type is unknown — never an error (storage-verdict §7.3).",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "type"
+          },
+          "title": {
+            "type": "string",
+            "description": "title"
+          },
+          "head_seq": {
+            "type": "integer",
+            "description": "head seq"
+          },
+          "snapshot_seq": {
+            "type": "integer",
+            "description": "snapshot seq"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "description": "size bytes"
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "mime type"
+          },
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "editor_hint": {
+            "type": "string",
+            "description": "Frontend editor dispatch key (\"\" = download-only)."
+          },
+          "collab": {
+            "type": "string",
+            "description": "Write discipline of the type: \"crdt\" or \"snapshot\"."
+          },
+          "diffable": {
+            "type": "boolean",
+            "description": "Whether line-diff rendering is meaningful for this type."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Containing folder id; null for the workspace root."
+          },
+          "socket_path": {
+            "type": "string",
+            "nullable": true,
+            "description": "Where to open the document's realtime stream (ws/docs/<id>), relative to the deployment's WebSocket prefix; null when this deployment serves no socket — clients then poll the ?since= feed, which is first-class."
+          },
+          "deleted_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set while the document sits in the trash."
+          },
+          "is_starred": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the requesting user starred this; null when the request carries no user (not applicable is not false)."
+          }
+        },
+        "required": [
+          "collab",
+          "created_at",
+          "diffable",
+          "editor_hint",
+          "head_seq",
+          "id",
+          "metadata",
+          "mime_type",
+          "size_bytes",
+          "snapshot_seq",
+          "title",
+          "type",
+          "updated_at",
+          "workspace_id"
+        ]
+      },
+      "DownloadUrlDTO": {
+        "type": "object",
+        "description": "Opaque presigned GET URL — clients must never assume its shape.",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "FolderCreate": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "parent_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "workspace_id"
+        ]
+      },
+      "FolderPresenterDTO": {
+        "type": "object",
+        "description": "Presents a Folder row as the API tree node.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "name"
+          },
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Parent folder id; null for workspace roots."
+          },
+          "deleted_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set while the folder sits in the trash."
+          },
+          "is_starred": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the requesting user starred this; null when the request carries no user (not applicable is not false)."
+          }
+        },
+        "required": [
+          "created_at",
+          "id",
+          "name",
+          "updated_at",
+          "workspace_id"
+        ]
+      },
+      "JournalUpdateDTO": {
+        "type": "object",
+        "description": "One journal row of the ``?since=`` replay feed.",
+        "properties": {
+          "seq": {
+            "type": "integer"
+          },
+          "payload": {
+            "type": "string"
+          },
+          "author_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "author_id",
+          "created_at",
+          "payload",
+          "seq"
+        ]
+      },
+      "LevelEnum": {
+        "enum": [
+          "view",
+          "edit"
+        ],
+        "type": "string",
+        "description": "* `view` - view\n* `edit` - edit"
+      },
+      "LinkCreate": {
+        "type": "object",
+        "description": "``POST /documents/<id>/links`` — the level, capped by LINK.MAX_LEVEL.",
+        "properties": {
+          "level": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LevelEnum"
+              }
+            ],
+            "default": "view"
+          }
+        }
+      },
+      "NamedRevision": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "PatchedDocumentPatch": {
+        "type": "object",
+        "description": "title/metadata = edit; folder_id (null = to root) = manage.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "metadata": {},
+          "folder_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "PatchedFolderPatch": {
+        "type": "object",
+        "description": "rename (name) = edit; move (parent_id, null = to root) = manage.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "parent_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "RevisionPresenterDTO": {
+        "type": "object",
+        "description": "Presents a Revision pointer row (a self-contained full snapshot, I1).",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "description": "seq"
+          },
+          "kind": {
+            "type": "string",
+            "description": "kind"
+          },
+          "name": {
+            "type": "string",
+            "description": "name"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "description": "size bytes"
+          },
+          "id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "created_at",
+          "document_id",
+          "id",
+          "kind",
+          "name",
+          "seq",
+          "size_bytes"
+        ]
+      },
+      "SaveResultDTO": {
+        "type": "object",
+        "description": "Outcome of an accepted content save (PUT content / revision restore).",
+        "properties": {
+          "head_seq": {
+            "type": "integer"
+          },
+          "revision_id": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "head_seq"
+        ]
+      },
+      "SearchHitDTO": {
+        "type": "object",
+        "description": "One name-search hit (drive-spec §3.3).\n\n``kind`` dispatches the client's rendering; ``breadcrumb`` is the\nroot-first ancestor chain of the hit's CONTAINER (empty at the workspace\nroot), materialized server-side so a result list costs one request.",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_starred": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "breadcrumb": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreadcrumbNodeDTO"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "workspace_id"
+        ]
+      },
+      "SharedDocumentDTO": {
+        "type": "object",
+        "description": "What a link BEARER sees: the document, and nothing around it.\n\nThe stripped envelope of axis §6 — no workspace, no folder, no owner,\nno star state, no revision history. A link grants a document, not a\nseat: anything that would let the holder infer the shape of the\nworkspace (its tree, who is in it, what else it contains) is deliberately\nabsent, and history is absent besides, because an old revision can hold\ntext that was deleted on purpose since.\n\n``level`` is what the presenter may DO with it, so a client can render\na read-only editor without guessing from a 403 it has not hit yet.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "head_seq": {
+            "type": "integer"
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "editor_hint": {
+            "type": "string"
+          },
+          "collab": {
+            "type": "string"
+          },
+          "diffable": {
+            "type": "boolean"
+          },
+          "level": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "collab",
+          "diffable",
+          "editor_hint",
+          "head_seq",
+          "id",
+          "level",
+          "mime_type",
+          "size_bytes",
+          "title",
+          "type",
+          "updated_at"
+        ]
+      },
+      "StapelError": {
+        "type": "object",
+        "description": "Structured error returned by all Stapel API endpoints.",
+        "properties": {
+          "localizable_error": {
+            "type": "string",
+            "description": "Translation key for client-side localization",
+            "example": "error.404.not_found"
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable fallback/debug message — not reliably English,"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Context values for template placeholders",
+            "example": {
+              "retry_after": 30
+            }
+          },
+          "error_language": {
+            "type": "string",
+            "description": "The language `error` is written in (e.g. 'en', 'ru'),"
+          }
+        },
+        "required": [
+          "error",
+          "localizable_error"
+        ]
+      },
+      "SubjectKindEnum": {
+        "enum": [
+          "user",
+          "ref"
+        ],
+        "type": "string",
+        "description": "* `user` - user\n* `ref` - ref"
+      },
+      "TrashEmpty": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "workspace_id"
+        ]
+      },
+      "TrashPurgeResultDTO": {
+        "type": "object",
+        "description": "Counts of irreversibly purged trash items.",
+        "properties": {
+          "folders": {
+            "type": "integer"
+          },
+          "documents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "documents",
+          "folders"
+        ]
+      },
+      "UpdatesAppend": {
+        "type": "object",
+        "properties": {
+          "updates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "client_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "client_seq": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "updates"
+        ]
+      },
+      "UpdatesFeedDTO": {
+        "type": "object",
+        "description": "Replay feed answer for ``GET .../updates?since=``.",
+        "properties": {
+          "head_seq": {
+            "type": "integer"
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JournalUpdateDTO"
+            }
+          }
+        },
+        "required": [
+          "head_seq"
+        ]
+      },
+      "UploadCreate": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "folder_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "mime_type": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "checksum": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "workspace_id"
+        ]
+      },
+      "UploadTicketDTO": {
+        "type": "object",
+        "description": "Pending direct-to-storage upload: the document row exists already\n(hidden from listings) and ``put_url`` is the presigned PUT target.\n\n``expires_at`` is the instant the ticket stops being spendable (null\nonly when the host disabled the TTL) — a client that cannot see the\ndeadline cannot honour it.",
+        "properties": {
+          "upload_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "put_url": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "document_id",
+          "key",
+          "put_url",
+          "upload_id"
+        ]
+      },
+      "WorkspaceListing": {
+        "type": "object",
+        "description": "A workspace-wide listing (starred, trash): folders and documents.",
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderPresenterDTO"
+            }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentPresenterDTO"
+            }
+          }
+        },
+        "required": [
+          "documents",
+          "folders"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "JWTBearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT access token in the `Authorization: Bearer <token>` header — the credential a native client sends. When the JWT cookie is also present, the cookie wins."
+      },
+      "JWTCookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "stapel_jwt",
+        "description": "JWT token stored in cookie. Login via /auth/admin/ to get the cookie."
+      }
+    }
+  }
+}

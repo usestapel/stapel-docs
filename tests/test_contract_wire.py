@@ -590,7 +590,27 @@ def _search(call, wire):
     )
 
 
+@recipe("GET", "/starred")
+def _starred(call, wire):
+    actor = wire.actor()
+    document = wire.document(actor, body="# hi")
+    folder = wire.folder(actor, name="Pinned")
+    assert actor.post(f"{V1}/documents/{document['id']}/star").status_code == 204
+    assert actor.post(f"{V1}/folders/{folder['id']}/star").status_code == 204
+    return call(actor, query={"workspace_id": str(wire.workspace_id)})
+
+
 # ── trash ────────────────────────────────────────────────────────────────────
+
+
+@recipe("GET", "/trash")
+def _trash(call, wire):
+    actor = wire.actor()
+    document = wire.document(actor, body="# hi")
+    folder = wire.folder(actor, name="Old")
+    assert actor.delete(f"{V1}/documents/{document['id']}").status_code == 204
+    assert actor.delete(f"{V1}/folders/{folder['id']}").status_code == 204
+    return call(actor, query={"workspace_id": str(wire.workspace_id)})
 
 
 @recipe("POST", "/trash/empty")
